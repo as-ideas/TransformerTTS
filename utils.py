@@ -1,14 +1,6 @@
 import numpy as np
 import tensorflow as tf
 
-MAX_LENGTH = 40
-optimizer = tf.keras.optimizers.Adam(1e-4, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
-
-
-def filter_max_length(x, y, max_length=MAX_LENGTH):
-    return tf.logical_and(tf.size(x) <= max_length, tf.size(y) <= max_length)
-
 
 def get_angles(pos, i, d_model):
     angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
@@ -88,7 +80,7 @@ def point_wise_feed_forward_network(d_model, dff):
     )
 
 
-def loss_function(real, pred):
+def masked_loss_function(real, pred, loss_object):
     mask = tf.math.logical_not(tf.math.equal(real, 0))
     loss_ = loss_object(real, pred)
     mask = tf.cast(mask, dtype=loss_.dtype)
