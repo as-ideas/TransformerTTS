@@ -2,7 +2,7 @@ import tensorflow as tf
 import time
 import numpy as np
 import string
-from transformer.model import Transformer
+from src.models import TextTransformer
 
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -59,7 +59,7 @@ train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
 input_vocab_size = tokenizer_in.vocab_size + 2
 target_vocab_size = tokenizer_out.vocab_size + 2
-transformer = Transformer(
+transformer = TextTransformer(
     num_layers=num_layers,
     d_model=d_model,
     num_heads=num_heads,

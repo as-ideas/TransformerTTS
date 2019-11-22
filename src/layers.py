@@ -85,13 +85,14 @@ class EncoderLayer(tf.keras.layers.Layer):
 
 
 class Encoder(tf.keras.layers.Layer):
-    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, maximum_position_encoding, rate=0.1):
+    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, input_vocab_size=None, rate=0.1, embed=True):
         super(Encoder, self).__init__()
 
         self.d_model = d_model
         self.num_layers = num_layers
-
-        self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model)
+        self.embed = embed
+        if self.embed:
+            self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model)
         self.pos_encoding = positional_encoding(maximum_position_encoding, d_model)
 
         self.enc_layers = [EncoderLayer(d_model, num_heads, dff, rate) for _ in range(num_layers)]
@@ -100,8 +101,8 @@ class Encoder(tf.keras.layers.Layer):
 
     def call(self, x, training, mask):
         seq_len = tf.shape(x)[1]
-
-        x = self.embedding(x)
+        if self.embed:
+            x = self.embedding(x)
         x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
 
@@ -147,13 +148,14 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 
 class Decoder(tf.keras.layers.Layer):
-    def __init__(self, num_layers, d_model, num_heads, dff, target_vocab_size, maximum_position_encoding, rate=0.1):
+    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, embed=True, target_vocab_size=None, rate=0.1):
         super(Decoder, self).__init__()
 
         self.d_model = d_model
         self.num_layers = num_layers
-
-        self.embedding = tf.keras.layers.Embedding(target_vocab_size, d_model)
+        self.embed = embed
+        if self.embed:
+            self.embedding = tf.keras.layers.Embedding(target_vocab_size, d_model)
         self.pos_encoding = positional_encoding(maximum_position_encoding, d_model)
 
         self.dec_layers = [DecoderLayer(d_model, num_heads, dff, rate) for _ in range(num_layers)]
@@ -164,8 +166,8 @@ class Decoder(tf.keras.layers.Layer):
         seq_len = tf.shape(x)[1]
 
         attention_weights = {}
-
-        x = self.embedding(x)
+        if self.embed:
+            x = self.embedding(x)
         x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
 
@@ -178,3 +180,27 @@ class Decoder(tf.keras.layers.Layer):
             attention_weights[f'decoder_layer{i + 1}_block2'] = block2
 
         return x, attention_weights
+
+
+class SpeechOutModule(tf.keras.layers.Layer):
+    def __init__(self, mel_channels, d_model, conv_filters=256, conv_layers=5, kernel_size=5):
+        self.mel_linear = tf.keras.layers.Dense(mel_channels)
+        self.stop_linear = tf.keras.layers.Dense(d_model, activation='sigmoid')
+        self.convolutions = [
+            tf.keras.layers.Conv1D(filters=conv_filters, kernel_size=kernel_size, activation='relu')
+            for _ in range(conv_layers - 1)
+        ]
+        self.last_conv = tf.keras.layers.Conv1D(filters=mel_channels, kernel_size=kernel_size, activation='relu')
+        self.batch_norms = [tf.keras.layer.BatchNormalization() for _ in range(conv_layers)]
+        self.add_layer = tf.keras.layer.Add
+
+    def call(self, x):
+        stop = self.stop_linear(x)
+        res = self.mel_linear(x)
+        x = self.convolutions[0](res)
+        x = self.batch_norms[0](x)
+        for i in range(1, len(self.convolutions)):
+            x = self.convolutions[i](x)
+            x = self.batch_norms[i](x)
+
+        return stop
