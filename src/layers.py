@@ -85,14 +85,12 @@ class EncoderLayer(tf.keras.layers.Layer):
 
 
 class Encoder(tf.keras.layers.Layer):
-    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, input_vocab_size=None, rate=0.1, embed=True):
+    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, prenet, rate=0.1, embed=True):
         super(Encoder, self).__init__()
 
         self.d_model = d_model
         self.num_layers = num_layers
-        self.embed = embed
-        if self.embed:
-            self.embedding = tf.keras.layers.Embedding(input_vocab_size, d_model)
+        self.prenet = prenet
         self.pos_encoding = positional_encoding(maximum_position_encoding, d_model)
 
         self.enc_layers = [EncoderLayer(d_model, num_heads, dff, rate) for _ in range(num_layers)]
@@ -101,8 +99,8 @@ class Encoder(tf.keras.layers.Layer):
 
     def call(self, x, training, mask):
         seq_len = tf.shape(x)[1]
-        if self.embed:
-            x = self.embedding(x)
+
+        x = self.prenet(x)
         x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
 
@@ -148,14 +146,12 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 
 class Decoder(tf.keras.layers.Layer):
-    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, embed=True, target_vocab_size=None, rate=0.1):
+    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, prenet, rate=0.1):
         super(Decoder, self).__init__()
 
         self.d_model = d_model
         self.num_layers = num_layers
-        self.embed = embed
-        if self.embed:
-            self.embedding = tf.keras.layers.Embedding(target_vocab_size, d_model)
+        self.prenet = prenet
         self.pos_encoding = positional_encoding(maximum_position_encoding, d_model)
 
         self.dec_layers = [DecoderLayer(d_model, num_heads, dff, rate) for _ in range(num_layers)]
@@ -166,8 +162,7 @@ class Decoder(tf.keras.layers.Layer):
         seq_len = tf.shape(x)[1]
 
         attention_weights = {}
-        if self.embed:
-            x = self.embedding(x)
+        x = self.prenet(x)
         x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
 
@@ -183,16 +178,21 @@ class Decoder(tf.keras.layers.Layer):
 
 
 class SpeechOutModule(tf.keras.layers.Layer):
-    def __init__(self, mel_channels, d_model, conv_filters=256, conv_layers=5, kernel_size=5):
+
+    def __init__(self, mel_channels, conv_filters=256, conv_layers=5, kernel_size=5):
+        super(SpeechOutModule, self).__init__()
         self.mel_linear = tf.keras.layers.Dense(mel_channels)
-        self.stop_linear = tf.keras.layers.Dense(d_model, activation='sigmoid')
+        self.stop_linear = tf.keras.layers.Dense(1, activation='sigmoid')
+        # TODO: check whether we convolve on the correct axis (time vs mel)
+        # TEST: try 2dconv
+        #tf.keras.layers.Permute((-2, -1))
         self.convolutions = [
-            tf.keras.layers.Conv1D(filters=conv_filters, kernel_size=kernel_size, activation='relu')
+            tf.keras.layers.Conv1D(filters=conv_filters, kernel_size=kernel_size, padding='same', activation='relu')
             for _ in range(conv_layers - 1)
         ]
-        self.last_conv = tf.keras.layers.Conv1D(filters=mel_channels, kernel_size=kernel_size, activation='relu')
-        self.batch_norms = [tf.keras.layer.BatchNormalization() for _ in range(conv_layers)]
-        self.add_layer = tf.keras.layer.Add
+        self.last_conv = tf.keras.layers.Conv1D(filters=mel_channels, kernel_size=kernel_size, padding='same', activation='relu')
+        self.batch_norms = [tf.keras.layers.BatchNormalization() for _ in range(conv_layers)]
+        self.add_layer = tf.keras.layers.Add()
 
     def call(self, x):
         stop = self.stop_linear(x)
@@ -202,5 +202,22 @@ class SpeechOutModule(tf.keras.layers.Layer):
         for i in range(1, len(self.convolutions)):
             x = self.convolutions[i](x)
             x = self.batch_norms[i](x)
+        x = self.last_conv(x)
+        x = self.batch_norms[-1](x)
+        x = self.add_layer([x, res])
+        return x, stop
 
-        return stop
+
+
+
+
+
+
+
+
+
+
+
+
+
+

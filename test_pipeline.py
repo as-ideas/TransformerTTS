@@ -80,8 +80,10 @@ for epoch in range(EPOCHS):
         gradients, loss, tar_real, predictions = transformer.train_step(inp, tar)
         optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
         losses.append(loss)
+        print('loss {}'.format(loss))
 
     print('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
+
 
 out_dict = evaluate(TEST_SENTENCE)
 

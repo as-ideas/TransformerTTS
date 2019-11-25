@@ -28,8 +28,9 @@ def create_padding_mask(seq):
     # to the attention logits.
     return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, 1, seq_len)
 
+
 def create_mel_padding_mask(mel_spectrogram):
-    seq = tf.reduce_sum(mel_spectrogram, axis = -2)
+    seq = tf.reduce_sum(mel_spectrogram, axis = -1)
     mel_spectrogram = tf.cast(tf.math.equal(seq, 0), tf.float32)
     return mel_spectrogram[:, tf.newaxis, tf.newaxis, :] # (batch_size, 1, y, x)
 
@@ -89,6 +90,14 @@ def point_wise_feed_forward_network(d_model, dff):
     )
 
 
+def weighted_sum_losses(real, pred, losses, coeffs):
+    total_loss = 0
+    for i in range(len(losses)):
+        masked_loss = masked_loss_function(real[i], pred[i], losses[i])
+        total_loss += coeffs[i] * masked_loss
+    return total_loss
+
+
 def masked_loss_function(real, pred, loss_object):
     mask = tf.math.logical_not(tf.math.equal(real, 0))
     loss_ = loss_object(real, pred)
@@ -109,7 +118,22 @@ def create_mel_masks(inp, tar):
     enc_padding_mask = create_mel_padding_mask(inp)
     dec_padding_mask = create_mel_padding_mask(inp)
     dec_target_padding_mask = create_mel_padding_mask(tar)
-    look_ahead_mask = create_look_ahead_mask(tf.shape(tar)[-1])
+    look_ahead_mask = create_look_ahead_mask(tf.shape(tar)[-2])
     combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
+
     return enc_padding_mask, combined_mask, dec_padding_mask
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
