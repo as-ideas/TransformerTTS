@@ -152,9 +152,10 @@ class MelTransformer(tf.keras.Model):
         final_output, stop_prob = self.out_module(dec_output)
         return final_output, attention_weights, stop_prob
 
-    def prepare_for_training(self, losses, loss_coeffs):
+    def prepare_for_training(self, losses, loss_coeffs, optimizer):
         self.loss_list = losses
         self.loss_coeffs = loss_coeffs
+        self.optimizer = optimizer
 
     # @tf.function(
     # input_signature=[tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64), tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64),]
@@ -174,6 +175,7 @@ class MelTransformer(tf.keras.Model):
             # loss = masked_loss_function(tar_real, predictions, loss_object=self.loss_object)
 
         gradients = tape.gradient(loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return gradients, loss, tar_real, predictions, stop_prob
 
     def predict(self, encoded_inp_sentence, MAX_LENGTH=40, stop_tolerance=0.5):
