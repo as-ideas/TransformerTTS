@@ -6,7 +6,7 @@ import numpy as np
 import tensorflow as tf
 
 
-control_values_path = Path('TextTransformer_control/TextTransformer_control_values.pkl')
+control_values_path = Path('TextTransformer_test/TextTransformer_control_values.pkl')
 np.random.seed(42)
 tf.random.set_seed(42)
 

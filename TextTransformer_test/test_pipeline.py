@@ -82,16 +82,16 @@ transformer = TextTransformer(
     pe_target=target_vocab_size,
     rate=dropout_rate,
 )
-loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+loss_function = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
 optimizer = tf.keras.optimizers.Adam(1e-4, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-transformer.prepare_for_training(loss_object)
+transformer.prepare_for_training(loss_function=loss_function, optimizer=optimizer)
 
 losses = []
 for epoch in range(EPOCHS):
     start = time.time()
     for (batch, (inp, tar)) in enumerate(train_dataset):
         gradients, loss, tar_real, predictions = transformer.train_step(inp, tar)
-        optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
+        # optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
         losses.append(loss)
 
     print('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
