@@ -1,11 +1,32 @@
 import time
 import string
+import pickle
+from pathlib import Path
 import numpy as np
 import tensorflow as tf
 
-MAX_LENGTH = 40
+
+control_values_path = Path('TextTransformer_control/TextTransformer_control_values.pkl')
+np.random.seed(42)
+tf.random.set_seed(42)
+
 optimizer = tf.keras.optimizers.Adam(1e-4, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 loss_object = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+
+train_samples = [('I am a student.', 'Ich bin ein Student.')] * 2
+test_samples = [('I am a student.', 'Ich bin ein Student.')] * 2
+TEST_SENTENCE = 'Some sentence to be checked. right now'
+
+MAX_LENGTH = 40
+BUFFER_SIZE = 10
+BATCH_SIZE = 2
+MAX_LENGTH = 40
+num_layers = 2
+d_model = 16
+dff = 32
+num_heads = 2
+dropout_rate = 0.1
+EPOCHS = 9
 
 
 def filter_max_length(x, y, max_length=MAX_LENGTH):
@@ -143,9 +164,13 @@ class MultiHeadAttention(tf.keras.layers.Layer):
 
         scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
 
-        scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
+        scaled_attention = tf.transpose(
+            scaled_attention, perm=[0, 2, 1, 3]
+        )  # (batch_size, seq_len_q, num_heads, depth)
 
-        concat_attention = tf.reshape(scaled_attention, (batch_size, -1, self.d_model))  # (batch_size, seq_len_q, d_model)
+        concat_attention = tf.reshape(
+            scaled_attention, (batch_size, -1, self.d_model)
+        )  # (batch_size, seq_len_q, d_model)
 
         output = self.dense(concat_attention)  # (batch_size, seq_len_q, d_model)
 
@@ -198,7 +223,9 @@ class DecoderLayer(tf.keras.layers.Layer):
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
         # enc_output.shape == (batch_size, input_seq_len, d_model)
 
-        attn1, attn_weights_block1 = self.mha1(x, x, x, look_ahead_mask)  # (batch_size, target_seq_len, d_model)
+        attn1, attn_weights_block1 = self.mha1(
+            x, x, x, look_ahead_mask
+        )  # (batch_size, target_seq_len, d_model)
         attn1 = self.dropout1(attn1, training=training)
         out1 = self.layernorm1(attn1 + x)
 
@@ -216,7 +243,9 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 
 class Encoder(tf.keras.layers.Layer):
-    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, maximum_position_encoding, rate=0.1):
+    def __init__(
+        self, num_layers, d_model, num_heads, dff, input_vocab_size, maximum_position_encoding, rate=0.1
+    ):
         super(Encoder, self).__init__()
 
         self.d_model = d_model
@@ -247,7 +276,9 @@ class Encoder(tf.keras.layers.Layer):
 
 
 class Decoder(tf.keras.layers.Layer):
-    def __init__(self, num_layers, d_model, num_heads, dff, target_vocab_size, maximum_position_encoding, rate=0.1):
+    def __init__(
+        self, num_layers, d_model, num_heads, dff, target_vocab_size, maximum_position_encoding, rate=0.1
+    ):
         super(Decoder, self).__init__()
 
         self.d_model = d_model
@@ -281,7 +312,18 @@ class Decoder(tf.keras.layers.Layer):
 
 
 class Transformer(tf.keras.Model):
-    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, target_vocab_size, pe_input, pe_target, rate=0.1):
+    def __init__(
+        self,
+        num_layers,
+        d_model,
+        num_heads,
+        dff,
+        input_vocab_size,
+        target_vocab_size,
+        pe_input,
+        pe_target,
+        rate=0.1,
+    ):
         super(Transformer, self).__init__()
         self.encoder = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
         self.decoder = Decoder(num_layers, d_model, num_heads, dff, target_vocab_size, pe_target, rate)
@@ -290,18 +332,12 @@ class Transformer(tf.keras.Model):
     def call(self, inp, tar, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
 
         enc_output = self.encoder(inp, training, enc_padding_mask)  # (batch_size, inp_seq_len, d_model)
-        dec_output, attention_weights = self.decoder(tar, enc_output, training, look_ahead_mask, dec_padding_mask)
+        dec_output, attention_weights = self.decoder(
+            tar, enc_output, training, look_ahead_mask, dec_padding_mask
+        )
         final_output = self.final_layer(dec_output)  # (batch_size, tar_seq_len, target_vocab_size)
 
         return final_output, attention_weights
-
-
-np.random.seed(42)
-tf.random.set_seed(42)
-
-train_samples = [('I am a student.', 'Ich bin ein Student.')] * 2
-test_samples = [('I am a student.', 'Ich bin ein Student.')] * 2
-TEST_SENTENCE = 'Some sentence to be checked. right now'
 
 
 class TestTokenizer:
@@ -328,11 +364,6 @@ test_gen = lambda: (pair for pair in tokenized_train_samples)
 train_examples = tf.data.Dataset.from_generator(train_gen, output_types=(tf.int64, tf.int64))
 val_examples = tf.data.Dataset.from_generator(test_gen, output_types=(tf.int64, tf.int64))
 
-BUFFER_SIZE = 10
-BATCH_SIZE = 2
-MAX_LENGTH = 40
-
-
 train_dataset = train_examples
 train_dataset = train_dataset.filter(filter_max_length)
 train_dataset = train_dataset.cache()
@@ -341,14 +372,8 @@ train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 val_dataset = val_examples
 val_dataset = val_dataset.filter(filter_max_length).padded_batch(BATCH_SIZE, padded_shapes=([-1], [-1]))
 
-num_layers = 2
-d_model = 16
-dff = 32
-num_heads = 2
-
 input_vocab_size = tokenizer_in.vocab_size + 2
 target_vocab_size = tokenizer_out.vocab_size + 2
-dropout_rate = 0.1
 
 transformer = Transformer(
     num_layers,
@@ -363,8 +388,10 @@ transformer = Transformer(
 )
 
 
-EPOCHS = 9
-train_step_signature = [tf.TensorSpec(shape=(None, None), dtype=tf.int64), tf.TensorSpec(shape=(None, None), dtype=tf.int64)]
+train_step_signature = [
+    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+]
 
 
 @tf.function(input_signature=train_step_signature)
@@ -389,12 +416,6 @@ for epoch in range(EPOCHS):
         losses.append(loss)
 
     print('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
-
-np.set_printoptions(formatter={'float': lambda x: "{0:0.9f}".format(x)})
-losses = np.array([x.numpy() for x in losses])
-
-fix_losses = np.array([4.993565, 4.983845, 4.971134, 4.944314, 4.961081, 4.991240, 4.919794, 4.956748, 4.962680])
-np.testing.assert_almost_equal(losses, fix_losses, decimal=6, err_msg='You fucked up.', verbose=True)
 
 
 def evaluate(inp_sentence):
@@ -423,7 +444,33 @@ def evaluate(inp_sentence):
 
 result, attention_weights, predictions = evaluate(TEST_SENTENCE)
 
-np.testing.assert_almost_equal(np.sum(predictions.numpy()), -0.521198093891, decimal=8, err_msg='You fucked up.', verbose=True)
+np.set_printoptions(formatter={'float': lambda x: "{0:0.9f}".format(x)})
+losses = np.array([x.numpy() for x in losses])
+print('losses:')
+for l in losses:
+    print(f'{l}')
 
-
-print('All good')
+print(f'logits sum:{np.sum(predictions.numpy())}')
+control_values = {'losses': losses, 'logits_sum': np.sum(predictions.numpy())}
+if control_values_path.exists():
+    cv = pickle.load(open(control_values_path.as_posix(), 'rb'))
+    equal = {}
+    print('Consistent with previously stored values?')
+    consistent = True
+    for k in ['losses', 'logits_sum']:
+        equal[k] = np.allclose(cv[k], control_values[k])
+        print(f'{k}: {equal[k]}')
+        if not equal[k]:
+            consistent = False
+    if not consistent:
+        replace = input('Some values are inconsistent, replace old values? (y/[n]) ')
+        if replace == 'y':
+            print(f'storing new control values at {control_values_path.as_posix()}')
+            pickle.dump(control_values, control_values_path.open())
+        else:
+            print('Keeping old values.')
+    else:
+        print('All good.')
+else:
+    print(f'storing new control values at {control_values_path.as_posix()}')
+    pickle.dump(control_values, open(control_values_path.as_posix(), 'wb'))

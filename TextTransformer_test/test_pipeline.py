@@ -1,7 +1,19 @@
-import tensorflow as tf
+from pathlib import Path
+import sys
+
+SCRIPT_DIR = Path(__file__).absolute().parent
+sys.path.append(SCRIPT_DIR.parent.as_posix())
+
+control_values_path = Path(SCRIPT_DIR) / 'TextTransformer_control_values.pkl'
+if not control_values_path.exists():
+    print('First create control values with TextTransformer_test/get_control_value.py')
+    exit()
+
+import pickle
+import string
 import time
 import numpy as np
-import string
+import tensorflow as tf
 from src.models import TextTransformer
 
 np.random.seed(42)
@@ -80,20 +92,31 @@ for epoch in range(EPOCHS):
         gradients, loss, tar_real, predictions = transformer.train_step(inp, tar)
         optimizer.apply_gradients(zip(gradients, transformer.trainable_variables))
         losses.append(loss)
-        print('loss {}'.format(loss))
 
     print('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
 
-
+losses = np.array([x.numpy() for x in losses])
 out_dict = evaluate(TEST_SENTENCE)
 
-losses = [x.numpy() for x in losses]
-fix_losses = np.array([4.993565, 4.983845, 4.971134, 4.944314, 4.961081, 4.991240, 4.919794, 4.956748, 4.962680])
-np.testing.assert_almost_equal(losses, fix_losses, decimal=6, err_msg='You fucked up.', verbose=True)
+test_values = {'losses': losses, 'logits_sum': np.sum(out_dict['logits'].numpy())}
+
+np.set_printoptions(formatter={'float': lambda x: "{0:0.9f}".format(x)})
+
+print('losses:')
+for l in losses:
+    print(f'{l}')
+print(f'logits sum:{test_values["logits_sum"]}')
 
 
-np.testing.assert_almost_equal(
-    np.sum(out_dict['logits'].numpy()), -0.521198093891, decimal=8, err_msg='You fucked up.', verbose=True
-)
-
-print('All good.')
+cv = pickle.load(open(control_values_path.as_posix(), 'rb'))
+equal = {}
+consistent = True
+for k in ['losses', 'logits_sum']:
+    equal[k] = np.allclose(cv[k], test_values[k])
+    print(f'{k} equal: {equal[k]}')
+    if not equal[k]:
+        consistent = False
+if not consistent:
+    print('Some values are inconsistent. Check your settings and/or environment.')
+else:
+    print('All good.')
