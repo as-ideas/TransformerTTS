@@ -1,6 +1,20 @@
 import numpy as np
 import tensorflow as tf
 
+# for display mel
+import librosa
+import matplotlib.pyplot as plt
+
+
+def display_mel(ms, sr):
+    plt.figure(figsize=(10, 4))
+    S_dB = librosa.power_to_db(ms, ref=np.max)
+    librosa.display.specshow(S_dB, x_axis='time', y_axis='mel', sr=sr, fmax=8000)
+    plt.colorbar(format='%+2.0f dB')
+    plt.title('Mel-frequency spectrogram')
+    plt.tight_layout()
+    plt.show()
+
 
 def get_angles(pos, i, d_model):
     angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
@@ -30,14 +44,16 @@ def create_padding_mask(seq):
 
 
 def create_mel_padding_mask(mel_spectrogram):
-    seq = tf.reduce_sum(mel_spectrogram, axis = -1)
+    seq = tf.reduce_sum(mel_spectrogram, axis=-1)
     mel_spectrogram = tf.cast(tf.math.equal(seq, 0), tf.float32)
-    return mel_spectrogram[:, tf.newaxis, tf.newaxis, :] # (batch_size, 1, y, x)
+    return mel_spectrogram[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
 
 
 def create_look_ahead_mask(size):
     mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)
     return mask  # (seq_len, seq_len)
+
+
 #
 # def create_mekl_look_ahead_mask(size):
 #     mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)
@@ -114,6 +130,7 @@ def create_masks(inp, tar):
     combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
     return enc_padding_mask, combined_mask, dec_padding_mask
 
+
 def create_mel_masks(inp, tar):
     enc_padding_mask = create_mel_padding_mask(inp)
     dec_padding_mask = create_mel_padding_mask(inp)
@@ -122,18 +139,3 @@ def create_mel_masks(inp, tar):
     combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
 
     return enc_padding_mask, combined_mask, dec_padding_mask
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -161,9 +161,9 @@ class MelTransformer(tf.keras.Model):
     # input_signature=[tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64), tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64),]
     # )
     def train_step(self, inp, tar, stop_prob):
-        tar_inp = tar[:, :-1, :]
-        tar_real = tar[:, 1:, :]
-        tar_stop_prob = stop_prob[:, 1:, :]
+        tar_inp = tar[:, :, :]
+        tar_real = tar[:, :, :]
+        tar_stop_prob = stop_prob[:, :, :]
         enc_padding_mask, combined_mask, dec_padding_mask = create_mel_masks(inp, tar_inp)
         with tf.GradientTape() as tape:
             predictions, _, stop_prob = self.__call__(
