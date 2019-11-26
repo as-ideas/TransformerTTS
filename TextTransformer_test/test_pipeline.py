@@ -6,7 +6,8 @@ sys.path.append(SCRIPT_DIR.parent.as_posix())
 
 control_values_path = Path(SCRIPT_DIR) / 'TextTransformer_control_values.pkl'
 if not control_values_path.exists():
-    print('First create control values with TextTransformer_test/get_control_value.py')
+    print('MISSING CONTROL VALUES')
+    print(f'First create control values by running \n{SCRIPT_DIR}/get_control_value.py')
     exit()
 
 import pickle
