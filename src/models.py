@@ -115,36 +115,46 @@ class MelTransformer(tf.keras.Model):
         return final_output, attention_weights, stop_prob
 
     # @tf.function(
-    # input_signature=[tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64), tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64),]
+    #     input_signature=[
+    #         tf.TensorSpec(shape=(None, None, 128), dtype=tf.float64),
+    #         tf.TensorSpec(shape=(None, None, 128), dtype=tf.float64),
+    #         tf.TensorSpec(shape=(None, None, 1), dtype=tf.int64),
+    #     ]
     # )
     def train_step(self, inp, tar, stop_prob):
-        # tar_inp = np.append([self.start_vec, tar])
-        # tar_real = np.append([tar, self.end_vec])
-        # tar_stop_prob = stop_prob
         tar_inp = tar[:, :-1, :]
         tar_real = tar[:, 1:, :]
         tar_stop_prob = stop_prob[:, 1:]
         enc_padding_mask, combined_mask, dec_padding_mask = create_mel_masks(inp, tar_inp)
         with tf.GradientTape() as tape:
             predictions, _, stop_prob = self.__call__(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
-            loss = weighted_sum_losses((tar_real, tar_stop_prob), (predictions, stop_prob), self.loss, self.loss_weights)
-            # loss = masked_loss_function(tar_real, predictions, loss_object=self.loss_object)
+            loss, loss_vals = weighted_sum_losses(
+                (tar_real, tar_stop_prob), (predictions, stop_prob), self.loss, self.loss_weights
+            )
 
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
-        return gradients, loss, tar_real, predictions, stop_prob
+        return gradients, loss, tar_real, predictions, stop_prob, loss_vals
 
-    def predict(self, encoded_inp_sentence, MAX_LENGTH=40, stop_tolerance=0.5):
+    def predict(self, encoded_inp_sentence, MAX_LENGTH=40, stop_tolerance=0.5, target=None):
         encoder_input = tf.expand_dims(encoded_inp_sentence, 0)
         decoder_input = [self.start_vec[0]]
         output = tf.cast(tf.expand_dims(decoder_input, 0), tf.float32)
+        if target is not None:
+            target = tf.cast(tf.expand_dims(target, 0), tf.float32)
+            MAX_LENGTH = target.shape[1]
+            enforced_output = tf.cast(tf.expand_dims(decoder_input, 0), tf.float32)
 
         for i in range(MAX_LENGTH):
             print('i {}'.format(i))
             enc_padding_mask, combined_mask, dec_padding_mask = create_mel_masks(encoder_input, output)
+            if target is not None:
+                dec_input = enforced_output
+            else:
+                dec_input = output
             predictions, attention_weights, stop_probs = self.call(
                 encoder_input,
-                target=output,
+                target=dec_input,
                 training=False,
                 enc_padding_mask=enc_padding_mask,
                 look_ahead_mask=combined_mask,
@@ -153,6 +163,9 @@ class MelTransformer(tf.keras.Model):
             # select the last word from the seq_len dimension
             predictions = predictions[:, -1:, :]  # (batch_size, 1, vocab_size)
             output = tf.concat([output, predictions], axis=-2)
+            if target is not None:
+                target_output = tf.cast(tf.expand_dims(target[:, i, :], 0), tf.float32)
+                enforced_output = tf.concat([enforced_output, target_output], axis=-2)
             # if stop_probs[-1][-1] > stop_tolerance:
             # break
 
@@ -162,5 +175,6 @@ class MelTransformer(tf.keras.Model):
             'logits': predictions,
             'stop_probs': tf.squeeze(stop_probs),
         }
-
+        if target is not None:
+            out_dict.update({'target_output': tf.squeeze(enforced_output, axis=0)})
         return out_dict

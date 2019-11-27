@@ -108,10 +108,12 @@ def point_wise_feed_forward_network(d_model, dff):
 
 def weighted_sum_losses(real, pred, losses, coeffs):
     total_loss = 0
+    loss_vals = []
     for i in range(len(losses)):
         masked_loss = masked_loss_function(real[i], pred[i], losses[i])
+        loss_vals.append(masked_loss)
         total_loss += coeffs[i] * masked_loss
-    return total_loss
+    return total_loss, loss_vals
 
 
 def masked_loss_function(real, pred, loss_object):
