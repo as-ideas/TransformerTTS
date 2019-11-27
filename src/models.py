@@ -19,7 +19,7 @@ class TextTransformer(tf.keras.Model):
             self.tokens[type] = {'start': vocab_size[type] - 2, 'end': vocab_size[type] - 1}
 
         self.encoder = Encoder(
-            num_layers, d_model, num_heads, dff, pe_input, prenet=tf.keras.layers.Embedding(vocab_size['in'], d_model), rate=rate,
+            num_layers, d_model, num_heads, dff, pe_input, prenet=tf.keras.layers.Embedding(vocab_size['in'], d_model), rate=rate
         )
         self.decoder = Decoder(
             num_layers,
@@ -39,7 +39,7 @@ class TextTransformer(tf.keras.Model):
         return final_output, attention_weights
 
     @tf.function(
-        input_signature=[tf.TensorSpec(shape=(None, None), dtype=tf.int64), tf.TensorSpec(shape=(None, None), dtype=tf.int64),]
+        input_signature=[tf.TensorSpec(shape=(None, None), dtype=tf.int64), tf.TensorSpec(shape=(None, None), dtype=tf.int64)]
     )
     def train_step(self, inp, tar):
         tar_inp = tar[:, :-1]
@@ -75,11 +75,7 @@ class TextTransformer(tf.keras.Model):
                 return tf.squeeze(output, axis=0), attention_weights
 
             output = tf.concat([output, predicted_id], axis=-1)
-        out_dict = {
-            'output': tf.squeeze(output, axis=0),
-            'attn_weights': attention_weights,
-            'logits': predictions,
-        }
+        out_dict = {'output': tf.squeeze(output, axis=0), 'attn_weights': attention_weights, 'logits': predictions}
         # return tf.squeeze(output, axis=0), attention_weights, predictions
         return out_dict
 
@@ -103,16 +99,13 @@ class MelTransformer(tf.keras.Model):
         super(MelTransformer, self).__init__()
         self.start_vec = start_vec
         self.encoder = Encoder(
-            num_layers, d_model, num_heads, dff, pe_input, prenet=PointWiseFFN(d_model=d_model, dff=dff), rate=rate,
+            num_layers, d_model, num_heads, dff, pe_input, prenet=PointWiseFFN(d_model=d_model, dff=dff), rate=rate
         )
         self.decoder = Decoder(
-            num_layers, d_model, num_heads, dff, pe_target, prenet=PointWiseFFN(d_model=d_model, dff=dff), rate=rate,
+            num_layers, d_model, num_heads, dff, pe_target, prenet=PointWiseFFN(d_model=d_model, dff=dff), rate=rate
         )
         self.out_module = SpeechOutModule(
-            mel_channels=mel_channels,
-            conv_filters=conv_filters,
-            conv_layers=postnet_conv_layers,
-            kernel_size=postnet_kernel_size,
+            mel_channels=mel_channels, conv_filters=conv_filters, conv_layers=postnet_conv_layers, kernel_size=postnet_kernel_size
         )
 
     def call(self, inp, target, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
@@ -125,9 +118,12 @@ class MelTransformer(tf.keras.Model):
     # input_signature=[tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64), tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64),]
     # )
     def train_step(self, inp, tar, stop_prob):
-        tar_inp = tar[:, :, :]
-        tar_real = tar[:, :, :]
-        tar_stop_prob = stop_prob[:, :, :]
+        # tar_inp = np.append([self.start_vec, tar])
+        # tar_real = np.append([tar, self.end_vec])
+        # tar_stop_prob = stop_prob
+        tar_inp = tar[:, :-1, :]
+        tar_real = tar[:, 1:, :]
+        tar_stop_prob = stop_prob[:, 1:]
         enc_padding_mask, combined_mask, dec_padding_mask = create_mel_masks(inp, tar_inp)
         with tf.GradientTape() as tape:
             predictions, _, stop_prob = self.__call__(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
@@ -140,7 +136,7 @@ class MelTransformer(tf.keras.Model):
 
     def predict(self, encoded_inp_sentence, MAX_LENGTH=40, stop_tolerance=0.5):
         encoder_input = tf.expand_dims(encoded_inp_sentence, 0)
-        decoder_input = [self.start_vec]
+        decoder_input = [self.start_vec[0]]
         output = tf.cast(tf.expand_dims(decoder_input, 0), tf.float32)
 
         for i in range(MAX_LENGTH):
@@ -157,8 +153,8 @@ class MelTransformer(tf.keras.Model):
             # select the last word from the seq_len dimension
             predictions = predictions[:, -1:, :]  # (batch_size, 1, vocab_size)
             output = tf.concat([output, predictions], axis=-2)
-            if stop_probs[-1][-1] > stop_tolerance:
-                break
+            # if stop_probs[-1][-1] > stop_tolerance:
+            # break
 
         out_dict = {
             'output': tf.squeeze(output, axis=0),

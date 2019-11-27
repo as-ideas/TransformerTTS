@@ -20,32 +20,41 @@ from utils import display_mel
 tf.random.set_seed(10)
 np.random.seed(42)
 # load audio
-y, sr = librosa.load(librosa.util.example_audio_file())
-# get mel
+power_exp = 1
+n_fft = 1024
+win_length = 1024
 MEL_CHANNELS = 128
-ms = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=MEL_CHANNELS)
-# display_mel(ms, sr)
-norm_ms = (ms - ms.min()) / ms.max()
-norm_ms = norm_ms.T
+y, sr = librosa.load('/Users/fcardina/Downloads/LJ001-0185.wav')
+# ms = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=MEL_CHANNELS)
+# y, ind = librosa.effects.trim(y, top_db=40, frame_length=2048, hop_length=512)
+ms = librosa.feature.melspectrogram(
+    y=y, sr=sr, n_mels=MEL_CHANNELS, power=power_exp, n_fft=n_fft, win_length=win_length, hop_length=256, fmin=0, fmax=8000
+)
+
+
+norm_ms = np.log(ms.clip(1e-5)).T
+print('norm_ms.shape', norm_ms.shape)
+
 print((norm_ms.min(), norm_ms.max()))
-print(norm_ms.shape)
-# display_mel(norm_ms, sr)
+start_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) - 1
+end_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) - 2
 
 params = {
     'num_layers': 1,
-    'd_model': 40,
+    'd_model': 256,
     'num_heads': 2,
-    'dff': 30,
-    'pe_input': ms.shape[1] + 1,
-    'pe_target': ms.shape[1] + 1,
-    'start_vec': np.ones(MEL_CHANNELS) * -1,
+    'dff': 256,
+    'pe_input': 10000,
+    'pe_target': 10000,
+    'start_vec': start_vec,
     'mel_channels': MEL_CHANNELS,
-    'conv_filters': 64,
+    'conv_filters': 256,
     'postnet_conv_layers': 5,
     'postnet_kernel_size': 5,
     'rate': 0.1,
 }
 melT = MelTransformer(**params)
+
 out = melT.predict(norm_ms, MAX_LENGTH=1)
 melT.load_weights('melT_weights.hdf5')
 out = melT.predict(norm_ms, MAX_LENGTH=100)
