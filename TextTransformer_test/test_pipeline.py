@@ -84,7 +84,7 @@ transformer = TextTransformer(
 )
 loss_function = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
 optimizer = tf.keras.optimizers.Adam(1e-4, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-transformer.prepare_for_training(loss_function=loss_function, optimizer=optimizer)
+transformer.compile(loss=loss_function, optimizer=optimizer)
 
 losses = []
 for epoch in range(EPOCHS):

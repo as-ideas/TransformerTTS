@@ -49,7 +49,7 @@ melT = MelTransformer(**params)
 losses = [tf.keras.losses.MeanSquaredError(), tf.keras.losses.BinaryCrossentropy()]
 loss_coeffs = [0.5, 0.5]
 optimizer = tf.keras.optimizers.Adam(1e-4, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-melT.prepare_for_training(losses=losses, loss_coeffs=loss_coeffs, optimizer=optimizer)
+melT.compile(loss=losses, loss_weights=loss_coeffs, optimizer=optimizer)
 
 EPOCHS = 100
 
