@@ -37,9 +37,11 @@ EPOCHS = 9
 class TestTokenizer:
     def __init__(self, alphabet):
         self.alphabet = alphabet
-        self.vocab_size = len(self.alphabet)
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet)}
         self.token_to_idx = {s: i for i, s in self.idx_to_token.items()}
+        self.start_token = len(self.alphabet)
+        self.end_token = len(self.alphabet) + 1
+        self.vocab_size = len(self.alphabet) + 2
 
     def encode(self, sentence):
         return [self.token_to_idx[c] for c in sentence]
@@ -49,8 +51,8 @@ class TestTokenizer:
 
 
 def evaluate(inp_sentence):
-    start_token = [tokenizer_in.vocab_size]
-    end_token = [tokenizer_in.vocab_size + 1]
+    start_token = [tokenizer_in.start_token]
+    end_token = [tokenizer_in.end_token]
     encoded_inp_sentence = start_token + tokenizer_in.encode(inp_sentence) + end_token
     out_dict = transformer.predict(encoded_inp_sentence, MAX_LENGTH=MAX_LENGTH)
     return out_dict
@@ -70,8 +72,8 @@ train_dataset = train_dataset.cache()
 train_dataset = train_dataset.shuffle(BUFFER_SIZE).padded_batch(BATCH_SIZE, padded_shapes=([-1], [-1]))
 train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-input_vocab_size = tokenizer_in.vocab_size + 2
-target_vocab_size = tokenizer_out.vocab_size + 2
+input_vocab_size = tokenizer_in.vocab_size
+target_vocab_size = tokenizer_out.vocab_size
 transformer = TextTransformer(
     num_layers=num_layers,
     d_model=d_model,

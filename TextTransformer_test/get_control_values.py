@@ -164,13 +164,9 @@ class MultiHeadAttention(tf.keras.layers.Layer):
 
         scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
 
-        scaled_attention = tf.transpose(
-            scaled_attention, perm=[0, 2, 1, 3]
-        )  # (batch_size, seq_len_q, num_heads, depth)
+        scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
 
-        concat_attention = tf.reshape(
-            scaled_attention, (batch_size, -1, self.d_model)
-        )  # (batch_size, seq_len_q, d_model)
+        concat_attention = tf.reshape(scaled_attention, (batch_size, -1, self.d_model))  # (batch_size, seq_len_q, d_model)
 
         output = self.dense(concat_attention)  # (batch_size, seq_len_q, d_model)
 
@@ -223,9 +219,7 @@ class DecoderLayer(tf.keras.layers.Layer):
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
         # enc_output.shape == (batch_size, input_seq_len, d_model)
 
-        attn1, attn_weights_block1 = self.mha1(
-            x, x, x, look_ahead_mask
-        )  # (batch_size, target_seq_len, d_model)
+        attn1, attn_weights_block1 = self.mha1(x, x, x, look_ahead_mask)  # (batch_size, target_seq_len, d_model)
         attn1 = self.dropout1(attn1, training=training)
         out1 = self.layernorm1(attn1 + x)
 
@@ -243,9 +237,7 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 
 class Encoder(tf.keras.layers.Layer):
-    def __init__(
-        self, num_layers, d_model, num_heads, dff, input_vocab_size, maximum_position_encoding, rate=0.1
-    ):
+    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, maximum_position_encoding, rate=0.1):
         super(Encoder, self).__init__()
 
         self.d_model = d_model
@@ -276,9 +268,7 @@ class Encoder(tf.keras.layers.Layer):
 
 
 class Decoder(tf.keras.layers.Layer):
-    def __init__(
-        self, num_layers, d_model, num_heads, dff, target_vocab_size, maximum_position_encoding, rate=0.1
-    ):
+    def __init__(self, num_layers, d_model, num_heads, dff, target_vocab_size, maximum_position_encoding, rate=0.1):
         super(Decoder, self).__init__()
 
         self.d_model = d_model
@@ -312,18 +302,7 @@ class Decoder(tf.keras.layers.Layer):
 
 
 class Transformer(tf.keras.Model):
-    def __init__(
-        self,
-        num_layers,
-        d_model,
-        num_heads,
-        dff,
-        input_vocab_size,
-        target_vocab_size,
-        pe_input,
-        pe_target,
-        rate=0.1,
-    ):
+    def __init__(self, num_layers, d_model, num_heads, dff, input_vocab_size, target_vocab_size, pe_input, pe_target, rate=0.1):
         super(Transformer, self).__init__()
         self.encoder = Encoder(num_layers, d_model, num_heads, dff, input_vocab_size, pe_input, rate)
         self.decoder = Decoder(num_layers, d_model, num_heads, dff, target_vocab_size, pe_target, rate)
@@ -332,9 +311,7 @@ class Transformer(tf.keras.Model):
     def call(self, inp, tar, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
 
         enc_output = self.encoder(inp, training, enc_padding_mask)  # (batch_size, inp_seq_len, d_model)
-        dec_output, attention_weights = self.decoder(
-            tar, enc_output, training, look_ahead_mask, dec_padding_mask
-        )
+        dec_output, attention_weights = self.decoder(tar, enc_output, training, look_ahead_mask, dec_padding_mask)
         final_output = self.final_layer(dec_output)  # (batch_size, tar_seq_len, target_vocab_size)
 
         return final_output, attention_weights
@@ -343,9 +320,11 @@ class Transformer(tf.keras.Model):
 class TestTokenizer:
     def __init__(self, alphabet):
         self.alphabet = alphabet
-        self.vocab_size = len(self.alphabet)
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet)}
         self.token_to_idx = {s: i for i, s in self.idx_to_token.items()}
+        self.start_token = len(self.alphabet)
+        self.end_token = len(self.alphabet) + 1
+        self.vocab_size = len(self.alphabet) + 2
 
     def encode(self, sentence):
         return [self.token_to_idx[c] for c in sentence]
@@ -372,8 +351,8 @@ train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 val_dataset = val_examples
 val_dataset = val_dataset.filter(filter_max_length).padded_batch(BATCH_SIZE, padded_shapes=([-1], [-1]))
 
-input_vocab_size = tokenizer_in.vocab_size + 2
-target_vocab_size = tokenizer_out.vocab_size + 2
+input_vocab_size = tokenizer_in.vocab_size
+target_vocab_size = tokenizer_out.vocab_size
 
 transformer = Transformer(
     num_layers,
@@ -388,10 +367,7 @@ transformer = Transformer(
 )
 
 
-train_step_signature = [
-    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
-    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
-]
+train_step_signature = [tf.TensorSpec(shape=(None, None), dtype=tf.int64), tf.TensorSpec(shape=(None, None), dtype=tf.int64)]
 
 
 @tf.function(input_signature=train_step_signature)
@@ -419,11 +395,11 @@ for epoch in range(EPOCHS):
 
 
 def evaluate(inp_sentence):
-    start_token = [tokenizer_in.vocab_size]
-    end_token = [tokenizer_in.vocab_size + 1]
+    start_token = [tokenizer_in.start_token]
+    end_token = [tokenizer_in.end_token]
     inp_sentence = start_token + tokenizer_in.encode(inp_sentence) + end_token
     encoder_input = tf.expand_dims(inp_sentence, 0)
-    decoder_input = [tokenizer_out.vocab_size]
+    decoder_input = [tokenizer_out.start_token]
     output = tf.expand_dims(decoder_input, 0)
 
     for i in range(MAX_LENGTH):
@@ -434,7 +410,7 @@ def evaluate(inp_sentence):
         predictions = predictions[:, -1:, :]  # (batch_size, 1, vocab_size)
         predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
 
-        if predicted_id == tokenizer_out.vocab_size + 1:
+        if predicted_id == tokenizer_out.end_token:
             return tf.squeeze(output, axis=0), attention_weights
 
         output = tf.concat([output, predicted_id], axis=-1)
