@@ -178,46 +178,45 @@ class Decoder(tf.keras.layers.Layer):
 
 
 class SpeechOutModule(tf.keras.layers.Layer):
-
     def __init__(self, mel_channels, conv_filters=256, conv_layers=5, kernel_size=5):
         super(SpeechOutModule, self).__init__()
         self.mel_linear = tf.keras.layers.Dense(mel_channels)
         self.stop_linear = tf.keras.layers.Dense(1, activation='sigmoid')
+        self.conv_module = SpeechConvLayers(
+            out_size=mel_channels, n_filters=conv_filters, n_layers=conv_layers, kernel_size=kernel_size
+        )
         # TODO: check whether we convolve on the correct axis (time vs mel)
         # TEST: try 2dconv
-        #tf.keras.layers.Permute((-2, -1))
-        self.convolutions = [
-            tf.keras.layers.Conv1D(filters=conv_filters, kernel_size=kernel_size, padding='same', activation='relu')
-            for _ in range(conv_layers - 1)
-        ]
-        self.last_conv = tf.keras.layers.Conv1D(filters=mel_channels, kernel_size=kernel_size, padding='same', activation='relu')
-        self.batch_norms = [tf.keras.layers.BatchNormalization() for _ in range(conv_layers)]
+        # To apply 2d convs we need to expand the third dimension ("image" channel)
         self.add_layer = tf.keras.layers.Add()
 
-    def call(self, x):
+    def call(self, x, training=False):
         stop = self.stop_linear(x)
-        res = self.mel_linear(x)
-        x = self.convolutions[0](res)
-        x = self.batch_norms[0](x)
-        for i in range(1, len(self.convolutions)):
+        x = self.mel_linear(x)
+        if training:
+            x = self.tail(x)
+        return x, stop
+
+    def tail(self, x):
+        conv_out = self.conv_module(x)
+        x = self.add_layer([conv_out, x])
+        return x
+
+
+class SpeechConvLayers(tf.keras.layers.Layer):
+    def __init__(self, out_size, n_filters=256, n_layers=5, kernel_size=5):
+        super(SpeechConvLayers, self).__init__()
+        self.convolutions = [
+            tf.keras.layers.Conv1D(filters=n_filters, kernel_size=kernel_size, padding='same', activation='relu')
+            for _ in range(n_layers - 1)
+        ]
+        self.last_conv = tf.keras.layers.Conv1D(filters=out_size, kernel_size=kernel_size, padding='same', activation='relu')
+        self.batch_norms = [tf.keras.layers.BatchNormalization() for _ in range(n_layers)]
+
+    def call(self, x):
+        for i in range(0, len(self.convolutions)):
             x = self.convolutions[i](x)
             x = self.batch_norms[i](x)
         x = self.last_conv(x)
         x = self.batch_norms[-1](x)
-        x = self.add_layer([x, res])
-        return x, stop
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        return x

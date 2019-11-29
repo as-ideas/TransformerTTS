@@ -3,6 +3,7 @@ import tensorflow as tf
 
 # for display mel
 import librosa
+import librosa.display
 import matplotlib.pyplot as plt
 
 
