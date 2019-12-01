@@ -183,11 +183,12 @@ class MelTransformer(tf.keras.Model):
         output = tf.expand_dims(self.start_vec, 0)  # shape: (1, 1, mel_channels)
         for i in range(MAX_LENGTH):
             enc_padding_mask, combined_mask, dec_padding_mask = create_mel_masks(inp, output)
-            predictions, _, _ = self.call(
+            predictions, attn_weights, _ = self.call(
                 inp, output, False, enc_padding_mask, combined_mask, dec_padding_mask
             )
             output = tf.concat([output, predictions[0:1, -1:, :]], axis=-2)
         output = self.out_module.tail(output, training=False)
+        output = {'mel': output, 'attn': attn_weights}
         return output
 
     def predict_with_target(self, inp, tar, MAX_LENGTH=50):
