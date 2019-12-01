@@ -51,8 +51,12 @@ class MultiHeadAttention(tf.keras.layers.Layer):
 
         scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
 
-        scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
-        concat_attention = tf.reshape(scaled_attention, (batch_size, -1, self.d_model))  # (batch_size, seq_len_q, d_model)
+        scaled_attention = tf.transpose(
+            scaled_attention, perm=[0, 2, 1, 3]
+        )  # (batch_size, seq_len_q, num_heads, depth)
+        concat_attention = tf.reshape(
+            scaled_attention, (batch_size, -1, self.d_model)
+        )  # (batch_size, seq_len_q, d_model)
 
         output = self.dense(concat_attention)  # (batch_size, seq_len_q, d_model)
 
@@ -85,7 +89,9 @@ class EncoderLayer(tf.keras.layers.Layer):
 
 
 class Encoder(tf.keras.layers.Layer):
-    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, prenet, rate=0.1, embed=True):
+    def __init__(
+        self, num_layers, d_model, num_heads, dff, maximum_position_encoding, prenet, rate=0.1, embed=True
+    ):
         super(Encoder, self).__init__()
 
         self.d_model = d_model
@@ -190,15 +196,15 @@ class SpeechOutModule(tf.keras.layers.Layer):
         # To apply 2d convs we need to expand the third dimension ("image" channel)
         self.add_layer = tf.keras.layers.Add()
 
-    def call(self, x, training=False):
+    def call(self, x, training, apply_conv=False):
         stop = self.stop_linear(x)
         x = self.mel_linear(x)
-        if training:
-            x = self.tail(x)
+        if (training is True) or (apply_conv is True):
+            x = self.tail(x, training)
         return x, stop
 
-    def tail(self, x):
-        conv_out = self.conv_module(x)
+    def tail(self, x, training):
+        conv_out = self.conv_module(x, training)
         x = self.add_layer([conv_out, x])
         return x
 
@@ -207,16 +213,20 @@ class SpeechConvLayers(tf.keras.layers.Layer):
     def __init__(self, out_size, n_filters=256, n_layers=5, kernel_size=5):
         super(SpeechConvLayers, self).__init__()
         self.convolutions = [
-            tf.keras.layers.Conv1D(filters=n_filters, kernel_size=kernel_size, padding='same', activation='relu')
+            tf.keras.layers.Conv1D(
+                filters=n_filters, kernel_size=kernel_size, padding='same', activation='relu'
+            )
             for _ in range(n_layers - 1)
         ]
-        self.last_conv = tf.keras.layers.Conv1D(filters=out_size, kernel_size=kernel_size, padding='same', activation='relu')
+        self.last_conv = tf.keras.layers.Conv1D(
+            filters=out_size, kernel_size=kernel_size, padding='same', activation='relu'
+        )
         self.batch_norms = [tf.keras.layers.BatchNormalization() for _ in range(n_layers)]
 
-    def call(self, x):
+    def call(self, x, training):
         for i in range(0, len(self.convolutions)):
             x = self.convolutions[i](x)
-            x = self.batch_norms[i](x)
+            x = self.batch_norms[i](x, training=training)
         x = self.last_conv(x)
-        x = self.batch_norms[-1](x)
+        x = self.batch_norms[-1](x, training=training)
         return x
