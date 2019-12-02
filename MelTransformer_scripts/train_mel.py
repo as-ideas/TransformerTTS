@@ -50,15 +50,15 @@ end_vec = np.ones((1, args.MEL_CHANNELS)) * np.log(1e-5) + 2.0
 
 
 params = {
-    'num_layers': 1,
+    'num_layers': 4,
     'd_model': 256,
-    'num_heads': 1,
+    'num_heads': 2,
     'dff': 256,
     'pe_input': 3000,
     'pe_target': 3000,
     'start_vec': start_vec,
     'mel_channels': args.MEL_CHANNELS,
-    'conv_filters': 128,
+    'conv_filters': 256,
     'postnet_conv_layers': 3,
     'postnet_kernel_size': 5,
     'rate': args.DROPOUT,
