@@ -18,6 +18,7 @@ np.random.seed(42)
 # WAV_DIR = Path('/Users/fcardina/forge/text-to-speech/data/wav_files/')
 WAV_DIR = Path('/Users/fcardina/forge/text-to-speech/data/LJSpeech-1.1/wavs')
 MEL_CHANNELS = 128
+MAX_SAMPLES = 300
 start_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) - 2.0
 end_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) + 2.0
 
@@ -26,9 +27,11 @@ DROPOUT = 0.05
 
 NOISE_STD = 0.3
 N_TIMES_TO_ITERATE_THROUGH_EACH_SAMPLE = 1
-SPLIT_FILES = False
-MIN_SAMPLE_SIZE = 5
-MAX_SAMPLE_SIZE = 100
+SPLIT_FILES = True
+if SPLIT_FILES:
+    MIN_SAMPLE_SIZE = 5
+MAX_SAMPLE_SIZE = 300
+# MAX_SAMPLE_SIZE = -1
 
 EPOCHS = 3000
 starting_epoch = 0
@@ -43,8 +46,8 @@ params = {
     'd_model': 256,
     'num_heads': 1,
     'dff': 256,
-    'pe_input': 800,
-    'pe_target': 800,
+    'pe_input': 3000,
+    'pe_target': 3000,
     'start_vec': start_vec,
     'mel_channels': MEL_CHANNELS,
     'conv_filters': 128,
@@ -74,17 +77,17 @@ def get_norm_ms(wav_path):
 
 # In[]: CREATE DATASET FROM PARTS OF MEL SPECTROGRAM
 train_samples = []
-for wav_file in WAV_DIR.iterdir():
+wav_file_list = [x for x in WAV_DIR.iterdir() if str(x).endswith('.wav')][:MAX_SAMPLES]
+for wav_file in wav_file_list:
     norm_ms, sr = get_norm_ms(wav_file)
     for i in range(N_TIMES_TO_ITERATE_THROUGH_EACH_SAMPLE):
         cursor = 0
         while cursor <= (norm_ms.shape[0] - MAX_SAMPLE_SIZE):
             if not SPLIT_FILES:
-                size = norm_ms.shape[0]
-                sample = norm_ms
+                size = MAX_SAMPLE_SIZE
             else:
                 size = np.random.randint(MIN_SAMPLE_SIZE, MAX_SAMPLE_SIZE)
-                sample = norm_ms[cursor : cursor + size, :]
+            sample = norm_ms[cursor : cursor + size, :]
             noise = np.random.randn(*sample.shape) * (NOISE_STD) ** 2
             sample += noise
             sample = np.concatenate([start_vec, sample, end_vec])
