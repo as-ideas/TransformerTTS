@@ -51,12 +51,8 @@ class MultiHeadAttention(tf.keras.layers.Layer):
 
         scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
 
-        scaled_attention = tf.transpose(
-            scaled_attention, perm=[0, 2, 1, 3]
-        )  # (batch_size, seq_len_q, num_heads, depth)
-        concat_attention = tf.reshape(
-            scaled_attention, (batch_size, -1, self.d_model)
-        )  # (batch_size, seq_len_q, d_model)
+        scaled_attention = tf.transpose(scaled_attention, perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
+        concat_attention = tf.reshape(scaled_attention, (batch_size, -1, self.d_model))  # (batch_size, seq_len_q, d_model)
 
         output = self.dense(concat_attention)  # (batch_size, seq_len_q, d_model)
 
@@ -89,9 +85,7 @@ class EncoderLayer(tf.keras.layers.Layer):
 
 
 class Encoder(tf.keras.layers.Layer):
-    def __init__(
-        self, num_layers, d_model, num_heads, dff, maximum_position_encoding, prenet, rate=0.1, embed=True
-    ):
+    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, prenet, rate=0.1, embed=True):
         super(Encoder, self).__init__()
 
         self.d_model = d_model
@@ -188,39 +182,32 @@ class SpeechOutModule(tf.keras.layers.Layer):
         super(SpeechOutModule, self).__init__()
         self.mel_linear = tf.keras.layers.Dense(mel_channels)
         self.stop_linear = tf.keras.layers.Dense(1, activation='sigmoid')
-        self.conv_module = SpeechConvLayers(
+        self.speech_postnet = SpeechPostnet(
             out_size=mel_channels, n_filters=conv_filters, n_layers=conv_layers, kernel_size=kernel_size
         )
-        # TODO: check whether we convolve on the correct axis (time vs mel)
-        # TEST: try 2dconv
-        # To apply 2d convs we need to expand the third dimension ("image" channel)
         self.add_layer = tf.keras.layers.Add()
 
     def call(self, x, training, apply_conv=False):
         stop = self.stop_linear(x)
         x = self.mel_linear(x)
         if (training is True) or (apply_conv is True):
-            x = self.tail(x, training)
+            x = self.postnet(x, training)
         return x, stop
 
-    def tail(self, x, training):
-        conv_out = self.conv_module(x, training)
+    def postnet(self, x, training):
+        conv_out = self.speech_postnet(x, training)
         x = self.add_layer([conv_out, x])
         return x
 
 
-class SpeechConvLayers(tf.keras.layers.Layer):
+class SpeechPostnet(tf.keras.layers.Layer):
     def __init__(self, out_size, n_filters=256, n_layers=5, kernel_size=5):
-        super(SpeechConvLayers, self).__init__()
+        super(SpeechPostnet, self).__init__()
         self.convolutions = [
-            tf.keras.layers.Conv1D(
-                filters=n_filters, kernel_size=kernel_size, padding='same', activation='relu'
-            )
+            tf.keras.layers.Conv1D(filters=n_filters, kernel_size=kernel_size, padding='same', activation='relu')
             for _ in range(n_layers - 1)
         ]
-        self.last_conv = tf.keras.layers.Conv1D(
-            filters=out_size, kernel_size=kernel_size, padding='same', activation='relu'
-        )
+        self.last_conv = tf.keras.layers.Conv1D(filters=out_size, kernel_size=kernel_size, padding='same', activation='relu')
         self.batch_norms = [tf.keras.layers.BatchNormalization() for _ in range(n_layers)]
 
     def call(self, x, training):

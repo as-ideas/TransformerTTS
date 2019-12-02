@@ -14,22 +14,29 @@ tf.random.set_seed(10)
 np.random.seed(42)
 
 # In[]: VARIABLES
-EPOCHS = 3000
-starting_epoch = 1408
-BATCH_SIZE = 64
-LEARNING_RATE = 1e-4
-WAV_FILE = '/Users/fcardina/Downloads/LJ001-0173.wav'
-WAV_FILE = '/home/francesco/Downloads/temp/LJ037-0171.wav'
-WEIGHTS_ID = 'melT_TAILconv'
+
+# WAV_DIR = Path('/Users/fcardina/forge/text-to-speech/data/wav_files/')
+WAV_DIR = Path('/Users/fcardina/forge/text-to-speech/data/LJSpeech-1.1/wavs')
 MEL_CHANNELS = 128
-DROPOUT = 0.05
 start_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) - 2.0
 end_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) + 2.0
-N_TIMES_TO_ITERATE_THROUGH_SAMPLE_TO_CREATE_SAMPLES = 30
-MIN_SAMPLE_SIZE = 30
+
+WEIGHTS_ID = 'melT_TAILconv'
+DROPOUT = 0.05
+
+NOISE_STD = 0.3
+N_TIMES_TO_ITERATE_THROUGH_EACH_SAMPLE = 1
+SPLIT_FILES = False
+MIN_SAMPLE_SIZE = 5
 MAX_SAMPLE_SIZE = 100
+
+EPOCHS = 3000
+starting_epoch = 0
+BATCH_SIZE = 64
+LEARNING_RATE = 1e-4
 HOW_MANY_EPOCHS_WITHOUT_NEW_MIN = 5
 MAX_LR_HALVENING = 10
+
 
 params = {
     'num_layers': 1,
@@ -54,35 +61,45 @@ optimizer = tf.keras.optimizers.Adam(LEARNING_RATE, beta_1=0.9, beta_2=0.98, eps
 power_exp = 1
 n_fft = 1024
 win_length = 1024
-y, sr = librosa.load(WAV_FILE)
-ms = librosa.feature.melspectrogram(
-    y=y,
-    sr=sr,
-    n_mels=MEL_CHANNELS,
-    power=power_exp,
-    n_fft=n_fft,
-    win_length=win_length,
-    hop_length=256,
-    fmin=0,
-    fmax=8000,
-)
-norm_ms = np.log(ms.clip(1e-5)).T
+
+
+def get_norm_ms(wav_path):
+    y, sr = librosa.load(wav_path)
+    ms = librosa.feature.melspectrogram(
+        y=y, sr=sr, n_mels=MEL_CHANNELS, power=power_exp, n_fft=n_fft, win_length=win_length, hop_length=256, fmin=0, fmax=8000
+    )
+    norm_ms = np.log(ms.clip(1e-5)).T
+    return norm_ms, sr
+
 
 # In[]: CREATE DATASET FROM PARTS OF MEL SPECTROGRAM
 train_samples = []
-for i in range(N_TIMES_TO_ITERATE_THROUGH_SAMPLE_TO_CREATE_SAMPLES):
-    cursor = 0
-    while cursor < (norm_ms.shape[0] - MAX_SAMPLE_SIZE):
-        size = np.random.randint(MIN_SAMPLE_SIZE, MAX_SAMPLE_SIZE)
-        sample = norm_ms[cursor : cursor + size, :]
-        sample = np.concatenate([start_vec, sample, end_vec])
-        stop_probs = np.zeros(size + 2)
-        stop_probs[-1] = 1
-        train_samples.append((sample, stop_probs))
-        cursor += size
+for wav_file in WAV_DIR.iterdir():
+    norm_ms, sr = get_norm_ms(wav_file)
+    for i in range(N_TIMES_TO_ITERATE_THROUGH_EACH_SAMPLE):
+        cursor = 0
+        while cursor <= (norm_ms.shape[0] - MAX_SAMPLE_SIZE):
+            if not SPLIT_FILES:
+                size = norm_ms.shape[0]
+                sample = norm_ms
+            else:
+                size = np.random.randint(MIN_SAMPLE_SIZE, MAX_SAMPLE_SIZE)
+                sample = norm_ms[cursor : cursor + size, :]
+            noise = np.random.randn(*sample.shape) * (NOISE_STD) ** 2
+            sample += noise
+            sample = np.concatenate([start_vec, sample, end_vec])
+            stop_probs = np.zeros(size + 2)
+            stop_probs[-1] = 1
+            train_samples.append((sample, stop_probs))
+            cursor += size
+
+
+print(f'{len(train_samples)} train samples.')
 train_gen = lambda: (mel for mel in train_samples)
 train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float64, tf.int64))
+train_dataset = train_dataset.cache()
 train_dataset = train_dataset.padded_batch(BATCH_SIZE, padded_shapes=([-1, MEL_CHANNELS], [-1]))
+train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
 # In[]: CREATE THE MODEL
 melT = MelTransformer(**params)
@@ -103,11 +120,7 @@ for epoch in range(EPOCHS + 1):
         gradients, loss, tar_real, predictions, stop_prob, loss_vals = melT.train_step(mel, mel, stop)
         losses.append(loss)
     epoch_losses.append(np.mean(losses))
-    print(
-        'Epoch {} took {} secs. \nAvg loss: {} \n'.format(
-            starting_epoch + epoch, time.time() - start, epoch_losses[epoch]
-        )
-    )
+    print('Epoch {} took {} secs. \nAvg loss: {} \n'.format(starting_epoch + epoch, time.time() - start, epoch_losses[epoch]))
     min_loss = np.min(epoch_losses)  # yeah..
 
     if epoch_losses[epoch] == min_loss:
