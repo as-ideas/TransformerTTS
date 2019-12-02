@@ -4,41 +4,45 @@ import time
 import tensorflow as tf
 import sys
 from pathlib import Path
+import argparse
+
 
 SCRIPT_DIR = Path(__file__).absolute().parent
 sys.path.append(SCRIPT_DIR.parent.as_posix())
 from src.models import MelTransformer
 from utils import display_mel
 
+parser = argparse.ArgumentParser()
+parser.add_argument('--data_dir', dest='WAV_DIR', default=SCRIPT_DIR.parent / 'data/LJSpeech-1.1/wavs', type=str)
+parser.add_argument('--n_samples', dest='MAX_SAMPLES', default=300, type=int)
+parser.add_argument('--dropout', dest='DROPOUT', default=0.05, type=float)
+parser.add_argument('--noisestd', dest='NOISE_STD', default=0.3, type=float)
+parser.add_argument('--mel', dest='MEL_CHANNELS', default=128, type=int)
+parser.add_argument('--split', dest='SPLIT_FILES', action='store_true')
+parser.add_argument('--min_size', dest='MIN_SAMPLE_SIZE', default=5, type=int)
+parser.add_argument('--max_size', dest='MAX_SAMPLE_SIZE', default=300, type=int)
+parser.add_argument('--epochs', dest='EPOCHS', default=3000, type=int)
+parser.add_argument('--starting_epoch', dest='starting_epoch', default=0, type=int)
+parser.add_argument('--batch_size', dest='BATCH_SIZE', default=64, type=int)
+parser.add_argument('--learning_rate', dest='LEARNING_RATE', default=1e-4, type=float)
+parser.add_argument('--epoch_without_min', dest='HOW_MANY_EPOCHS_WITHOUT_NEW_MIN', default=5, type=int)
+parser.add_argument('--max_lr_halvenings', dest='MAX_LR_HALVENING', default=10, type=int)
+parser.add_argument('--pass_per_file', dest='N_TIMES_TO_ITERATE_THROUGH_EACH_SAMPLE', default=1, type=int)
+parser.add_argument('--weights_id', dest='WEIGHTS_ID', default='melT_TAILconv', type=str)
+parser.add_argument('--weights_dir', dest='WEIGHTS_DIR', default=SCRIPT_DIR.parent / 'weights', type=str)
+
+args = parser.parse_args()
+
 tf.random.set_seed(10)
 np.random.seed(42)
 
 # In[]: VARIABLES
-
-# WAV_DIR = Path('/Users/fcardina/forge/text-to-speech/data/wav_files/')
-WAV_DIR = Path('/Users/fcardina/forge/text-to-speech/data/LJSpeech-1.1/wavs')
-MEL_CHANNELS = 128
-MAX_SAMPLES = 300
-start_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) - 2.0
-end_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) + 2.0
-
-WEIGHTS_ID = 'melT_TAILconv'
-DROPOUT = 0.05
-
-NOISE_STD = 0.3
-N_TIMES_TO_ITERATE_THROUGH_EACH_SAMPLE = 1
-SPLIT_FILES = True
-if SPLIT_FILES:
-    MIN_SAMPLE_SIZE = 5
-MAX_SAMPLE_SIZE = 300
-# MAX_SAMPLE_SIZE = -1
-
-EPOCHS = 3000
-starting_epoch = 0
-BATCH_SIZE = 64
-LEARNING_RATE = 1e-4
-HOW_MANY_EPOCHS_WITHOUT_NEW_MIN = 5
-MAX_LR_HALVENING = 10
+WAV_DIR = Path(args.WAV_DIR)
+WEIGHTS_DIR = Path(args.WEIGHTS_DIR)
+WEIGHTS_DIR.mkdir(exist_ok=True)
+WEIGHTS_PATH = str(WEIGHTS_DIR / args.WEIGHTS_ID)
+start_vec = np.ones((1, args.MEL_CHANNELS)) * np.log(1e-5) - 2.0
+end_vec = np.ones((1, args.MEL_CHANNELS)) * np.log(1e-5) + 2.0
 
 
 params = {
@@ -49,16 +53,16 @@ params = {
     'pe_input': 3000,
     'pe_target': 3000,
     'start_vec': start_vec,
-    'mel_channels': MEL_CHANNELS,
+    'mel_channels': args.MEL_CHANNELS,
     'conv_filters': 128,
     'postnet_conv_layers': 3,
     'postnet_kernel_size': 5,
-    'rate': DROPOUT,
+    'rate': args.DROPOUT,
 }
 
 losses = [tf.keras.losses.MeanAbsoluteError(), tf.keras.losses.BinaryCrossentropy()]
 loss_coeffs = [1.0, 1.0]
-optimizer = tf.keras.optimizers.Adam(LEARNING_RATE, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+optimizer = tf.keras.optimizers.Adam(args.LEARNING_RATE, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
 # In[]: GET MEL SPECTROGRAM FROM WAV
 power_exp = 1
@@ -69,7 +73,15 @@ win_length = 1024
 def get_norm_ms(wav_path):
     y, sr = librosa.load(wav_path)
     ms = librosa.feature.melspectrogram(
-        y=y, sr=sr, n_mels=MEL_CHANNELS, power=power_exp, n_fft=n_fft, win_length=win_length, hop_length=256, fmin=0, fmax=8000
+        y=y,
+        sr=sr,
+        n_mels=args.MEL_CHANNELS,
+        power=power_exp,
+        n_fft=n_fft,
+        win_length=win_length,
+        hop_length=256,
+        fmin=0,
+        fmax=8000,
     )
     norm_ms = np.log(ms.clip(1e-5)).T
     return norm_ms, sr
@@ -77,18 +89,18 @@ def get_norm_ms(wav_path):
 
 # In[]: CREATE DATASET FROM PARTS OF MEL SPECTROGRAM
 train_samples = []
-wav_file_list = [x for x in WAV_DIR.iterdir() if str(x).endswith('.wav')][:MAX_SAMPLES]
+wav_file_list = [x for x in WAV_DIR.iterdir() if str(x).endswith('.wav')][: args.MAX_SAMPLES]
 for wav_file in wav_file_list:
     norm_ms, sr = get_norm_ms(wav_file)
-    for i in range(N_TIMES_TO_ITERATE_THROUGH_EACH_SAMPLE):
+    for i in range(args.N_TIMES_TO_ITERATE_THROUGH_EACH_SAMPLE):
         cursor = 0
-        while cursor <= (norm_ms.shape[0] - MAX_SAMPLE_SIZE):
-            if not SPLIT_FILES:
-                size = MAX_SAMPLE_SIZE
+        while cursor <= (norm_ms.shape[0] - args.MAX_SAMPLE_SIZE):
+            if not args.SPLIT_FILES:
+                size = args.MAX_SAMPLE_SIZE
             else:
-                size = np.random.randint(MIN_SAMPLE_SIZE, MAX_SAMPLE_SIZE)
+                size = np.random.randint(args.MIN_SAMPLE_SIZE, args.MAX_SAMPLE_SIZE)
             sample = norm_ms[cursor : cursor + size, :]
-            noise = np.random.randn(*sample.shape) * (NOISE_STD) ** 2
+            noise = np.random.randn(*sample.shape) * (args.NOISE_STD) ** 2
             sample += noise
             sample = np.concatenate([start_vec, sample, end_vec])
             stop_probs = np.zeros(size + 2)
@@ -101,7 +113,7 @@ print(f'{len(train_samples)} train samples.')
 train_gen = lambda: (mel for mel in train_samples)
 train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float64, tf.int64))
 train_dataset = train_dataset.cache()
-train_dataset = train_dataset.padded_batch(BATCH_SIZE, padded_shapes=([-1, MEL_CHANNELS], [-1]))
+train_dataset = train_dataset.padded_batch(args.BATCH_SIZE, padded_shapes=([-1, args.MEL_CHANNELS], [-1]))
 train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
 # In[]: CREATE THE MODEL
@@ -109,28 +121,30 @@ melT = MelTransformer(**params)
 melT.compile(loss=losses, loss_weights=loss_coeffs, optimizer=optimizer)
 
 # In[]: TRAIN THE MODEL
-if starting_epoch > 0:
+if args.starting_epoch > 0:
     _ = melT.predict(tf.expand_dims(norm_ms, 0), MAX_LENGTH=1)
-    melT.load_weights(f'weights/{WEIGHTS_ID}_weights_{starting_epoch}.hdf5')
+    melT.load_weights(f'{WEIGHTS_PATH}_weights_{args.starting_epoch}.hdf5')
 
 epoch_losses = []
 lr_halvenings = 0
 min_epoch = 0
-for epoch in range(EPOCHS + 1):
+for epoch in range(args.EPOCHS + 1):
     losses = []
     start = time.time()
     for i, (mel, stop) in enumerate(train_dataset):
         gradients, loss, tar_real, predictions, stop_prob, loss_vals = melT.train_step(mel, mel, stop)
         losses.append(loss)
     epoch_losses.append(np.mean(losses))
-    print('Epoch {} took {} secs. \nAvg loss: {} \n'.format(starting_epoch + epoch, time.time() - start, epoch_losses[epoch]))
+    print(
+        'Epoch {} took {} secs. \nAvg loss: {} \n'.format(args.starting_epoch + epoch, time.time() - start, epoch_losses[epoch])
+    )
     min_loss = np.min(epoch_losses)  # yeah..
 
     if epoch_losses[epoch] == min_loss:
         min_epoch = epoch
-        melT.save_weights(f'weights/{WEIGHTS_ID}_weights_{epoch+starting_epoch}.hdf5')
-    if epoch - min_epoch > HOW_MANY_EPOCHS_WITHOUT_NEW_MIN:
-        if lr_halvenings > MAX_LR_HALVENING:
+        melT.save_weights(f'{WEIGHTS_PATH}_weights_{epoch+args.starting_epoch}.hdf5')
+    if epoch - min_epoch > args.HOW_MANY_EPOCHS_WITHOUT_NEW_MIN:
+        if lr_halvenings > args.MAX_LR_HALVENING:
             print(f'Loss has likely stopped improving.\nStopping.')
             break
         print(f'Loss has not improved enough for {epoch - min_epoch} epochs.\nHalvening learning rate.')
