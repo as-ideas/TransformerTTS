@@ -18,6 +18,7 @@ def display_mel(ms, sr, file=None):
         plt.show()
     else:
         plt.savefig(file)
+    plt.close('all')
 
 
 def get_angles(pos, i, d_model):
