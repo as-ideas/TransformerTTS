@@ -189,10 +189,9 @@ class SpeechOutModule(tf.keras.layers.Layer):
 
     def call(self, x, training, apply_conv=False):
         stop = self.stop_linear(x)
-        x = self.mel_linear(x)
-        if (training is True) or (apply_conv is True):
-            x = self.postnet(x, training)
-        return x, stop
+        mel_linear = self.mel_linear(x)
+        conv_out = self.postnet(mel_linear, training)
+        return mel_linear, conv_out, stop
 
     def postnet(self, x, training):
         conv_out = self.speech_postnet(x, training)
@@ -204,10 +203,10 @@ class SpeechPostnet(tf.keras.layers.Layer):
     def __init__(self, out_size, n_filters=256, n_layers=5, kernel_size=5):
         super(SpeechPostnet, self).__init__()
         self.convolutions = [
-            tf.keras.layers.Conv1D(filters=n_filters, kernel_size=kernel_size, padding='same', activation='relu')
+            tf.keras.layers.Conv1D(filters=n_filters, kernel_size=kernel_size, padding='causal', activation='relu')
             for _ in range(n_layers - 1)
         ]
-        self.last_conv = tf.keras.layers.Conv1D(filters=out_size, kernel_size=kernel_size, padding='same', activation='relu')
+        self.last_conv = tf.keras.layers.Conv1D(filters=out_size, kernel_size=kernel_size, padding='causal', activation='relu')
         self.batch_norms = [tf.keras.layers.BatchNormalization() for _ in range(n_layers)]
 
     def call(self, x, training):

@@ -17,7 +17,7 @@ tf.random.set_seed(10)
 np.random.seed(42)
 
 # In[]: VARIABLES
-WAV_FILE = '/Users/fcardina/forge/text-to-speech/data/wav_files/LJ001-0173.wav'
+WAV_FILE = '/Users/fcardina/forge/text-to-speech/data/LJSpeech-1.1/wavs/LJ001-0001.wav'
 WEIGHTS_ID = 'melT_TAILconv'
 MEL_CHANNELS = 128
 DROPOUT = 0.0
@@ -62,7 +62,7 @@ display_mel(np.exp(pred_mel[0]).T, sr)
 
 # In[]:
 init_pred_epoch = 0
-last_pred_epoch = 201
+last_pred_epoch = 121
 # In[]:
 _ = melT.predict(pred_mel, MAX_LENGTH=1)
 for epoch_n in range(init_pred_epoch, last_pred_epoch + 1, 1):
@@ -83,7 +83,7 @@ for epoch_n in out.keys():
     print(epoch_n)
     display_mel(np.exp(out[epoch_n]['train'].numpy()[0].T), sr)
 # In[]:
-for epoch_n in range(init_pred_epoch, last_pred_epoch + 1, 100):
+for epoch_n in out.keys():
     print(epoch_n)
     display_mel(np.exp(out[epoch_n]['TE'].numpy()[0].T), sr)
 # In[]:

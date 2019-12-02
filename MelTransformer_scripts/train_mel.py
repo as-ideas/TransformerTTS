@@ -15,21 +15,22 @@ from utils import display_mel
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', dest='WAV_DIR', default=SCRIPT_DIR.parent / 'data/LJSpeech-1.1/wavs', type=str)
 parser.add_argument('--n_samples', dest='MAX_SAMPLES', default=300, type=int)
-parser.add_argument('--dropout', dest='DROPOUT', default=0.05, type=float)
-parser.add_argument('--noisestd', dest='NOISE_STD', default=0.3, type=float)
+parser.add_argument('--dropout', dest='DROPOUT', default=0.1, type=float)
+parser.add_argument('--noisestd', dest='NOISE_STD', default=0.2, type=float)
 parser.add_argument('--mel', dest='MEL_CHANNELS', default=128, type=int)
 parser.add_argument('--split', dest='SPLIT_FILES', action='store_true')
 parser.add_argument('--min_size', dest='MIN_SAMPLE_SIZE', default=5, type=int)
 parser.add_argument('--max_size', dest='MAX_SAMPLE_SIZE', default=300, type=int)
 parser.add_argument('--epochs', dest='EPOCHS', default=3000, type=int)
 parser.add_argument('--starting_epoch', dest='starting_epoch', default=0, type=int)
-parser.add_argument('--batch_size', dest='BATCH_SIZE', default=64, type=int)
+parser.add_argument('--batch_size', dest='BATCH_SIZE', default=128, type=int)
 parser.add_argument('--learning_rate', dest='LEARNING_RATE', default=1e-4, type=float)
-parser.add_argument('--epoch_without_min', dest='HOW_MANY_EPOCHS_WITHOUT_NEW_MIN', default=5, type=int)
+parser.add_argument('--epoch_without_min', dest='HOW_MANY_EPOCHS_WITHOUT_NEW_MIN', default=10, type=int)
 parser.add_argument('--max_lr_halvenings', dest='MAX_LR_HALVENING', default=10, type=int)
 parser.add_argument('--pass_per_file', dest='N_TIMES_TO_ITERATE_THROUGH_EACH_SAMPLE', default=1, type=int)
-parser.add_argument('--weights_id', dest='WEIGHTS_ID', default='melT_TAILconv', type=str)
+parser.add_argument('--weights_id', dest='WEIGHTS_ID', default='melT_INconvMELlossLEFTpadding', type=str)
 parser.add_argument('--weights_dir', dest='WEIGHTS_DIR', default=SCRIPT_DIR.parent / 'weights', type=str)
+parser.add_argument('--sample_out_dir', dest='SAMPLE_OUT_DIR', default=SCRIPT_DIR.parent / 'samples', type=str)
 
 args = parser.parse_args()
 
@@ -39,7 +40,10 @@ np.random.seed(42)
 # In[]: VARIABLES
 WAV_DIR = Path(args.WAV_DIR)
 WEIGHTS_DIR = Path(args.WEIGHTS_DIR)
+SAMPLE_OUT_DIR = Path(args.SAMPLE_OUT_DIR)
+SAMPLE_OUT_PATH = SAMPLE_OUT_DIR / args.WEIGHTS_ID / 'mel_out'
 WEIGHTS_DIR.mkdir(exist_ok=True)
+SAMPLE_OUT_PATH.mkdir(exist_ok=True, parents=True)
 WEIGHTS_PATH = str(WEIGHTS_DIR / args.WEIGHTS_ID)
 start_vec = np.ones((1, args.MEL_CHANNELS)) * np.log(1e-5) - 2.0
 end_vec = np.ones((1, args.MEL_CHANNELS)) * np.log(1e-5) + 2.0
@@ -60,8 +64,8 @@ params = {
     'rate': args.DROPOUT,
 }
 
-losses = [tf.keras.losses.MeanAbsoluteError(), tf.keras.losses.BinaryCrossentropy()]
-loss_coeffs = [1.0, 1.0]
+losses = [tf.keras.losses.MeanAbsoluteError(), tf.keras.losses.BinaryCrossentropy(), tf.keras.losses.MeanAbsoluteError()]
+loss_coeffs = [1.0, 1.0, 1.0]
 optimizer = tf.keras.optimizers.Adam(args.LEARNING_RATE, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
 # In[]: GET MEL SPECTROGRAM FROM WAV
@@ -90,6 +94,11 @@ def get_norm_ms(wav_path):
 # In[]: CREATE DATASET FROM PARTS OF MEL SPECTROGRAM
 train_samples = []
 wav_file_list = [x for x in WAV_DIR.iterdir() if str(x).endswith('.wav')][: args.MAX_SAMPLES]
+SAMPLE_WAV = wav_file_list[0]
+sample_norm_mel, sr = get_norm_ms(SAMPLE_WAV)
+sample_norm_mel = np.concatenate([start_vec, sample_norm_mel, end_vec])
+sample_norm_mel = tf.expand_dims(sample_norm_mel, 0)
+
 for wav_file in wav_file_list:
     norm_ms, sr = get_norm_ms(wav_file)
     for i in range(args.N_TIMES_TO_ITERATE_THROUGH_EACH_SAMPLE):
@@ -132,8 +141,8 @@ for epoch in range(args.EPOCHS + 1):
     losses = []
     start = time.time()
     for i, (mel, stop) in enumerate(train_dataset):
-        gradients, loss, tar_real, predictions, stop_prob, loss_vals = melT.train_step(mel, mel, stop)
-        losses.append(loss)
+        out = melT.train_step(mel, mel, stop)
+        losses.append(out['loss'])
     epoch_losses.append(np.mean(losses))
     print(
         'Epoch {} took {} secs. \nAvg loss: {} \n'.format(args.starting_epoch + epoch, time.time() - start, epoch_losses[epoch])
@@ -151,3 +160,8 @@ for epoch in range(args.EPOCHS + 1):
         melT.optimizer.learning_rate.assign(melT.optimizer.learning_rate * 0.5)
         lr_halvenings += 1
         min_epoch = epoch
+    if epoch_losses[epoch] == min_loss:
+        out = melT.predict_with_target(sample_norm_mel, sample_norm_mel, MAX_LENGTH=50)
+        for t in ['own', 'TE', 'train']:
+            mel_out = np.exp(out[t].numpy()[0].T)
+            display_mel(mel_out, sr, file=f'{str(SAMPLE_OUT_PATH)}_{t}_e{args.starting_epoch+epoch}.png')
