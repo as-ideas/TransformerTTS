@@ -33,8 +33,7 @@ if not os.path.exists(mel_dir):
 
 audio_data = []
 with open(metadata_file, 'r', encoding='utf-8') as f:
-    lines = f.readlines()
-    for l in lines:
+    for l in f.readlines():
         l_split = l.split('|')
         filename, text = l_split[0], l_split[-1]
         if filename.endswith('.wav'):
@@ -45,8 +44,8 @@ random.seed(args.RANDOM_SEED)
 random.shuffle(audio_data)
 test_metafile = os.path.join(args.TARGET_PATH, 'test_metafile.txt')
 train_metafile = os.path.join(args.TARGET_PATH, 'train_metafile.txt')
-test_lines = [''.join([mel_path, '|', text]) for mel_path, text in audio_data[:args.TEST_SIZE]]
-train_lines = [''.join([mel_path, '|', text]) for mel_path, text in audio_data[args.TEST_SIZE:-1]]
+test_lines = [''.join([filename, '|', text]) for filename, text in audio_data[:args.TEST_SIZE]]
+train_lines = [''.join([filename, '|', text]) for filename, text in audio_data[args.TEST_SIZE:-1]]
 with open(test_metafile, 'w+', encoding='utf-8') as test_f:
     test_f.writelines(test_lines)
 with open(train_metafile, 'w+', encoding='utf-8') as train_f:
@@ -65,8 +64,7 @@ for i in tqdm.tqdm(range(len(audio_data))):
                                        hop_length=args.HOP_LENGTH,
                                        fmin=args.F_MIN,
                                        fmax=args.F_MAX)
-    S = S.T
     mel_path = os.path.join(mel_dir, filename)
-    np.save(mel_path, S)
+    np.save(mel_path, S.T)
 
 
