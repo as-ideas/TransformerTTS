@@ -29,7 +29,7 @@ if not os.path.exists(mel_dir):
     os.makedirs(mel_dir)
 
 audio_data = []
-with open(metadata_file, 'r', encoding='utf-8') as f:
+with open(args.META_FILE, 'r', encoding='utf-8') as f:
     for l in f.readlines():
         l_split = l.split('|')
         filename, text = l_split[0], l_split[-1]
