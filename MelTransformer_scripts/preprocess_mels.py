@@ -43,8 +43,8 @@ with open(metadata_file, 'r', encoding='utf-8') as f:
 
 random.seed(args.RANDOM_SEED)
 random.shuffle(audio_data)
-train_metafile = os.path.join(args.TARGET_PATH, 'train_metafile.txt')
 test_metafile = os.path.join(args.TARGET_PATH, 'test_metafile.txt')
+train_metafile = os.path.join(args.TARGET_PATH, 'train_metafile.txt')
 test_lines = [''.join([mel_path, '|', text]) for mel_path, text in audio_data[:args.TEST_SIZE]]
 train_lines = [''.join([mel_path, '|', text]) for mel_path, text in audio_data[args.TEST_SIZE:-1]]
 with open(test_metafile, 'w+', encoding='utf-8') as test_f:
