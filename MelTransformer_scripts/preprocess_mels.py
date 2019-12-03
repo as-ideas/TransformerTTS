@@ -6,9 +6,6 @@ import librosa
 import numpy as np
 import tqdm
 
-metadata_file = '/Users/cschaefe/datasets/LJSpeech/LJSpeech-1.1/metadata.csv'
-base_path_wavs = '/Users/cschaefe/datasets/LJSpeech/LJSpeech-1.1/wavs'
-
 parser = argparse.ArgumentParser()
 parser.add_argument('--sampling_rate', dest='SAMPLING_RATE', default=22050, type=int)
 parser.add_argument('--n_fft', dest='N_FFT', default=1024, type=int)
@@ -20,14 +17,14 @@ parser.add_argument('--hop_length', dest='HOP_LENGTH', default=256, type=int)
 parser.add_argument('--random_seed', dest='RANDOM_SEED', default=42, type=int)
 parser.add_argument('--test_size', dest='TEST_SIZE', default=100, type=int)
 parser.add_argument('--meta_file', dest='META_FILE', type=str, required=True)
-parser.add_argument('--wav_path', dest='WAV_PATH', type=str, required=True)
-parser.add_argument('--target_path', dest='TARGET_PATH', type=str, required=True)
+parser.add_argument('--wav_dir', dest='WAV_DIR', type=str, required=True)
+parser.add_argument('--target_dir', dest='TARGET_DIR', type=str, required=True)
 
 args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 
-mel_dir = os.path.join(args.TARGET_PATH, 'mels')
+mel_dir = os.path.join(args.TARGET_DIR, 'mels')
 if not os.path.exists(mel_dir):
     os.makedirs(mel_dir)
 
@@ -42,8 +39,8 @@ with open(metadata_file, 'r', encoding='utf-8') as f:
 
 random.seed(args.RANDOM_SEED)
 random.shuffle(audio_data)
-test_metafile = os.path.join(args.TARGET_PATH, 'test_metafile.txt')
-train_metafile = os.path.join(args.TARGET_PATH, 'train_metafile.txt')
+test_metafile = os.path.join(args.TARGET_DIR, 'test_metafile.txt')
+train_metafile = os.path.join(args.TARGET_DIR, 'train_metafile.txt')
 test_lines = [''.join([filename, '|', text]) for filename, text in audio_data[:args.TEST_SIZE]]
 train_lines = [''.join([filename, '|', text]) for filename, text in audio_data[args.TEST_SIZE:-1]]
 with open(test_metafile, 'w+', encoding='utf-8') as test_f:
@@ -53,7 +50,7 @@ with open(train_metafile, 'w+', encoding='utf-8') as train_f:
 
 for i in tqdm.tqdm(range(len(audio_data))):
     filename, text = audio_data[i]
-    wav_path = os.path.join(base_path_wavs, filename + '.wav')
+    wav_path = os.path.join(args.WAV_DIR, filename + '.wav')
     y, sr = librosa.load(wav_path, sr=args.SAMPLING_RATE)
     S = librosa.feature.melspectrogram(y=y,
                                        sr=args.SAMPLING_RATE,
