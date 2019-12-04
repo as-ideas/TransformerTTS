@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 import tensorflow as tf
 
+from src.layers import Encoder, Decoder, PointWiseFFN, SpeechOutModule
 from src.models import MelTransformer
 
 
@@ -27,17 +28,32 @@ class TestMelTransformer(unittest.TestCase):
         loss_coeffs = [1.0, 1.0, 1.0]
         optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
-        melT = MelTransformer(num_heads=2,
-                              num_layers=2,
-                              d_model=64,
-                              dff=32,
-                              pe_input=1000,
-                              pe_target=1000,
-                              start_vec=start_vec,
-                              mel_channels=80,
-                              postnet_conv_layers=2,
-                              postnet_kernel_size=5,
-                              conv_filters=32)
+        encoder = Encoder(num_layers=2,
+                          d_model=64,
+                          num_heads=2,
+                          dff=32,
+                          maximum_position_encoding=1000,
+                          prenet=PointWiseFFN(d_model=64, dff=32),
+                          rate=0.1)
+
+        decoder = Decoder(num_layers=2,
+                          d_model=64,
+                          num_heads=2,
+                          dff=32,
+                          maximum_position_encoding=1000,
+                          prenet=PointWiseFFN(d_model=64, dff=32),
+                          rate=0.1)
+
+        speech_out_module = SpeechOutModule(mel_channels=80,
+                                          conv_filters=32,
+                                          conv_layers=2,
+                                          kernel_size=5
+        )
+
+        melT = MelTransformer(encoder=encoder,
+                              decoder=decoder,
+                              decoder_postnet=speech_out_module,
+                              start_vec=start_vec)
 
         melT.compile(loss=losses, loss_weights=loss_coeffs, optimizer=optimizer)
         train_gen = lambda: (mel for mel in train_samples)
@@ -56,7 +72,7 @@ class TestMelTransformer(unittest.TestCase):
                 print('batch {} loss {}'.format(epoch, loss))
                 batch_num += 1
 
-        pred = melT.predict(test_mels[0], MAX_LENGTH=50)
+        pred = melT.predict(test_mels[0], max_length=50)
         self.assertAlmostEqual(1.2679681777954102, losses[-1], places=6)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
         self.assertAlmostEqual(2896.39208984375, float(tf.reduce_sum(pred['mel'])), places=6)

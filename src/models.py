@@ -81,53 +81,50 @@ class TextTransformer(tf.keras.Model):
 
 
 class MelTransformer(tf.keras.Model):
-    def __init__(
-        self,
-        num_layers,
-        d_model,
-        num_heads,
-        dff,
-        pe_input,
-        pe_target,
-        start_vec,
-        mel_channels=80,
-        conv_filters=256,
-        postnet_conv_layers=5,
-        postnet_kernel_size=5,
-        rate=0.1,
-    ):
+
+    def __init__(self,
+                 encoder,
+                 decoder,
+                 decoder_postnet,
+                 start_vec):
         super(MelTransformer, self).__init__()
         self.start_vec = tf.cast(start_vec, tf.float32)
-        self.encoder = Encoder(
-            num_layers, d_model, num_heads, dff, pe_input, prenet=PointWiseFFN(d_model=d_model, dff=dff), rate=rate
-        )
-        self.decoder = Decoder(
-            num_layers, d_model, num_heads, dff, pe_target, prenet=PointWiseFFN(d_model=d_model, dff=dff), rate=rate
-        )
-        self.out_module = SpeechOutModule(
-            mel_channels=mel_channels, conv_filters=conv_filters, conv_layers=postnet_conv_layers, kernel_size=postnet_kernel_size
-        )
+        self.encoder = encoder
+        self.decoder = decoder
+        self.speech_out_module = decoder_postnet
+        self.train_step = tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float64),
+                tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float64),
+                tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+            ]
+        ) (self._train_step)
 
-    def call(self, inp, target, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):  # , apply_conv=False):
-        enc_output = self.encoder(inp, training, enc_padding_mask)
-        dec_output, attention_weights = self.decoder(target, enc_output, training, look_ahead_mask, dec_padding_mask)
-        mel_linear, final_output, stop_prob = self.out_module(dec_output, training=training)  # , apply_conv=apply_conv)
+    def call(self,
+             input_vecs,
+             target_vecs,
+             training,
+             enc_padding_mask,
+             look_ahead_mask,
+             dec_padding_mask):
+        enc_output = self.encoder(inputs=input_vecs,
+                                  training=training,
+                                  mask=enc_padding_mask)
+        dec_output, attention_weights = self.decoder(inputs=target_vecs,
+                                                     enc_output=enc_output,
+                                                     training=training,
+                                                     look_ahead_mask=look_ahead_mask,
+                                                     padding_mask=dec_padding_mask)
+        mel_linear, final_output, stop_prob = self.speech_out_module(inputs=dec_output, training=training)
         return {
             'mel_linear': mel_linear,
             'final_output': final_output,
             'stop_prob': stop_prob,
             'attention_weights': attention_weights,
-            'dec_output': dec_output,
+            'decoder_output': dec_output,
         }
 
-    @tf.function(
-        input_signature=[
-            tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64),
-            tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64),
-            tf.TensorSpec(shape=(None, None), dtype=tf.int64),
-        ]
-    )
-    def train_step(self, inp, tar, stop_prob):
+    def _train_step(self, inp, tar, stop_prob):
         tar_inp = tar[:, :-1, :]
         tar_real = tar[:, 1:, :]
         tar_stop_prob = stop_prob[:, 1:]
@@ -148,67 +145,21 @@ class MelTransformer(tf.keras.Model):
             'final_output': model_out['final_output'],
             'stop_prob': model_out['stop_prob'],
             'attention_weights': model_out['attention_weights'],
-            'dec_output': model_out['dec_output'],
+            'decoder_output': model_out['decoder_output'],
             'loss': loss,
             'loss_vals': loss_vals,
         }
         return out
 
-    def predict(self, inp, MAX_LENGTH=50):
+    def predict(self, inp, max_length=50):
         inp = tf.expand_dims(inp, 0)
         output = tf.expand_dims(self.start_vec, 0)  # shape: (1, 1, mel_channels)
         predictions = {}
-        for i in range(MAX_LENGTH):
+        for i in range(max_length):
             enc_padding_mask, combined_mask, dec_padding_mask = create_mel_masks(inp, output)
             predictions = self.call(
                 inp, output, False, enc_padding_mask, combined_mask, dec_padding_mask
             )
-            output = tf.concat([output, predictions['final_output'][0:1, -1:, :]], axis=-2)
-        output = {'mel': output[0, 1:, :], 'attn': predictions['attention_weights']}
+            output = tf.concat([output, predictions['final_output'][:1, -1:, :]], axis=-2)
+        output = {'mel': output[0, 1:, :], 'attention_weights': predictions['attention_weights']}
         return output
-
-    # TODO: remove
-    def predict_with_target(self, inp, tar, MAX_LENGTH=50):
-        import numpy as np
-
-        out = {}
-        tar_in = {}
-        assert np.allclose(inp[0:1, 0, :], self.start_vec), 'Append start vector to input'
-        tar_in['own'] = tf.expand_dims(self.start_vec, 0)
-        if tar is not None:
-            tar_in['train'] = tar[:, :MAX_LENGTH, :]
-            out['TE'] = tf.expand_dims(self.start_vec, 0)
-
-        for i in range(MAX_LENGTH):
-            # if i % 50 == 0:
-            enc_padding_mask, combined_mask, dec_padding_mask = create_mel_masks(inp, tar_in['own'])
-            model_out = self.call(
-                inp, tar_in['own'], False, enc_padding_mask, combined_mask, dec_padding_mask
-            )  # , apply_conv=False
-            # )
-            tar_in['own'] = tf.concat([tf.expand_dims(self.start_vec, 0), model_out['final_output']], axis=-2)
-            out['own'] = tar_in['own']
-
-            if tar is not None:
-                tar_in['TE'] = tar[:, 0 : i + 1, :]
-                model_out = self.call(
-                    inp, tar_in['TE'], False, enc_padding_mask, combined_mask, dec_padding_mask
-                )  # , apply_conv=False
-                # )
-                out['TE'] = tf.concat([out['TE'], model_out['final_output'][0:1, -1:, :]], axis=-2)
-
-        # out['own'] = self.out_module.postnet(out['own'][0:1, 1:, :], training=False)
-        out['own'] = out['own'][0:1, 1:, :]
-
-        if tar is not None:
-            out['TE'] = out['TE'][0:1, 1:, :]
-            # out['TE'] = self.out_module.postnet(out['TE'][0:1, 1:, :], training=False)
-
-            enc_padding_mask, combined_mask, dec_padding_mask = create_mel_masks(inp, tar_in['train'])
-            model_out = self.call(
-                inp, tar_in['train'], False, enc_padding_mask, combined_mask, dec_padding_mask
-            )  # , apply_conv=True
-            # )
-            out['train'] = model_out['final_output']
-
-        return out

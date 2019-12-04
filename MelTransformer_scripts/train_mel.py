@@ -131,7 +131,7 @@ melT.compile(loss=losses, loss_weights=loss_coeffs, optimizer=optimizer)
 
 # In[]: TRAIN THE MODEL
 if args.starting_epoch > 0:
-    _ = melT.predict(tf.expand_dims(norm_ms, 0), MAX_LENGTH=1)
+    _ = melT.predict(tf.expand_dims(norm_ms, 0), max_length=1)
     melT.load_weights(f'{WEIGHTS_PATH}_weights_{args.starting_epoch}.hdf5')
 
 epoch_losses = []

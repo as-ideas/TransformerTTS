@@ -75,6 +75,6 @@ for epoch in range(EPOCHS):
     print('Epoch {} took {} secs. \nAvg loss: {} \n'.format(epoch, time.time() - start, epoch_losses[epoch]))
 
     if epoch_losses[epoch] == min_loss:
-        out = melT.predict(sample_norm_mel, MAX_LENGTH=50)
+        out = melT.predict(sample_norm_mel, max_length=50)
         print('mel', out['mel'])
         print('attn', out['attn'])

@@ -97,10 +97,10 @@ class Encoder(tf.keras.layers.Layer):
 
         self.dropout = tf.keras.layers.Dropout(rate)
 
-    def call(self, x, training, mask):
-        seq_len = tf.shape(x)[1]
+    def call(self, inputs, training, mask):
+        seq_len = tf.shape(inputs)[1]
 
-        x = self.prenet(x)
+        x = self.prenet(inputs)
         x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
 
@@ -146,6 +146,7 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 
 class Decoder(tf.keras.layers.Layer):
+
     def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, prenet, rate=0.1):
         super(Decoder, self).__init__()
 
@@ -153,21 +154,16 @@ class Decoder(tf.keras.layers.Layer):
         self.num_layers = num_layers
         self.prenet = prenet
         self.pos_encoding = positional_encoding(maximum_position_encoding, d_model)
-
         self.dec_layers = [DecoderLayer(d_model, num_heads, dff, rate) for _ in range(num_layers)]
-
         self.dropout = tf.keras.layers.Dropout(rate)
 
-    def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
-        seq_len = tf.shape(x)[1]
-
+    def call(self, inputs, enc_output, training, look_ahead_mask, padding_mask):
+        seq_len = tf.shape(inputs)[1]
         attention_weights = {}
-        x = self.prenet(x)
+        x = self.prenet(inputs)
         x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
-
         x = self.dropout(x, training=training)
-
         for i in range(self.num_layers):
             x, block1, block2 = self.dec_layers[i](x, enc_output, training, look_ahead_mask, padding_mask)
 
@@ -181,6 +177,7 @@ class SpeechOutModule(tf.keras.layers.Layer):
 
     def __init__(self, mel_channels, conv_filters=256, conv_layers=5, kernel_size=5):
         super(SpeechOutModule, self).__init__()
+        self.mel_channels = mel_channels
         self.mel_linear = tf.keras.layers.Dense(mel_channels)
         self.stop_linear = tf.keras.layers.Dense(1, activation='sigmoid')
         self.speech_postnet = SpeechPostnet(
@@ -201,6 +198,7 @@ class SpeechOutModule(tf.keras.layers.Layer):
 
 
 class SpeechPostnet(tf.keras.layers.Layer):
+
     def __init__(self, out_size, n_filters=256, n_layers=5, kernel_size=5):
         super(SpeechPostnet, self).__init__()
         self.convolutions = [

@@ -64,7 +64,7 @@ display_mel(np.exp(pred_mel[0]).T, sr)
 init_pred_epoch = 0
 last_pred_epoch = 121
 # In[]:
-_ = melT.predict(pred_mel, MAX_LENGTH=1)
+_ = melT.predict(pred_mel, max_length=1)
 for epoch_n in range(init_pred_epoch, last_pred_epoch + 1, 1):
     print(epoch_n)
     if Path(f'weights/{WEIGHTS_ID}_weights_{epoch_n}.hdf5').exists():
