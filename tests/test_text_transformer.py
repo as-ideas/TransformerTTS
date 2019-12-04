@@ -31,7 +31,7 @@ class TestTextTransformer(unittest.TestCase):
         np.random.seed(42)
 
     def test_training(self):
-        """
+
         train_samples = [('I am a student.', 'Ich bin ein Student.')] * 2
         tokenizer_in = TestTokenizer(alphabet=string.ascii_letters + string.punctuation + string.whitespace)
         tokenizer_out = TestTokenizer(alphabet=string.printable)
@@ -51,10 +51,7 @@ class TestTextTransformer(unittest.TestCase):
             dff=256,
             pe_input=1000,
             pe_target=1000,
-            start_token=tokenizer_out.start_token,
-            end_token=tokenizer_out.end_token,
-            vocab_size_encoder=input_vocab_size,
-            vocab_size_decoder=target_vocab_size,
+            vocab_size={'in': input_vocab_size, 'out': target_vocab_size}
         )
 
         loss_function = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
@@ -68,7 +65,7 @@ class TestTextTransformer(unittest.TestCase):
                 losses.append(float(loss))
 
         self.assertAlmostEqual(2.0712099075317383, losses[-1], places=6)
-        pred = transformer.predict(tokenized_train_samples[0][0], max_length=10)
+        pred = transformer.predict(tokenized_train_samples[0][0], MAX_LENGTH=10)
         self.assertEqual((1, 1, 102), pred['logits'].numpy().shape)
         self.assertAlmostEqual(-47.13420867919922, float(tf.reduce_sum(pred['logits'])))
-        """
+
