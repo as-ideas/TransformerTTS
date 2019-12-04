@@ -14,7 +14,7 @@ import pickle
 import time
 import numpy as np
 import tensorflow as tf
-from src.models import MelTransformer
+from model.models import MelTransformer
 
 np.random.seed(42)
 tf.random.set_seed(42)

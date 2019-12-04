@@ -1,6 +1,5 @@
 import tensorflow as tf
-from src.layers import Encoder, Decoder, SpeechOutModule, PointWiseFFN
-from utils import create_masks, create_mel_masks, masked_loss_function, weighted_sum_losses
+from model.transformer_utils import create_masks, create_mel_masks, masked_loss_function, weighted_sum_losses
 
 
 class TextTransformer(tf.keras.Model):

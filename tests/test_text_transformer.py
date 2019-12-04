@@ -4,8 +4,8 @@ import unittest
 import numpy as np
 import tensorflow as tf
 
-from src.layers import Encoder, Decoder
-from src.models import TextTransformer
+from model.layers import Encoder, Decoder
+from model.models import TextTransformer
 
 
 class TestTokenizer:

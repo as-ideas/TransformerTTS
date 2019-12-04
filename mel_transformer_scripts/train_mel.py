@@ -9,8 +9,8 @@ import argparse
 
 SCRIPT_DIR = Path(__file__).absolute().parent
 sys.path.append(SCRIPT_DIR.parent.as_posix())
-from src.models import MelTransformer
-from utils import display_mel
+from model.models import MelTransformer
+from model.transformer_utils import display_mel
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--data_dir', dest='WAV_DIR', default=SCRIPT_DIR.parent / 'data/LJSpeech-1.1/wavs', type=str)

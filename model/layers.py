@@ -1,5 +1,5 @@
 import tensorflow as tf
-from utils import positional_encoding, scaled_dot_product_attention
+from model.transformer_utils import positional_encoding, scaled_dot_product_attention
 
 
 class PointWiseFFN(tf.keras.layers.Layer):

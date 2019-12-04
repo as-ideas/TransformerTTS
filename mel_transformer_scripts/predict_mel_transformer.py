@@ -1,6 +1,5 @@
 import librosa
 import numpy as np
-import time
 import tensorflow as tf
 import sys
 
@@ -10,8 +9,8 @@ from pathlib import Path
 SCRIPT_DIR = Path('.').absolute().parent
 # SCRIPT_DIR = Path(__file__).absolute().parent
 sys.path.append(SCRIPT_DIR.parent.as_posix())
-from src.models import MelTransformer
-from utils import display_mel
+from model.models import MelTransformer
+from model.transformer_utils import display_mel
 
 tf.random.set_seed(10)
 np.random.seed(42)

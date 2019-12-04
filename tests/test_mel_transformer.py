@@ -3,8 +3,8 @@ import unittest
 import numpy as np
 import tensorflow as tf
 
-from src.layers import Encoder, Decoder, PointWiseFFN, SpeechOutModule
-from src.models import MelTransformer
+from model.layers import Encoder, Decoder, PointWiseFFN, SpeechOutModule
+from model.models import MelTransformer
 
 
 class TestMelTransformer(unittest.TestCase):
