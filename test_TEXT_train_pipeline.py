@@ -72,16 +72,6 @@ val_dataset = val_dataset.filter(filter_max_length).padded_batch(BATCH_SIZE, pad
 input_vocab_size = tokenizer_in.vocab_size
 target_vocab_size = tokenizer_out.vocab_size
 
-MAX_LENGTH = 40
-BUFFER_SIZE = 10
-BATCH_SIZE = 2
-MAX_LENGTH = 40
-num_layers = 2
-d_model = 128
-dff = 128
-num_heads = 4
-dropout_rate = 0.0
-EPOCHS = 55
 
 from model.layers import Encoder, Decoder
 from model.models import TextTransformer
