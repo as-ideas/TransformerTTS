@@ -32,8 +32,7 @@ with open(metafile, 'r', encoding='utf-8') as f:
         text = l_split[-1].strip()
         train_samples.append((text, text))
 
-train_samples = train_samples[:-10]
-test_samples = train_samples[-10:-1]
+train_samples = [('iloveyou', 'iloveyou')] * 100
 
 alphabet = set()
 for t, t in train_samples:
@@ -45,36 +44,48 @@ tokenized_train_samples = [([start_tok] + tokenizer.encode(i) + [end_tok],
                            for i, j in train_samples]
 train_gen = lambda: (pair for pair in tokenized_train_samples)
 train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.int64, tf.int64))
-train_dataset = train_dataset.shuffle(1000).padded_batch(16, padded_shapes=([-1], [-1]))
+train_dataset = train_dataset.shuffle(1000).padded_batch(1, padded_shapes=([-1], [-1]))
 train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 input_vocab_size = tokenizer.vocab_size
 target_vocab_size = tokenizer.vocab_size
 
 encoder = Encoder(
     num_layers=1,
-    d_model=128,
-    num_heads=2,
-    dff=512,
+    d_model=16,
+    num_heads=1,
+    dff=128,
     maximum_position_encoding=1000,
-    prenet=tf.keras.layers.Embedding(input_vocab_size, 128),
-    rate=0.1,
+    rate=0,
 )
 
 decoder = Decoder(
     num_layers=1,
-    d_model=128,
-    num_heads=2,
-    dff=512,
+    d_model=16,
+    num_heads=1,
+    dff=128,
     maximum_position_encoding=1000,
-    prenet=tf.keras.layers.Embedding(target_vocab_size, 128),
     rate=0,
 )
 
 transformer = TextTransformer(
+    encoder_prenet=tf.keras.layers.Embedding(input_vocab_size, 16),
+    decoder_prenet=tf.keras.layers.Embedding(target_vocab_size, 16),
     encoder=encoder,
     decoder=decoder,
-    start_token=tokenizer.start_token,
-    end_token=tokenizer.end_token,
-    vocab_size_encoder=input_vocab_size,
-    vocab_size_decoder=target_vocab_size,
+    vocab_size={'in': input_vocab_size, 'out': target_vocab_size}
 )
+
+loss_function = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+optimizer = tf.keras.optimizers.Adam(1e-3, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+transformer.compile(loss=loss_function, optimizer=optimizer)
+
+losses = []
+batch_count = 0
+for epoch in range(100):
+    for (batch, (inp, tar)) in enumerate(train_dataset):
+        gradients, loss, tar_real, predictions = transformer.train_step(inp, tar)
+        losses.append(float(loss))
+        pred = transformer.predict(tokenized_train_samples[0][0])
+        pred = tokenizer.decode(pred['output'])
+        print('\nbatch count: {}, loss: {}\n(target) {}\n(pred) {}'.format(batch_count, loss, train_samples[0][0], pred))
+        batch_count += 1

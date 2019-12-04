@@ -51,7 +51,7 @@ class TextTransformer(tf.keras.Model):
         encoder_input = tf.expand_dims(encoded_inp_sentence, 0)
         decoder_input = [self.tokens['out']['start']]
         output = tf.expand_dims(decoder_input, 0)
-
+        out_dict = {}
         for i in range(MAX_LENGTH):
             enc_padding_mask, combined_mask, dec_padding_mask = create_masks(encoder_input, output)
             predictions, attention_weights = self.__call__(
@@ -65,12 +65,10 @@ class TextTransformer(tf.keras.Model):
             # select the last word from the seq_len dimension
             predictions = predictions[:, -1:, :]  # (batch_size, 1, vocab_size)
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
-            if predicted_id == self.tokens['out']['end']:
-                return tf.squeeze(output, axis=0), attention_weights
-
             output = tf.concat([output, predicted_id], axis=-1)
-        out_dict = {'output': tf.squeeze(output, axis=0), 'attn_weights': attention_weights, 'logits': predictions}
-        # return tf.squeeze(output, axis=0), attention_weights, predictions
+            out_dict = {'output': tf.squeeze(output, axis=0), 'attn_weights': attention_weights, 'logits': predictions}
+            if predicted_id == self.tokens['out']['end']:
+                break
         return out_dict
 
 
