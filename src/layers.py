@@ -178,6 +178,7 @@ class Decoder(tf.keras.layers.Layer):
 
 
 class SpeechOutModule(tf.keras.layers.Layer):
+
     def __init__(self, mel_channels, conv_filters=256, conv_layers=5, kernel_size=5):
         super(SpeechOutModule, self).__init__()
         self.mel_linear = tf.keras.layers.Dense(mel_channels)
@@ -187,7 +188,7 @@ class SpeechOutModule(tf.keras.layers.Layer):
         )
         self.add_layer = tf.keras.layers.Add()
 
-    def call(self, x, training, apply_conv=False):
+    def call(self, x, training):
         stop = self.stop_linear(x)
         mel_linear = self.mel_linear(x)
         conv_out = self.postnet(mel_linear, training)

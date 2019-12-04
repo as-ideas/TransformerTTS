@@ -112,7 +112,6 @@ class MelTransformer(tf.keras.Model):
         enc_output = self.encoder(inp, training, enc_padding_mask)
         dec_output, attention_weights = self.decoder(target, enc_output, training, look_ahead_mask, dec_padding_mask)
         mel_linear, final_output, stop_prob = self.out_module(dec_output, training=training)  # , apply_conv=apply_conv)
-
         return {
             'mel_linear': mel_linear,
             'final_output': final_output,
@@ -123,8 +122,8 @@ class MelTransformer(tf.keras.Model):
 
     @tf.function(
         input_signature=[
-            tf.TensorSpec(shape=(None, None, 128), dtype=tf.float64),
-            tf.TensorSpec(shape=(None, None, 128), dtype=tf.float64),
+            tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64),
+            tf.TensorSpec(shape=(None, None, 80), dtype=tf.float64),
             tf.TensorSpec(shape=(None, None), dtype=tf.int64),
         ]
     )
@@ -156,22 +155,19 @@ class MelTransformer(tf.keras.Model):
         return out
 
     def predict(self, inp, MAX_LENGTH=50):
-        """
-        inp shape: (1, seq_len, mel_channels)
-        prediction shape: (1, i+1, mel_channels)
-        """
-
+        inp = tf.expand_dims(inp, 0)
         output = tf.expand_dims(self.start_vec, 0)  # shape: (1, 1, mel_channels)
+        predictions = {}
         for i in range(MAX_LENGTH):
             enc_padding_mask, combined_mask, dec_padding_mask = create_mel_masks(inp, output)
-            predictions, attn_weights, stop_prob = self.call(
+            predictions = self.call(
                 inp, output, False, enc_padding_mask, combined_mask, dec_padding_mask
             )
-            output = tf.concat([output, predictions[0:1, -1:, :]], axis=-2)
-        output = self.out_module.postnet(output, training=False)
-        output = {'mel': output, 'attn': attn_weights}
+            output = tf.concat([output, predictions['final_output'][0:1, -1:, :]], axis=-2)
+        output = {'mel': output[0, 1:, :], 'attn': predictions['attention_weights']}
         return output
 
+    # TODO: remove
     def predict_with_target(self, inp, tar, MAX_LENGTH=50):
         import numpy as np
 
