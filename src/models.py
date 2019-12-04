@@ -4,12 +4,13 @@ from utils import create_masks, create_mel_masks, masked_loss_function, weighted
 
 
 class TextTransformer(tf.keras.Model):
-    """
-	(vocab_size - 1): start token
-	vocab_size: end token.
-	"""
 
-    def __init__(self, num_layers, d_model, num_heads, dff, pe_input, pe_target, vocab_size: dict, rate=0.1):
+    def __init__(self,
+                 encoder_prenet,
+                 decoder_prenet,
+                 encoder,
+                 decoder,
+                 vocab_size: dict):
         super(TextTransformer, self).__init__()
         self.vocab_size = vocab_size
         self.tokens = {}
@@ -18,23 +19,17 @@ class TextTransformer(tf.keras.Model):
         for type in ['in', 'out']:
             self.tokens[type] = {'start': vocab_size[type] - 2, 'end': vocab_size[type] - 1}
 
-        self.encoder = Encoder(
-            num_layers, d_model, num_heads, dff, pe_input, prenet=tf.keras.layers.Embedding(vocab_size['in'], d_model), rate=rate
-        )
-        self.decoder = Decoder(
-            num_layers,
-            d_model,
-            num_heads,
-            dff,
-            pe_target,
-            prenet=tf.keras.layers.Embedding(vocab_size['out'], d_model),
-            rate=rate,
-        )
+        self.encoder_prenet = encoder_prenet
+        self.decoder_prenet = decoder_prenet
+        self.encoder = encoder
+        self.decoder = decoder
         self.final_layer = tf.keras.layers.Dense(vocab_size['out'])
 
     def call(self, inp, target, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
-        enc_output = self.encoder(inp, training, enc_padding_mask)
-        dec_output, attention_weights = self.decoder(target, enc_output, training, look_ahead_mask, dec_padding_mask)
+        enc_input = self.encoder_prenet(inp)
+        enc_output = self.encoder(enc_input, training, enc_padding_mask)
+        dec_input = self.decoder_prenet(target)
+        dec_output, attention_weights = self.decoder(dec_input, enc_output, training, look_ahead_mask, dec_padding_mask)
         final_output = self.final_layer(dec_output)
         return final_output, attention_weights
 
@@ -83,12 +78,16 @@ class TextTransformer(tf.keras.Model):
 class MelTransformer(tf.keras.Model):
 
     def __init__(self,
+                 encoder_prenet,
+                 decoder_prenet,
                  encoder,
                  decoder,
                  decoder_postnet,
                  start_vec):
         super(MelTransformer, self).__init__()
         self.start_vec = tf.cast(start_vec, tf.float32)
+        self.encoder_prenet = encoder_prenet
+        self.decoder_prenet = decoder_prenet
         self.encoder = encoder
         self.decoder = decoder
         self.speech_out_module = decoder_postnet
@@ -98,7 +97,7 @@ class MelTransformer(tf.keras.Model):
                 tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float64),
                 tf.TensorSpec(shape=(None, None), dtype=tf.int64),
             ]
-        ) (self._train_step)
+        )(self._train_step)
 
     def call(self,
              input_vecs,
@@ -107,10 +106,12 @@ class MelTransformer(tf.keras.Model):
              enc_padding_mask,
              look_ahead_mask,
              dec_padding_mask):
-        enc_output = self.encoder(inputs=input_vecs,
+        enc_input = self.encoder_prenet(input_vecs)
+        enc_output = self.encoder(inputs=enc_input,
                                   training=training,
                                   mask=enc_padding_mask)
-        dec_output, attention_weights = self.decoder(inputs=target_vecs,
+        dec_input = self.decoder_prenet(target_vecs)
+        dec_output, attention_weights = self.decoder(inputs=dec_input,
                                                      enc_output=enc_output,
                                                      training=training,
                                                      look_ahead_mask=look_ahead_mask,

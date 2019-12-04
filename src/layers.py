@@ -85,30 +85,22 @@ class EncoderLayer(tf.keras.layers.Layer):
 
 
 class Encoder(tf.keras.layers.Layer):
-    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, prenet, rate=0.1, embed=True):
-        super(Encoder, self).__init__()
 
+    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, rate=0.1):
+        super(Encoder, self).__init__()
         self.d_model = d_model
         self.num_layers = num_layers
-        self.prenet = prenet
         self.pos_encoding = positional_encoding(maximum_position_encoding, d_model)
-
         self.enc_layers = [EncoderLayer(d_model, num_heads, dff, rate) for _ in range(num_layers)]
-
         self.dropout = tf.keras.layers.Dropout(rate)
 
     def call(self, inputs, training, mask):
         seq_len = tf.shape(inputs)[1]
-
-        x = self.prenet(inputs)
-        x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
+        x = inputs * tf.math.sqrt(tf.cast(self.d_model, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
-
         x = self.dropout(x, training=training)
-
         for i in range(self.num_layers):
             x = self.enc_layers[i](x, training, mask)
-
         return x
 
 
@@ -147,12 +139,10 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 class Decoder(tf.keras.layers.Layer):
 
-    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, prenet, rate=0.1):
+    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, rate=0.1):
         super(Decoder, self).__init__()
-
         self.d_model = d_model
         self.num_layers = num_layers
-        self.prenet = prenet
         self.pos_encoding = positional_encoding(maximum_position_encoding, d_model)
         self.dec_layers = [DecoderLayer(d_model, num_heads, dff, rate) for _ in range(num_layers)]
         self.dropout = tf.keras.layers.Dropout(rate)
@@ -160,8 +150,7 @@ class Decoder(tf.keras.layers.Layer):
     def call(self, inputs, enc_output, training, look_ahead_mask, padding_mask):
         seq_len = tf.shape(inputs)[1]
         attention_weights = {}
-        x = self.prenet(inputs)
-        x *= tf.math.sqrt(tf.cast(self.d_model, tf.float32))
+        x = inputs * tf.math.sqrt(tf.cast(self.d_model, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
         x = self.dropout(x, training=training)
         for i in range(self.num_layers):

@@ -4,6 +4,7 @@ import unittest
 import numpy as np
 import tensorflow as tf
 
+from src.layers import Encoder, Decoder
 from src.models import TextTransformer
 
 
@@ -44,13 +45,29 @@ class TestTextTransformer(unittest.TestCase):
         input_vocab_size = tokenizer_in.vocab_size
         target_vocab_size = tokenizer_out.vocab_size
 
-        transformer = TextTransformer(
+        encoder = Encoder(
             num_layers=2,
-            num_heads=2,
             d_model=128,
+            num_heads=2,
             dff=256,
-            pe_input=1000,
-            pe_target=1000,
+            maximum_position_encoding=1000,
+            rate=0.1,
+        )
+
+        decoder = Decoder(
+            num_layers=2,
+            d_model=128,
+            num_heads=2,
+            dff=256,
+            maximum_position_encoding=1000,
+            rate=0.1,
+        )
+
+        transformer = TextTransformer(
+            encoder_prenet=tf.keras.layers.Embedding(input_vocab_size, 128),
+            decoder_prenet=tf.keras.layers.Embedding(target_vocab_size, 128),
+            encoder=encoder,
+            decoder=decoder,
             vocab_size={'in': input_vocab_size, 'out': target_vocab_size}
         )
 

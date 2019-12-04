@@ -33,7 +33,6 @@ class TestMelTransformer(unittest.TestCase):
                           num_heads=2,
                           dff=32,
                           maximum_position_encoding=1000,
-                          prenet=PointWiseFFN(d_model=64, dff=32),
                           rate=0.1)
 
         decoder = Decoder(num_layers=2,
@@ -41,16 +40,16 @@ class TestMelTransformer(unittest.TestCase):
                           num_heads=2,
                           dff=32,
                           maximum_position_encoding=1000,
-                          prenet=PointWiseFFN(d_model=64, dff=32),
                           rate=0.1)
 
         speech_out_module = SpeechOutModule(mel_channels=80,
-                                          conv_filters=32,
-                                          conv_layers=2,
-                                          kernel_size=5
-        )
+                                            conv_filters=32,
+                                            conv_layers=2,
+                                            kernel_size=5)
 
-        melT = MelTransformer(encoder=encoder,
+        melT = MelTransformer(encoder_prenet=PointWiseFFN(d_model=64, dff=32),
+                              decoder_prenet=PointWiseFFN(d_model=64, dff=32),
+                              encoder=encoder,
                               decoder=decoder,
                               decoder_postnet=speech_out_module,
                               start_vec=start_vec)
