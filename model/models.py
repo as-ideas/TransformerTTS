@@ -7,33 +7,31 @@ class TextTransformer(tf.keras.Model):
     def __init__(self,
                  encoder_prenet,
                  decoder_prenet,
+                 decoder_postnet,
                  encoder,
                  decoder,
-                 vocab_size: dict):
+                 start_token_index,
+                 end_token_index):
         super(TextTransformer, self).__init__()
-        self.vocab_size = vocab_size
-        self.tokens = {}
-        assert 'in' in list(vocab_size.keys()), 'Provide "in" input vocab_size'
-        assert 'out' in list(vocab_size.keys()), 'Provide "out" output vocab_size'
-        for type in ['in', 'out']:
-            self.tokens[type] = {'start': vocab_size[type] - 2, 'end': vocab_size[type] - 1}
-
+        self.start_token_index = start_token_index
+        self.end_token_index = end_token_index
         self.encoder_prenet = encoder_prenet
         self.decoder_prenet = decoder_prenet
         self.encoder = encoder
         self.decoder = decoder
-        self.final_layer = tf.keras.layers.Dense(vocab_size['out'])
+        self.decoder_postnet = decoder_postnet
 
     def call(self, inp, target, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
         enc_input = self.encoder_prenet(inp)
         enc_output = self.encoder(enc_input, training, enc_padding_mask)
         dec_input = self.decoder_prenet(target)
         dec_output, attention_weights = self.decoder(dec_input, enc_output, training, look_ahead_mask, dec_padding_mask)
-        final_output = self.final_layer(dec_output)
+        final_output = self.decoder_postnet(dec_output)
         return final_output, attention_weights
 
     @tf.function(
-        input_signature=[tf.TensorSpec(shape=(None, None), dtype=tf.int64), tf.TensorSpec(shape=(None, None), dtype=tf.int64)]
+        input_signature=[tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+                         tf.TensorSpec(shape=(None, None), dtype=tf.int64)]
     )
     def train_step(self, inp, tar):
         tar_inp = tar[:, :-1]
@@ -42,15 +40,13 @@ class TextTransformer(tf.keras.Model):
         with tf.GradientTape() as tape:
             predictions, _ = self.__call__(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
             loss = masked_loss_function(tar_real, predictions, loss_object=self.loss)
-            #loss = self.loss(tar_real, predictions)
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
-
         return gradients, loss, tar_real, predictions
 
     def predict(self, encoded_inp_sentence, MAX_LENGTH=40):
         encoder_input = tf.expand_dims(encoded_inp_sentence, 0)
-        decoder_input = [self.tokens['out']['start']]
+        decoder_input = [self.start_token_index]
         output = tf.expand_dims(decoder_input, 0)
         out_dict = {}
         for i in range(MAX_LENGTH):
@@ -68,7 +64,7 @@ class TextTransformer(tf.keras.Model):
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
             output = tf.concat([output, predicted_id], axis=-1)
             out_dict = {'output': tf.squeeze(output, axis=0), 'attn_weights': attention_weights, 'logits': predictions}
-            if predicted_id == self.tokens['out']['end']:
+            if predicted_id == self.end_token_index:
                 break
         return out_dict
 

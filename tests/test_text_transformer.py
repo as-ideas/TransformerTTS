@@ -14,8 +14,8 @@ class TestTokenizer:
         self.alphabet = alphabet
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet)}
         self.token_to_idx = {s: i for i, s in self.idx_to_token.items()}
-        self.start_token = len(self.alphabet)
-        self.end_token = len(self.alphabet) + 1
+        self.start_token_index = len(self.alphabet)
+        self.end_token_index = len(self.alphabet) + 1
         self.vocab_size = len(self.alphabet) + 2
 
     def encode(self, sentence):
@@ -66,9 +66,11 @@ class TestTextTransformer(unittest.TestCase):
         transformer = TextTransformer(
             encoder_prenet=tf.keras.layers.Embedding(input_vocab_size, 128),
             decoder_prenet=tf.keras.layers.Embedding(target_vocab_size, 128),
+            decoder_postnet=tf.keras.layers.Dense(target_vocab_size),
             encoder=encoder,
             decoder=decoder,
-            vocab_size={'in': input_vocab_size, 'out': target_vocab_size}
+            start_token_index=tokenizer_out.start_token_index,
+            end_token_index=tokenizer_out.end_token_index,
         )
 
         loss_function = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
