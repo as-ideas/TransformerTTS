@@ -21,11 +21,21 @@ class TextTransformer(tf.keras.Model):
         self.decoder = decoder
         self.decoder_postnet = decoder_postnet
 
-    def call(self, inp, target, training, enc_padding_mask, look_ahead_mask, dec_padding_mask):
-        enc_input = self.encoder_prenet(inp)
+    def call(self,
+             inputs,
+             targets,
+             training,
+             enc_padding_mask,
+             look_ahead_mask,
+             dec_padding_mask):
+        enc_input = self.encoder_prenet(inputs)
         enc_output = self.encoder(enc_input, training, enc_padding_mask)
-        dec_input = self.decoder_prenet(target)
-        dec_output, attention_weights = self.decoder(dec_input, enc_output, training, look_ahead_mask, dec_padding_mask)
+        dec_input = self.decoder_prenet(targets)
+        dec_output, attention_weights = self.decoder(inputs=dec_input,
+                                                     enc_output=enc_output,
+                                                     training=training,
+                                                     look_ahead_mask=look_ahead_mask,
+                                                     padding_mask=dec_padding_mask)
         final_output = self.decoder_postnet(dec_output)
         return final_output, attention_weights
 
@@ -38,7 +48,12 @@ class TextTransformer(tf.keras.Model):
         tar_real = tar[:, 1:]
         enc_padding_mask, combined_mask, dec_padding_mask = create_masks(inp, tar_inp)
         with tf.GradientTape() as tape:
-            predictions, _ = self.__call__(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
+            predictions, _ = self.__call__(inputs=inp,
+                                           targets=tar_inp,
+                                           training=True,
+                                           enc_padding_mask=enc_padding_mask,
+                                           look_ahead_mask=combined_mask,
+                                           dec_padding_mask=dec_padding_mask)
             loss = masked_loss_function(tar_real, predictions, loss_object=self.loss)
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
@@ -52,15 +67,14 @@ class TextTransformer(tf.keras.Model):
         for i in range(MAX_LENGTH):
             enc_padding_mask, combined_mask, dec_padding_mask = create_masks(encoder_input, output)
             predictions, attention_weights = self.__call__(
-                encoder_input,
-                target=output,
+                inputs=encoder_input,
+                targets=output,
                 training=False,
                 enc_padding_mask=enc_padding_mask,
                 look_ahead_mask=combined_mask,
                 dec_padding_mask=dec_padding_mask,
             )
-            # select the last word from the seq_len dimension
-            predictions = predictions[:, -1:, :]  # (batch_size, 1, vocab_size)
+            predictions = predictions[:, -1:, :]
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
             output = tf.concat([output, predicted_id], axis=-1)
             out_dict = {'output': tf.squeeze(output, axis=0), 'attn_weights': attention_weights, 'logits': predictions}
