@@ -42,6 +42,7 @@ class TextTransformer(tf.keras.Model):
         with tf.GradientTape() as tape:
             predictions, _ = self.__call__(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
             loss = masked_loss_function(tar_real, predictions, loss_object=self.loss)
+            #loss = self.loss(tar_real, predictions)
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
 
