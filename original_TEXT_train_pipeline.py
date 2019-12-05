@@ -388,9 +388,7 @@ def train_step(inp, tar):
 
 
 def evaluate(inp_sentence):
-    start_token = [tokenizer_in.start_token]
-    end_token = [tokenizer_in.end_token]
-    inp_sentence = start_token + tokenizer_in.encode(inp_sentence) + end_token
+   # inp_sentence = tokenizer_in.encode(inp_sentence)
     encoder_input = tf.expand_dims(inp_sentence, 0)
     decoder_input = [tokenizer_out.start_token]
     output = tf.expand_dims(decoder_input, 0)
@@ -419,8 +417,8 @@ for epoch in range(EPOCHS):
         losses.append(loss)
 
     predicted = tf.cast(tf.argmax(predictions[0], axis=-1), tf.int32).numpy()
-    predicted_sentence = evaluate(tokenizer_in.decode(inp[0]))
-    print('Time taken for {} epoch: {} secs'.format(epoch, time.time() - start))
+    predicted_sentence = evaluate(inp[0])
+    print('epoch {} loss {}'.format(epoch, float(loss)))
     print('Train output:', tokenizer_out.decode(predicted))
     print('Predicted sentence from ', tokenizer_in.decode(inp[0].numpy()))
     print(tokenizer_out.decode(predicted_sentence[0]))

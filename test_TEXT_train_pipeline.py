@@ -102,10 +102,9 @@ for epoch in range(EPOCHS):
         losses.append(loss)
 
     predicted = tf.cast(tf.argmax(predictions[0], axis=-1), tf.int32).numpy()
-    if epoch > 0:
-        predicted_sentence = transformer.predict(inp[0])['output']
-        print('Time taken for {} epoch: {} secs'.format(epoch, time.time() - start))
-        print('Train output:', tokenizer_out.decode(predicted))
-        print('Predicted sentence from ', tokenizer_in.decode(inp[0].numpy()))
-        print(tokenizer_out.decode(predicted_sentence))
-        print()
+    predicted_sentence = transformer.predict(inp[0])['output']
+    print('epoch {} loss {}'.format(epoch, float(loss)))
+    print('Train output:', tokenizer_out.decode(predicted))
+    print('Predicted sentence from ', tokenizer_in.decode(inp[0].numpy()))
+    print(tokenizer_out.decode(predicted_sentence))
+    print()
