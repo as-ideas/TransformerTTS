@@ -4,8 +4,7 @@ import unittest
 import numpy as np
 import tensorflow as tf
 
-from model.layers import Encoder, Decoder
-from model.models import TextTransformer
+from model.transformer_factory import new_text_transformer
 
 
 class TestTokenizer:
@@ -42,49 +41,31 @@ class TestTextTransformer(unittest.TestCase):
         train_dataset = train_dataset.shuffle(10).padded_batch(2, padded_shapes=([-1], [-1]))
         train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-        input_vocab_size = tokenizer_in.vocab_size
-        target_vocab_size = tokenizer_out.vocab_size
-
-        encoder = Encoder(
-            num_layers=2,
-            d_model=128,
-            num_heads=2,
-            dff=256,
-            maximum_position_encoding=1000,
-            rate=0.1,
-        )
-
-        decoder = Decoder(
-            num_layers=2,
-            d_model=128,
-            num_heads=2,
-            dff=256,
-            maximum_position_encoding=1000,
-            rate=0.1,
-        )
-
-        transformer = TextTransformer(
-            encoder_prenet=tf.keras.layers.Embedding(input_vocab_size, 128),
-            decoder_prenet=tf.keras.layers.Embedding(target_vocab_size, 128),
-            decoder_postnet=tf.keras.layers.Dense(target_vocab_size),
-            encoder=encoder,
-            decoder=decoder,
+        text_transformer = new_text_transformer(
             start_token_index=tokenizer_out.start_token_index,
             end_token_index=tokenizer_out.end_token_index,
+            input_vocab_size=tokenizer_in.vocab_size,
+            target_vocab_size=tokenizer_out.vocab_size,
+            num_layers=2,
+            d_model=128,
+            num_heads=2,
+            dff=256,
+            max_position_encoding=1000,
+            dropout_rate=0.1,
         )
 
         loss_function = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
         optimizer = tf.keras.optimizers.Adam(1e-3, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-        transformer.compile(loss=loss_function, optimizer=optimizer)
+        text_transformer.compile(loss=loss_function, optimizer=optimizer)
 
         losses = []
         for epoch in range(10):
             for (batch, (inp, tar)) in enumerate(train_dataset):
-                gradients, loss, tar_real, predictions = transformer.train_step(inp, tar)
+                gradients, loss, tar_real, predictions = text_transformer.train_step(inp, tar)
                 losses.append(float(loss))
 
         self.assertAlmostEqual(2.0712099075317383, losses[-1], places=6)
-        pred = transformer.predict(tokenized_train_samples[0][0], MAX_LENGTH=10)
+        pred = text_transformer.predict(tokenized_train_samples[0][0], MAX_LENGTH=10)
         self.assertEqual((1, 1, 102), pred['logits'].numpy().shape)
         self.assertAlmostEqual(-47.13420867919922, float(tf.reduce_sum(pred['logits'])))
 
