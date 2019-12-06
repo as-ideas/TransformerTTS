@@ -4,6 +4,7 @@ import unittest
 import numpy as np
 import tensorflow as tf
 
+from losses import masked_crossentropy
 from model.transformer_factory import new_text_transformer
 
 
@@ -32,7 +33,7 @@ class TestTextTransformer(unittest.TestCase):
 
     def test_training(self):
 
-        train_samples = [('I am a student.', 'Ich bin ein Student.')] * 2
+        train_samples = [('I am a student.', 'Ich bin ein Student.'), ('I am cool.', 'Ich bin cool.')]
         tokenizer_in = TestTokenizer(alphabet=string.ascii_letters + string.punctuation + string.whitespace)
         tokenizer_out = TestTokenizer(alphabet=string.printable)
         tokenized_train_samples = [(tokenizer_in.encode(i), tokenizer_out.encode(j)) for i, j in train_samples]
@@ -54,7 +55,7 @@ class TestTextTransformer(unittest.TestCase):
             dropout_rate=0.1,
         )
 
-        loss_function = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True, reduction='none')
+        loss_function = masked_crossentropy
         optimizer = tf.keras.optimizers.Adam(1e-3, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
         text_transformer.compile(loss=loss_function, optimizer=optimizer)
 
@@ -64,8 +65,8 @@ class TestTextTransformer(unittest.TestCase):
                 gradients, loss, tar_real, predictions = text_transformer.train_step(inp, tar)
                 losses.append(float(loss))
 
-        self.assertAlmostEqual(2.0712099075317383, losses[-1], places=6)
+        self.assertAlmostEqual(1.6723564863204956, losses[-1], places=6)
         pred = text_transformer.predict(tokenized_train_samples[0][0], MAX_LENGTH=10)
         self.assertEqual((1, 1, 102), pred['logits'].numpy().shape)
-        self.assertAlmostEqual(-47.13420867919922, float(tf.reduce_sum(pred['logits'])))
+        self.assertAlmostEqual(-38.04957580566406, float(tf.reduce_sum(pred['logits'])))
 

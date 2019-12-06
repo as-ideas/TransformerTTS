@@ -168,7 +168,7 @@ class SpeechOutModule(tf.keras.layers.Layer):
         super(SpeechOutModule, self).__init__()
         self.mel_channels = mel_channels
         self.mel_linear = tf.keras.layers.Dense(mel_channels)
-        self.stop_linear = tf.keras.layers.Dense(1, activation='sigmoid')
+        self.stop_linear = tf.keras.layers.Dense(3)
         self.speech_postnet = SpeechPostnet(
             out_size=mel_channels, n_filters=conv_filters, n_layers=conv_layers, kernel_size=kernel_size
         )

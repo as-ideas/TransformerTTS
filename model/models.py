@@ -1,5 +1,5 @@
 import tensorflow as tf
-from model.transformer_utils import create_masks, create_mel_masks, masked_loss_function, weighted_sum_losses
+from model.transformer_utils import create_masks, create_mel_masks, weighted_sum_losses
 
 
 class TextTransformer(tf.keras.Model):
@@ -54,7 +54,7 @@ class TextTransformer(tf.keras.Model):
                                            enc_padding_mask=enc_padding_mask,
                                            look_ahead_mask=combined_mask,
                                            dec_padding_mask=dec_padding_mask)
-            loss = masked_loss_function(tar_real, predictions, loss_object=self.loss)
+            loss = self.loss(tar_real, predictions)
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return gradients, loss, tar_real, predictions
@@ -91,7 +91,8 @@ class MelTransformer(tf.keras.Model):
                  encoder,
                  decoder,
                  decoder_postnet,
-                 start_vec):
+                 start_vec,
+                 stop_prob_index):
         super(MelTransformer, self).__init__()
         self.start_vec = tf.cast(start_vec, tf.float32)
         self.encoder_prenet = encoder_prenet
@@ -99,6 +100,7 @@ class MelTransformer(tf.keras.Model):
         self.encoder = encoder
         self.decoder = decoder
         self.speech_out_module = decoder_postnet
+        self.stop_prob_index = stop_prob_index
         self.train_step = tf.function(
             input_signature=[
                 tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float64),
@@ -170,5 +172,58 @@ class MelTransformer(tf.keras.Model):
                 inp, output, False, enc_padding_mask, combined_mask, dec_padding_mask
             )
             output = tf.concat([output, predictions['final_output'][:1, -1:, :]], axis=-2)
+            stop_pred = predictions['stop_prob'][:, -1]
+            if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
+                break
+
         output = {'mel': output[0, 1:, :], 'attention_weights': predictions['attention_weights']}
         return output
+
+    def predict_with_target(self, inp, tar, MAX_LENGTH=50):
+        import numpy as np
+
+        out = {}
+        tar_in = {}
+        assert np.allclose(inp[0:1, 0, :], self.start_vec), 'Append start vector to input'
+        tar_in['own'] = tf.expand_dims(self.start_vec, 0)
+        if tar is not None:
+            tar_in['train'] = tar[:, :MAX_LENGTH, :]
+            out['TE'] = tf.expand_dims(self.start_vec, 0)
+
+        for i in range(MAX_LENGTH):
+            # if i % 50 == 0:
+            enc_padding_mask, combined_mask, dec_padding_mask = create_mel_masks(inp, tar_in['own'])
+            model_out = self.call(
+                inp, tar_in['own'], False, enc_padding_mask, combined_mask, dec_padding_mask
+            )  # , apply_conv=False
+            # )
+            tar_in['own'] = tf.concat([tf.expand_dims(self.start_vec, 0), model_out['final_output']], axis=-2)
+            out['own'] = tar_in['own']
+
+            if tar is not None:
+                tar_in['TE'] = tar[:, 0 : i + 1, :]
+                model_out = self.call(
+                    inp, tar_in['TE'], False, enc_padding_mask, combined_mask, dec_padding_mask
+                )  # , apply_conv=False
+                # )
+                out['TE'] = tf.concat([out['TE'], model_out['final_output'][0:1, -1:, :]], axis=-2)
+
+            stop_prob = model_out['stop_prob'][:, -1]
+            if int(tf.argmax(stop_prob, axis=-1)) == self.stop_prob_index:
+                break
+
+        # out['own'] = self.out_module.postnet(out['own'][0:1, 1:, :], training=False)
+        out['own'] = out['own'][0:1, 1:, :]
+
+        if tar is not None:
+            out['TE'] = out['TE'][0:1, 1:, :]
+            # out['TE'] = self.out_module.postnet(out['TE'][0:1, 1:, :], training=False)
+
+            enc_padding_mask, combined_mask, dec_padding_mask = create_mel_masks(inp, tar_in['train'])
+            model_out = self.call(
+                inp, tar_in['train'], False, enc_padding_mask, combined_mask, dec_padding_mask
+            )  # , apply_conv=True
+            # )
+            out['train'] = model_out['final_output']
+
+        return out

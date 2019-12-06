@@ -3,6 +3,7 @@
 import librosa
 import librosa.display
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 def display_mel(ms, sr, file=None):

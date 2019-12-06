@@ -2,6 +2,8 @@ import unittest
 
 import numpy as np
 import tensorflow as tf
+
+from losses import masked_mean_squared_error, masked_crossentropy
 from model.transformer_factory import new_mel_transformer
 
 
@@ -18,15 +20,18 @@ class TestMelTransformer(unittest.TestCase):
         train_samples = []
         for mel in test_mels:
             mel = np.concatenate([start_vec, mel, end_vec])
-            stop_probs = np.zeros((mel.shape[0]))
-            stop_probs[-1] = 1
+            stop_probs = np.ones((mel.shape[0]))
+            stop_probs[-1] = 2
             train_samples.append((mel, stop_probs))
 
-        losses = [tf.keras.losses.MeanAbsoluteError(), tf.keras.losses.BinaryCrossentropy(), tf.keras.losses.MeanAbsoluteError()]
+        losses = [masked_mean_squared_error,
+                  masked_crossentropy,
+                  masked_mean_squared_error]
         loss_coeffs = [1.0, 1.0, 1.0]
         optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
         mel_transformer = new_mel_transformer(start_vec=start_vec,
+                                              stop_prob_index=2,
                                               num_layers=2,
                                               d_model=64,
                                               num_heads=2,
@@ -42,7 +47,8 @@ class TestMelTransformer(unittest.TestCase):
         train_gen = lambda: (mel for mel in train_samples)
         train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float64, tf.int64))
         train_dataset = train_dataset.cache()
-        train_dataset = train_dataset.padded_batch(batch_size=2, padded_shapes=([-1, 80], [-1]))
+        train_dataset = train_dataset.padded_batch(batch_size=2,
+                                                   padded_shapes=([-1, 80], [-1]))
         train_dataset = train_dataset.shuffle(10).prefetch(tf.data.experimental.AUTOTUNE)
 
         losses = []
@@ -56,6 +62,6 @@ class TestMelTransformer(unittest.TestCase):
                 batch_num += 1
 
         pred = mel_transformer.predict(test_mels[0], max_length=50)
-        self.assertAlmostEqual(1.2679681777954102, losses[-1], places=6)
+        self.assertAlmostEqual(1.9365782737731934, losses[-1], places=6)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(2896.39208984375, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(2471.971923828125, float(tf.reduce_sum(pred['mel'])), places=6)

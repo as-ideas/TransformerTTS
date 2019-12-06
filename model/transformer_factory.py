@@ -47,6 +47,7 @@ def new_text_transformer(start_token_index,
 
 
 def new_mel_transformer(start_vec,
+                        stop_prob_index,
                         num_layers=1,
                         d_model=64,
                         num_heads=1,
@@ -82,6 +83,7 @@ def new_mel_transformer(start_vec,
                                      encoder=encoder,
                                      decoder=decoder,
                                      decoder_postnet=speech_out_module,
-                                     start_vec=start_vec)
+                                     start_vec=start_vec,
+                                     stop_prob_index=stop_prob_index)
 
     return mel_transformer

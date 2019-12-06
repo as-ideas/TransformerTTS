@@ -7,6 +7,7 @@ import tensorflow as tf
 from pathlib import Path
 import argparse
 
+from losses import masked_mean_squared_error, masked_crossentropy
 from model.transformer_factory import new_mel_transformer
 from utils import display_mel
 
@@ -39,11 +40,14 @@ WEIGHTS_DIR.mkdir(exist_ok=True)
 SAMPLE_OUT_PATH.mkdir(exist_ok=True, parents=True)
 WEIGHTS_PATH = str(WEIGHTS_DIR / args.WEIGHTS_ID)
 start_vec = np.ones((1, args.MEL_CHANNELS)) * -3
-end_vec = np.ones((1, args.MEL_CHANNELS)) * -6
+end_vec = np.ones((1, args.MEL_CHANNELS))
 
-losses = [tf.keras.losses.MeanAbsoluteError(), tf.keras.losses.BinaryCrossentropy(), tf.keras.losses.MeanAbsoluteError()]
+losses = [masked_mean_squared_error,
+          masked_crossentropy,
+          masked_mean_squared_error]
 loss_coeffs = [1.0, 1.0, 1.0]
 optimizer = tf.keras.optimizers.Adam(args.LEARNING_RATE, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
+
 
 def get_norm_mel(mel_path):
     mel = np.load(mel_path)
@@ -59,22 +63,23 @@ random.seed(args.RANDOM_SEED)
 random.shuffle(mel_files)
 for mel_file in mel_files[:args.N_SAMPLES]:
     norm_mel = get_norm_mel(mel_file)
-    stop_probs = np.zeros(norm_mel.shape[0], dtype=np.int64)
+    stop_probs = np.ones(norm_mel.shape[0], dtype=np.int64)
+    stop_probs[-1] = 2
     train_data.append((norm_mel, stop_probs))
 
 sample_norm_mel = tf.expand_dims(train_data[0][0], 0)
 train_dataset = tf.data.Dataset.from_generator(lambda: train_data, output_types=(tf.float64, tf.int64))
 train_dataset = train_dataset.cache()
-train_dataset = train_dataset.padded_batch(args.BATCH_SIZE, padded_shapes=([-1, args.MEL_CHANNELS], [-1]))
+train_dataset = train_dataset.padded_batch(1, padded_shapes=([-1, args.MEL_CHANNELS], [-1]))
 train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
 mel_transformer = new_mel_transformer(start_vec=start_vec,
                                       num_layers=2,
-                                      d_model=64,
+                                      d_model=512,
                                       num_heads=2,
-                                      dff=32,
+                                      dff=512,
                                       max_position_encoding=1000,
-                                      dropout_rate=0.1,
+                                      dropout_rate=0,
                                       mel_channels=80,
                                       postnet_conv_filters=32,
                                       postnet_conv_layers=2,
@@ -90,7 +95,10 @@ for epoch in range(args.EPOCHS + 1):
     for i, (mel, stop) in enumerate(train_dataset):
         out = mel_transformer.train_step(mel, mel, stop)
         losses.append(out['loss'])
-        print('{} {}'.format(i, out['loss']))
+        if i % 10 == 0:
+            print('{} {}'.format(i, out['loss']))
+
+
     epoch_losses.append(np.mean(losses))
     print(
         'Epoch {} took {} secs. \nAvg loss: {} \n'.format(args.starting_epoch + epoch, time.time() - start, epoch_losses[epoch])
@@ -101,7 +109,7 @@ for epoch in range(args.EPOCHS + 1):
         min_epoch = epoch
         mel_transformer.save_weights(f'{WEIGHTS_PATH}_weights_{epoch+args.starting_epoch}.hdf5')
     if epoch_losses[epoch] == min_loss:
-        out = mel_transformer.predict_with_target(sample_norm_mel, sample_norm_mel, max_length=50)
+        out = mel_transformer.predict_with_target(sample_norm_mel, sample_norm_mel, MAX_LENGTH=500)
         for t in ['own', 'TE', 'train']:
             mel_out = np.exp(out[t].numpy()[0].T)
             display_mel(mel_out, args.SAMPLING_RATE, file=f'{str(SAMPLE_OUT_PATH)}_{t}_e{args.starting_epoch+epoch}.png')
