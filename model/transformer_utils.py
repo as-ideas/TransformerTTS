@@ -126,3 +126,13 @@ def create_mel_masks(inp, tar):
     combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
 
     return enc_padding_mask, combined_mask, dec_padding_mask
+
+
+def create_mel_text_masks(inp, tar):
+    enc_padding_mask = create_mel_padding_mask(inp)
+    dec_padding_mask = create_mel_padding_mask(inp)
+    dec_target_padding_mask = create_padding_mask(tar)
+    look_ahead_mask = create_look_ahead_mask(tf.shape(tar)[-1])
+    combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
+
+    return enc_padding_mask, combined_mask, dec_padding_mask

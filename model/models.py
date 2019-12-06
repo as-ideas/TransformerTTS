@@ -1,5 +1,5 @@
 import tensorflow as tf
-from model.transformer_utils import create_masks, create_mel_masks, weighted_sum_losses
+from model.transformer_utils import create_masks, create_mel_masks, weighted_sum_losses, create_mel_text_masks
 
 
 class TextTransformer(tf.keras.Model):
@@ -227,3 +227,89 @@ class MelTransformer(tf.keras.Model):
             out['train'] = model_out['final_output']
 
         return out
+
+
+class MelTextTransformer(tf.keras.Model):
+
+    def __init__(self,
+                 encoder_prenet,
+                 decoder_prenet,
+                 decoder_postnet,
+                 encoder,
+                 decoder,
+                 start_token_index,
+                 end_token_index,
+                 mel_channels):
+        super(MelTextTransformer, self).__init__()
+        self.start_token_index = start_token_index
+        self.end_token_index = end_token_index
+        self.encoder_prenet = encoder_prenet
+        self.decoder_prenet = decoder_prenet
+        self.encoder = encoder
+        self.decoder = decoder
+        self.decoder_postnet = decoder_postnet
+        self.train_step = self._train_step
+        """
+        self.train_step = tf.function(
+            input_signature=[
+                tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float64),
+                tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+            ]
+        )(self._train_step)
+        """
+    def call(self,
+             inputs,
+             targets,
+             training,
+             enc_padding_mask,
+             look_ahead_mask,
+             dec_padding_mask):
+        enc_input = self.encoder_prenet(inputs)
+        enc_output = self.encoder(enc_input, training, enc_padding_mask)
+        dec_input = self.decoder_prenet(targets)
+        dec_output, attention_weights = self.decoder(inputs=dec_input,
+                                                     enc_output=enc_output,
+                                                     training=training,
+                                                     look_ahead_mask=look_ahead_mask,
+                                                     padding_mask=dec_padding_mask)
+        final_output = self.decoder_postnet(dec_output)
+        return final_output, attention_weights
+
+    def _train_step(self, inp, tar):
+        tar_inp = tar[:, :-1]
+        tar_real = tar[:, 1:]
+        enc_padding_mask, combined_mask, dec_padding_mask = create_mel_text_masks(inp, tar_inp)
+        with tf.GradientTape() as tape:
+            predictions, _ = self.__call__(inputs=inp,
+                                           targets=tar_inp,
+                                           training=True,
+                                           enc_padding_mask=enc_padding_mask,
+                                           look_ahead_mask=combined_mask,
+                                           dec_padding_mask=dec_padding_mask)
+            loss = self.loss(tar_real, predictions)
+        gradients = tape.gradient(loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+        return gradients, loss, tar_real, predictions
+
+    def predict(self, encoded_inp_sentence, MAX_LENGTH=40):
+        encoder_input = tf.expand_dims(encoded_inp_sentence, 0)
+        decoder_input = [self.start_token_index]
+        output = tf.expand_dims(decoder_input, 0)
+        out_dict = {}
+        for i in range(MAX_LENGTH):
+            enc_padding_mask, combined_mask, dec_padding_mask = create_mel_text_masks(encoder_input, output)
+            predictions, attention_weights = self.__call__(
+                inputs=encoder_input,
+                targets=output,
+                training=False,
+                enc_padding_mask=enc_padding_mask,
+                look_ahead_mask=combined_mask,
+                dec_padding_mask=dec_padding_mask,
+            )
+            predictions = predictions[:, -1:, :]
+            predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
+            output = tf.concat([output, predicted_id], axis=-1)
+            out_dict = {'output': tf.squeeze(output, axis=0), 'attn_weights': attention_weights, 'logits': predictions}
+            if predicted_id == self.end_token_index:
+                break
+        return out_dict

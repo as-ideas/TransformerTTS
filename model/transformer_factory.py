@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from model.layers import Encoder, Decoder, SpeechOutModule, PointWiseFFN
-from model.models import TextTransformer, MelTransformer
+from model.models import TextTransformer, MelTransformer, MelTextTransformer
 
 
 def new_text_transformer(start_token_index,
@@ -88,3 +88,47 @@ def new_mel_transformer(start_vec,
                                      stop_prob_index=stop_prob_index)
 
     return mel_transformer
+
+
+def new_mel_text_transformer(start_token_index,
+                             end_token_index,
+                             target_vocab_size,
+                             mel_channels=80,
+                             num_layers=1,
+                             d_model=64,
+                             num_heads=1,
+                             dff=512,
+                             dff_prenet=512,
+                             max_position_encoding=10000,
+                             dropout_rate=0):
+
+    encoder = Encoder(
+        num_layers=num_layers,
+        d_model=d_model,
+        num_heads=num_heads,
+        dff=dff,
+        maximum_position_encoding=max_position_encoding,
+        rate=dropout_rate,
+    )
+
+    decoder = Decoder(
+        num_layers=num_layers,
+        d_model=d_model,
+        num_heads=num_heads,
+        dff=dff,
+        maximum_position_encoding=max_position_encoding,
+        rate=dropout_rate,
+    )
+
+    mel_text_transformer = MelTextTransformer(
+        encoder_prenet=PointWiseFFN(d_model=d_model, dff=dff_prenet),
+        decoder_prenet=tf.keras.layers.Embedding(target_vocab_size, d_model),
+        decoder_postnet=tf.keras.layers.Dense(target_vocab_size),
+        encoder=encoder,
+        decoder=decoder,
+        start_token_index=start_token_index,
+        end_token_index=end_token_index,
+        mel_channels=mel_channels
+    )
+
+    return mel_text_transformer
