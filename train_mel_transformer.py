@@ -74,10 +74,12 @@ train_dataset = train_dataset.padded_batch(1, padded_shapes=([-1, args.MEL_CHANN
 train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
 mel_transformer = new_mel_transformer(start_vec=start_vec,
+                                      stop_prob_index=2,
                                       num_layers=2,
                                       d_model=512,
                                       num_heads=2,
                                       dff=512,
+                                      dff_prenet=256,
                                       max_position_encoding=1000,
                                       dropout_rate=0,
                                       mel_channels=80,

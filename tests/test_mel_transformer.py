@@ -36,6 +36,7 @@ class TestMelTransformer(unittest.TestCase):
                                               d_model=64,
                                               num_heads=2,
                                               dff=32,
+                                              dff_prenet=32,
                                               max_position_encoding=1000,
                                               dropout_rate=0.1,
                                               mel_channels=80,
