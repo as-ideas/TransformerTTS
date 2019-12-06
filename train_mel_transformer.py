@@ -70,8 +70,7 @@ for mel_file in mel_files[:args.N_SAMPLES]:
 sample_norm_mel = tf.expand_dims(train_data[0][0], 0)
 train_dataset = tf.data.Dataset.from_generator(lambda: train_data, output_types=(tf.float64, tf.int64))
 train_dataset = train_dataset.cache()
-train_dataset = train_dataset.padded_batch(1, padded_shapes=([-1, args.MEL_CHANNELS], [-1]))
-train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+train_dataset = train_dataset.shuffle(100000).padded_batch(args.BATCH_SIZE, padded_shapes=([-1, args.MEL_CHANNELS], [-1]))
 
 mel_transformer = new_mel_transformer(start_vec=start_vec,
                                       stop_prob_index=2,
