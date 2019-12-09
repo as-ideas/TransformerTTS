@@ -9,7 +9,7 @@ import argparse
 
 from losses import masked_mean_squared_error, masked_crossentropy
 from model.transformer_factory import new_mel_transformer
-from utils import display_mel
+from utils import display_mel, display_attention
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mel_dir', dest='MEL_DIR', type=str, required=True)
@@ -111,6 +111,10 @@ for epoch in range(args.EPOCHS + 1):
         mel_transformer.save_weights(f'{WEIGHTS_PATH}_weights_{epoch+args.starting_epoch}.hdf5')
     if epoch_losses[epoch] == min_loss:
         out = mel_transformer.predict_with_target(sample_norm_mel, sample_norm_mel, MAX_LENGTH=500)
+        out_own = mel_transformer.predict(tf.squeeze(sample_norm_mel), max_length=50)
+        display_attention(out_own['attention_weights'], 'decoder_layer1_block2',
+                          file=f'{str(SAMPLE_OUT_PATH)}_att_e{args.starting_epoch+epoch}.png')
+
         for t in ['own', 'TE', 'train']:
             mel_out = np.exp(out[t].numpy()[0].T)
             display_mel(mel_out, args.SAMPLING_RATE, file=f'{str(SAMPLE_OUT_PATH)}_{t}_e{args.starting_epoch+epoch}.png')

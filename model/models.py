@@ -120,7 +120,7 @@ class MelTransformer(tf.keras.Model):
         enc_output = self.encoder(inputs=enc_input,
                                   training=training,
                                   mask=enc_padding_mask)
-        dec_input = self.decoder_prenet(target_vecs)
+        dec_input = self.decoder_prenet(target_vecs, training=training)
         dec_output, attention_weights = self.decoder(inputs=dec_input,
                                                      enc_output=enc_output,
                                                      training=training,

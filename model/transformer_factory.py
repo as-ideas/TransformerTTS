@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from model.layers import Encoder, Decoder, SpeechOutModule, PointWiseFFN
+from model.layers import Encoder, Decoder, SpeechOutModule, PointWiseFFN, ReluFeedForward
 from model.models import TextTransformer, MelTransformer, MelTextTransformer
 
 
@@ -80,7 +80,7 @@ def new_mel_transformer(start_vec,
                                         kernel_size=postnet_kernel_size)
 
     mel_transformer = MelTransformer(encoder_prenet=PointWiseFFN(d_model=d_model, dff=dff_prenet),
-                                     decoder_prenet=PointWiseFFN(d_model=d_model, dff=dff_prenet),
+                                     decoder_prenet=ReluFeedForward(d_model=d_model, dff=dff_prenet),
                                      encoder=encoder,
                                      decoder=decoder,
                                      decoder_postnet=speech_out_module,
