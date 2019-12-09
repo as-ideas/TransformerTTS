@@ -248,15 +248,14 @@ class MelTextTransformer(tf.keras.Model):
         self.encoder = encoder
         self.decoder = decoder
         self.decoder_postnet = decoder_postnet
-        self.train_step = self._train_step
-        """
+        #self.train_step = self._train_step
         self.train_step = tf.function(
             input_signature=[
                 tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float64),
                 tf.TensorSpec(shape=(None, None), dtype=tf.int64),
             ]
         )(self._train_step)
-        """
+
     def call(self,
              inputs,
              targets,
@@ -291,7 +290,7 @@ class MelTextTransformer(tf.keras.Model):
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return gradients, loss, tar_real, predictions
 
-    def predict(self, encoded_inp_sentence, MAX_LENGTH=40):
+    def predict(self, encoded_inp_sentence, MAX_LENGTH=100):
         encoder_input = tf.expand_dims(encoded_inp_sentence, 0)
         decoder_input = [self.start_token_index]
         output = tf.expand_dims(decoder_input, 0)

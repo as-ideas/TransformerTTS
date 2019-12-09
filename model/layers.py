@@ -3,6 +3,7 @@ from model.transformer_utils import positional_encoding, scaled_dot_product_atte
 
 
 class PointWiseFFN(tf.keras.layers.Layer):
+
     def __init__(self, d_model, dff):
         super(PointWiseFFN, self).__init__()
         self.d1 = tf.keras.layers.Dense(dff, activation='relu')  # (batch_size, seq_len, dff)
@@ -11,6 +12,21 @@ class PointWiseFFN(tf.keras.layers.Layer):
     def call(self, x):
         x = self.d1(x)
         x = self.d2(x)
+        return x
+
+
+class ReluFeedForward(tf.keras.layers.Layer):
+
+    def __init__(self, d_model, dff, dropout_rate=0.5):
+        super(PointWiseFFN, self).__init__()
+        self.d1 = tf.keras.layers.Dense(dff, activation='relu')  # (batch_size, seq_len, dff)
+        self.d2 = tf.keras.layers.Dense(d_model, activation='relu')  # (batch_size, seq_len, d_model)
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
+
+    def call(self, x, training=True):
+        x = self.d1(x)
+        x = self.d2(x)
+        x = self.dropout(x, training=training)
         return x
 
 
