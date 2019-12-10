@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from model.layers import Encoder, Decoder, SpeechOutModule, PointWiseFFN, ReluFeedForward
+from model.layers import Encoder, Decoder, SpeechPostnet, PointWiseFFN, ReluFeedForward, TextPostnet
 from model.models import TextTransformer, MelTransformer, MelTextTransformer
 
 
@@ -36,7 +36,7 @@ def new_text_transformer(start_token_index,
     text_transformer = TextTransformer(
         encoder_prenet=tf.keras.layers.Embedding(input_vocab_size, d_model),
         decoder_prenet=tf.keras.layers.Embedding(target_vocab_size, d_model),
-        decoder_postnet=tf.keras.layers.Dense(target_vocab_size),
+        decoder_postnet=TextPostnet(target_vocab_size),
         encoder=encoder,
         decoder=decoder,
         start_token_index=start_token_index,
@@ -74,7 +74,7 @@ def new_mel_transformer(start_vec,
                       maximum_position_encoding=max_position_encoding,
                       rate=dropout_rate)
 
-    speech_out_module = SpeechOutModule(mel_channels=mel_channels,
+    speech_out_module = SpeechPostnet(mel_channels=mel_channels,
                                         conv_filters=postnet_conv_filters,
                                         conv_layers=postnet_conv_layers,
                                         kernel_size=postnet_kernel_size)
@@ -123,7 +123,7 @@ def new_mel_text_transformer(start_token_index,
     mel_text_transformer = MelTextTransformer(
         encoder_prenet=PointWiseFFN(d_model=d_model, dff=dff_prenet),
         decoder_prenet=tf.keras.layers.Embedding(target_vocab_size, d_model),
-        decoder_postnet=tf.keras.layers.Dense(target_vocab_size),
+        decoder_postnet=TextPostnet(target_vocab_size),
         encoder=encoder,
         decoder=decoder,
         start_token_index=start_token_index,
