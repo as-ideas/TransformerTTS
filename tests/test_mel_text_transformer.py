@@ -27,7 +27,7 @@ class TestTokenizer:
         return ''.join([self.idx_to_token[int(t)] for t in sequence])
 
 
-class TestTextTransformer(unittest.TestCase):
+class TestMelTextTransformer(unittest.TestCase):
 
     def setUp(self) -> None:
         tf.random.set_seed(42)
@@ -51,7 +51,6 @@ class TestTextTransformer(unittest.TestCase):
             start_token_index=tokenizer.start_token_index,
             end_token_index=tokenizer.end_token_index,
             target_vocab_size=tokenizer.vocab_size,
-            mel_channels=80,
             num_layers=2,
             d_model=32,
             num_heads=2,
@@ -59,6 +58,7 @@ class TestTextTransformer(unittest.TestCase):
             dff_prenet=32,
             max_position_encoding=1000,
             dropout_rate=0.1,
+            mel_channels=80
         )
 
         loss_function = masked_crossentropy
