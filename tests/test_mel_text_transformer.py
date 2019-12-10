@@ -67,8 +67,8 @@ class TestTextTransformer(unittest.TestCase):
         losses = []
         for epoch in range(10):
             for (batch, (inp, tar)) in enumerate(train_dataset):
-                gradients, loss, tar_real, predictions = mel_text_transformer.train_step(inp, tar)
-                losses.append(float(loss))
+                output = mel_text_transformer.train_step(inp, tar)
+                losses.append(float(output['loss']))
 
         self.assertAlmostEqual(2.809022903442383, losses[-1], places=6)
         pred = mel_text_transformer.predict(tokenized_train_samples[0][0], MAX_LENGTH=10)
