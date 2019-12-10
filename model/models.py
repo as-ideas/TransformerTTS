@@ -45,7 +45,7 @@ class Transformer(tf.keras.Model):
         enc_padding_mask = self.create_input_padding_mask(inp)
         dec_padding_mask = self.create_input_padding_mask(inp)
         dec_target_padding_mask = self.create_target_padding_mask(tar)
-        look_ahead_mask = self.create_look_ahead_mask(tf.shape(tar)[self.target_temporal_dim])
+        look_ahead_mask = self.create_look_ahead_mask(tf.shape(tar)[1])
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         return enc_padding_mask, combined_mask, dec_padding_mask
     
@@ -78,11 +78,11 @@ class TextTransformer(Transformer):
             tf.TensorSpec(shape=(None, None), dtype=tf.int64),
             tf.TensorSpec(shape=(None, None), dtype=tf.int64)]
         )(self._train_step)
-
+    
     def create_input_padding_mask(self, seq):
         seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
         return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
-
+    
     def create_target_padding_mask(self, seq):
         seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
         return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
@@ -141,16 +141,17 @@ class MelTransformer(Transformer):
                 tf.TensorSpec(shape=(None, None), dtype=tf.int64),
             ]
         )(self._train_step)
-
+    
     def create_input_padding_mask(self, seq):
         seq = tf.reduce_sum(seq, axis=-1)
         seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
         return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
-
+    
     def create_target_padding_mask(self, seq):
         seq = tf.reduce_sum(seq, axis=-1)
         seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
         return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
+    
     def _eval_loss(self, targets: dict, model_out: dict):
         loss, _ = weighted_sum_losses((targets['real'], targets['tar_stop_prob'], targets['real']),
                                       (model_out['final_output'], model_out['stop_prob'], model_out['mel_linear']),
@@ -202,15 +203,16 @@ class MelTextTransformer(Transformer):
                 tf.TensorSpec(shape=(None, None), dtype=tf.int64),
             ]
         )(self._train_step)
-
+    
     def create_input_padding_mask(self, seq):
         seq = tf.reduce_sum(seq, axis=-1)
         seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
         return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
-
+    
     def create_target_padding_mask(self, seq):
         seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
         return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
+    
     def _eval_loss(self, targets: dict, model_out: dict):
         loss = self.loss(targets['real'], model_out['final_output'])
         return loss
@@ -267,16 +269,16 @@ class TextMelTransformer(Transformer):
                 tf.TensorSpec(shape=(None, None), dtype=tf.int64),
             ]
         )(self._train_step)
-
-
+    
     def create_input_padding_mask(self, seq):
         seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
         return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
-
+    
     def create_target_padding_mask(self, seq):
         seq = tf.reduce_sum(seq, axis=-1)
         seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
         return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
+    
     def _eval_loss(self, targets: dict, model_out: dict):
         loss, _ = weighted_sum_losses((targets['real'], targets['tar_stop_prob'], targets['real']),
                                       (model_out['final_output'], model_out['stop_prob'], model_out['mel_linear']),
