@@ -1,4 +1,5 @@
 import tensorflow as tf
+
 from model.transformer_utils import positional_encoding, scaled_dot_product_attention
 
 

@@ -9,15 +9,15 @@ def get_angles(pos, i, d_model):
 
 def positional_encoding(position, d_model):
     angle_rads = get_angles(np.arange(position)[:, np.newaxis], np.arange(d_model)[np.newaxis, :], d_model)
-
+    
     # apply sin to even indices in the array; 2i
     angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
-
+    
     # apply cos to odd indices in the array; 2i+1
     angle_rads[:, 1::2] = np.cos(angle_rads[:, 1::2])
-
+    
     pos_encoding = angle_rads[np.newaxis, ...]
-
+    
     return tf.cast(pos_encoding, dtype=tf.float32)
 
 
@@ -38,23 +38,23 @@ def scaled_dot_product_attention(q, k, v, mask):
   Returns:
     output, attention_weights
   """
-
+    
     matmul_qk = tf.matmul(q, k, transpose_b=True)  # (..., seq_len_q, seq_len_k)
-
+    
     # scale matmul_qk
     dk = tf.cast(tf.shape(k)[-1], tf.float32)
     scaled_attention_logits = matmul_qk / tf.math.sqrt(dk)
-
+    
     # add the mask to the scaled tensor.
     if mask is not None:
         scaled_attention_logits += mask * -1e9
-
+    
     # softmax is normalized on the last axis (seq_len_k) so that the scores
     # add up to 1.
     attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)  # (..., seq_len_q, seq_len_k)
-
+    
     output = tf.matmul(attention_weights, v)  # (..., seq_len_q, depth_v)
-
+    
     return output, attention_weights
 
 
@@ -67,18 +67,29 @@ def point_wise_feed_forward_network(d_model, dff):
     )
 
 
-def weighted_sum_losses(real, pred, loss_functions, coeffs):
+def weighted_sum_losses(targets, pred, loss_functions, coeffs):
     total_loss = 0
     loss_vals = []
     for i in range(len(loss_functions)):
-        loss = loss_functions[i](real[i], pred[i])
+        loss = loss_functions[i](targets[i], pred[i])
         loss_vals.append(loss)
         total_loss += coeffs[i] * loss
     return total_loss, loss_vals
 
+
+# def weighted_sum_losses(tar_real, loss_functions, predictions, coeffs=[1.], tar_stop_prob=None, mel_linear_target=None):
+#     total_loss = 0
+#     targets = [x for x in [tar_real, tar_stop_prob, mel_linear_target] if x is not None]
+#     loss_pairs = zip(targets, predictions)
+#     for i, (tar, pred) in enumerate(loss_pairs):
+#         loss = loss_functions[i](tar, pred)
+#         total_loss += coeffs[i] * loss
+#     return loss
+
 def create_text_padding_mask(seq):
     seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
     return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
+
 
 def create_mel_padding_mask(seq):
     seq = tf.reduce_sum(seq, axis=-1)

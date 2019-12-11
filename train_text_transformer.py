@@ -1,14 +1,12 @@
 import tensorflow as tf
 
-from model.layers import Encoder, Decoder
-from model.models import TextTransformer
 from losses import masked_crossentropy
 from model.transformer_factory import new_text_transformer
 from utils import display_attention
 
 
 class TestTokenizer:
-
+    
     def __init__(self, alphabet):
         self.alphabet = alphabet
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet, start=1)}
@@ -19,10 +17,10 @@ class TestTokenizer:
         self.vocab_size = len(self.alphabet) + 3
         self.idx_to_token[self.start_token_index] = '<'
         self.idx_to_token[self.end_token_index] = '>'
-
+    
     def encode(self, sentence):
         return [self.token_to_idx[c] for c in sentence]
-
+    
     def decode(self, sequence):
         return ''.join([self.idx_to_token[int(t)] for t in sequence])
 
@@ -77,10 +75,10 @@ for epoch in range(10000):
         losses.append(float(loss))
         pred_dict = text_transformer.predict([start_tok] + tokenizer.encode(val_s[0][0]) + [end_tok])
         pred = tokenizer.decode(pred_dict['output'])
-
+        
         if batch_count % 100 == 0:
             print('\nbatch count: {}, mean loss: {}\n(input) {}\n(target) {}\n(pred) {}'.format(
-                batch_count, sum(losses)/len(losses), val_s[0][0], val_s[0][1], pred))
+                batch_count, sum(losses) / len(losses), val_s[0][0], val_s[0][1], pred))
             display_attention(pred_dict['attn_weights'], 'decoder_layer1_block2', '/tmp/att/att_{}'.format(batch_count))
-
+        
         batch_count += 1

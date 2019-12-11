@@ -8,7 +8,7 @@ from model.transformer_factory import new_mel_text_transformer
 
 
 class TestTokenizer:
-
+    
     def __init__(self, alphabet):
         self.alphabet = alphabet
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet, start=1)}
@@ -19,24 +19,24 @@ class TestTokenizer:
         self.vocab_size = len(self.alphabet) + 3
         self.idx_to_token[self.start_token_index] = '<'
         self.idx_to_token[self.end_token_index] = '>'
-
+    
     def encode(self, sentence):
         return [self.token_to_idx[c] for c in sentence]
-
+    
     def decode(self, sequence):
         return ''.join([self.idx_to_token[int(t)] for t in sequence])
 
 
 class TestMelTextTransformer(unittest.TestCase):
-
+    
     def setUp(self) -> None:
         tf.random.set_seed(42)
         np.random.seed(42)
-
+    
     def test_training(self):
         train_samples = []
         for i in range(10):
-            mel = np.random.random((100 + i*5, 80))
+            mel = np.random.random((100 + i * 5, 80))
             train_samples.append((mel, 'sample out text.'))
         tokenizer = TestTokenizer(alphabet=sorted(list('sample out text.')))
         start_tok, end_tok = tokenizer.start_token_index, tokenizer.end_token_index
@@ -46,7 +46,7 @@ class TestMelTextTransformer(unittest.TestCase):
         train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float64, tf.int64))
         train_dataset = train_dataset.shuffle(10000).padded_batch(4, padded_shapes=([-1, 80], [-1]))
         train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-
+        
         mel_text_transformer = new_mel_text_transformer(
             start_token_index=tokenizer.start_token_index,
             end_token_index=tokenizer.end_token_index,
@@ -60,7 +60,7 @@ class TestMelTextTransformer(unittest.TestCase):
             dropout_rate=0.1,
             mel_channels=80
         )
-
+        
         loss_function = masked_crossentropy
         optimizer = tf.keras.optimizers.Adam(1e-4, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
         mel_text_transformer.compile(loss=loss_function, optimizer=optimizer)
@@ -69,7 +69,7 @@ class TestMelTextTransformer(unittest.TestCase):
             for (batch, (inp, tar)) in enumerate(train_dataset):
                 output = mel_text_transformer.train_step(inp, tar)
                 losses.append(float(output['loss']))
-
+        
         self.assertAlmostEqual(2.809022903442383, losses[-1], places=6)
         pred = mel_text_transformer.predict(tokenized_train_samples[0][0], MAX_LENGTH=10)
         self.assertEqual((1, 1, 19), pred['logits'].numpy().shape)

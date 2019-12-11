@@ -1,11 +1,11 @@
 import os
 import random
-
-import numpy as np
 import time
-import tensorflow as tf
 from pathlib import Path
 import argparse
+
+import numpy as np
+import tensorflow as tf
 
 from losses import masked_mean_squared_error, masked_crossentropy
 from model.transformer_factory import new_mel_transformer
@@ -70,7 +70,8 @@ for mel_file in mel_files[:args.N_SAMPLES]:
 sample_norm_mel = tf.expand_dims(train_data[0][0], 0)
 train_dataset = tf.data.Dataset.from_generator(lambda: train_data, output_types=(tf.float64, tf.int64))
 train_dataset = train_dataset.cache()
-train_dataset = train_dataset.shuffle(100000).padded_batch(args.BATCH_SIZE, padded_shapes=([-1, args.MEL_CHANNELS], [-1]))
+train_dataset = train_dataset.shuffle(100000).padded_batch(args.BATCH_SIZE,
+                                                           padded_shapes=([-1, args.MEL_CHANNELS], [-1]))
 
 mel_transformer = new_mel_transformer(start_vec=start_vec,
                                       stop_prob_index=2,
@@ -98,23 +99,24 @@ for epoch in range(args.EPOCHS + 1):
         losses.append(out['loss'])
         if i % 10 == 0:
             print('{} {}'.format(i, out['loss']))
-
-
+    
     epoch_losses.append(np.mean(losses))
     print(
-        'Epoch {} took {} secs. \nAvg loss: {} \n'.format(args.starting_epoch + epoch, time.time() - start, epoch_losses[epoch])
+        'Epoch {} took {} secs. \nAvg loss: {} \n'.format(args.starting_epoch + epoch, time.time() - start,
+                                                          epoch_losses[epoch])
     )
     min_loss = np.min(epoch_losses)  # yeah..
-
+    
     if epoch_losses[epoch] == min_loss:
         min_epoch = epoch
-        mel_transformer.save_weights(f'{WEIGHTS_PATH}_weights_{epoch+args.starting_epoch}.hdf5')
+        mel_transformer.save_weights(f'{WEIGHTS_PATH}_weights_{epoch + args.starting_epoch}.hdf5')
     if epoch_losses[epoch] == min_loss:
         out = mel_transformer.predict_with_target(sample_norm_mel, sample_norm_mel, MAX_LENGTH=500)
         out_own = mel_transformer.predict(tf.squeeze(sample_norm_mel), max_length=50)
         display_attention(out_own['attention_weights'], 'decoder_layer1_block2',
-                          file=f'{str(SAMPLE_OUT_PATH)}_att_e{args.starting_epoch+epoch}.png')
-
+                          file=f'{str(SAMPLE_OUT_PATH)}_att_e{args.starting_epoch + epoch}.png')
+        
         for t in ['own', 'TE', 'train']:
             mel_out = np.exp(out[t].numpy()[0].T)
-            display_mel(mel_out, args.SAMPLING_RATE, file=f'{str(SAMPLE_OUT_PATH)}_{t}_e{args.starting_epoch+epoch}.png')
+            display_mel(mel_out, args.SAMPLING_RATE,
+                        file=f'{str(SAMPLE_OUT_PATH)}_{t}_e{args.starting_epoch + epoch}.png')

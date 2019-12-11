@@ -1,10 +1,9 @@
+import sys
+from pathlib import Path
+
 import librosa
 import numpy as np
 import tensorflow as tf
-import sys
-
-
-from pathlib import Path
 
 SCRIPT_DIR = Path('.').absolute().parent
 # SCRIPT_DIR = Path(__file__).absolute().parent
@@ -22,7 +21,6 @@ MEL_CHANNELS = 128
 DROPOUT = 0.0
 start_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) - 2.0
 end_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) + 2.0
-
 
 params = {
     'num_layers': 1,
@@ -45,7 +43,8 @@ win_length = 1024
 MEL_CHANNELS = 128
 y, sr = librosa.load(WAV_FILE)
 ms = librosa.feature.melspectrogram(
-    y=y, sr=sr, n_mels=MEL_CHANNELS, power=power_exp, n_fft=n_fft, win_length=win_length, hop_length=256, fmin=0, fmax=8000
+    y=y, sr=sr, n_mels=MEL_CHANNELS, power=power_exp, n_fft=n_fft, win_length=win_length, hop_length=256, fmin=0,
+    fmax=8000
 )
 norm_ms = np.log(ms.clip(1e-5)).T
 

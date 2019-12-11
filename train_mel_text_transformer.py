@@ -1,14 +1,14 @@
-import tensorflow as tf
 import os
+
+import tensorflow as tf
 import numpy as np
-from model.layers import Encoder, Decoder
-from model.models import TextTransformer
+
 from losses import masked_crossentropy
-from model.transformer_factory import new_text_transformer, new_mel_text_transformer
+from model.transformer_factory import new_mel_text_transformer
 
 
 class TestTokenizer:
-
+    
     def __init__(self, alphabet):
         self.alphabet = alphabet
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet, start=1)}
@@ -19,10 +19,10 @@ class TestTokenizer:
         self.vocab_size = len(self.alphabet) + 3
         self.idx_to_token[self.start_token_index] = '<'
         self.idx_to_token[self.end_token_index] = '>'
-
+    
     def encode(self, sentence):
         return [self.token_to_idx[c] for c in sentence]
-
+    
     def decode(self, sequence):
         return ''.join([self.idx_to_token[int(t)] for t in sequence])
 
@@ -42,7 +42,6 @@ with open(metafile, 'r', encoding='utf-8') as f:
         count += 1
         if count > 10000:
             break
-
 
 alphabet = set()
 for m, t in train_samples:
@@ -82,7 +81,7 @@ for epoch in range(10000):
         gradients, loss, tar_real, predictions = mel_text_transformer.train_step(inp, tar)
         losses.append(float(loss))
         print('\nbatch count: {}, mean loss: {}'.format(
-            batch_count, sum(losses)/len(losses)))
+            batch_count, sum(losses) / len(losses)))
         if batch_count % 1000 == 0:
             for i in range(10, 13):
                 pred = mel_text_transformer.predict(train_samples[i][0])

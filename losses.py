@@ -25,6 +25,3 @@ def masked_binary_crossentropy(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tens
     loss_ = bc(targets, logits)
     loss_ *= mask
     return tf.reduce_mean(loss_)
-
-
-

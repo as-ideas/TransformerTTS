@@ -1,11 +1,11 @@
-import librosa
-import numpy as np
 import time
-import tensorflow as tf
 import sys
 from pathlib import Path
 import argparse
 
+import librosa
+import numpy as np
+import tensorflow as tf
 
 SCRIPT_DIR = Path(__file__).absolute().parent
 sys.path.append(SCRIPT_DIR.parent.as_posix())
@@ -48,7 +48,6 @@ WEIGHTS_PATH = str(WEIGHTS_DIR / args.WEIGHTS_ID)
 start_vec = np.ones((1, args.MEL_CHANNELS)) * np.log(1e-5) - 2.0
 end_vec = np.ones((1, args.MEL_CHANNELS)) * np.log(1e-5) + 2.0
 
-
 params = {
     'num_layers': 4,
     'd_model': 256,
@@ -64,7 +63,8 @@ params = {
     'rate': args.DROPOUT,
 }
 
-losses = [tf.keras.losses.MeanAbsoluteError(), tf.keras.losses.BinaryCrossentropy(), tf.keras.losses.MeanAbsoluteError()]
+losses = [tf.keras.losses.MeanAbsoluteError(), tf.keras.losses.BinaryCrossentropy(),
+          tf.keras.losses.MeanAbsoluteError()]
 loss_coeffs = [1.0, 1.0, 1.0]
 optimizer = tf.keras.optimizers.Adam(args.LEARNING_RATE, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
@@ -108,7 +108,7 @@ for wav_file in wav_file_list:
                 size = args.MAX_SAMPLE_SIZE
             else:
                 size = np.random.randint(args.MIN_SAMPLE_SIZE, args.MAX_SAMPLE_SIZE)
-            sample = norm_ms[cursor : cursor + size, :]
+            sample = norm_ms[cursor: cursor + size, :]
             noise = np.random.randn(*sample.shape) * (args.NOISE_STD) ** 2
             sample += noise
             sample = np.concatenate([start_vec, sample, end_vec])
@@ -116,7 +116,6 @@ for wav_file in wav_file_list:
             stop_probs[-1] = 1
             train_samples.append((sample, stop_probs))
             cursor += size
-
 
 print(f'{len(train_samples)} train samples.')
 train_gen = lambda: (mel for mel in train_samples)
@@ -145,13 +144,14 @@ for epoch in range(args.EPOCHS + 1):
         losses.append(out['loss'])
     epoch_losses.append(np.mean(losses))
     print(
-        'Epoch {} took {} secs. \nAvg loss: {} \n'.format(args.starting_epoch + epoch, time.time() - start, epoch_losses[epoch])
+        'Epoch {} took {} secs. \nAvg loss: {} \n'.format(args.starting_epoch + epoch, time.time() - start,
+                                                          epoch_losses[epoch])
     )
     min_loss = np.min(epoch_losses)  # yeah..
-
+    
     if epoch_losses[epoch] == min_loss:
         min_epoch = epoch
-        melT.save_weights(f'{WEIGHTS_PATH}_weights_{epoch+args.starting_epoch}.hdf5')
+        melT.save_weights(f'{WEIGHTS_PATH}_weights_{epoch + args.starting_epoch}.hdf5')
     if epoch - min_epoch > args.HOW_MANY_EPOCHS_WITHOUT_NEW_MIN:
         if lr_halvenings > args.MAX_LR_HALVENING:
             print(f'Loss has likely stopped improving.\nStopping.')
@@ -164,4 +164,4 @@ for epoch in range(args.EPOCHS + 1):
         out = melT.predict_with_target(sample_norm_mel, sample_norm_mel, MAX_LENGTH=50)
         for t in ['own', 'TE', 'train']:
             mel_out = np.exp(out[t].numpy()[0].T)
-            display_mel(mel_out, sr, file=f'{str(SAMPLE_OUT_PATH)}_{t}_e{args.starting_epoch+epoch}.png')
+            display_mel(mel_out, sr, file=f'{str(SAMPLE_OUT_PATH)}_{t}_e{args.starting_epoch + epoch}.png')

@@ -1,7 +1,6 @@
 import time
 import string
-import pickle
-from pathlib import Path
+
 import numpy as np
 import tensorflow as tf
 
@@ -44,10 +43,10 @@ class TestTokenizer:
         self.vocab_size = len(self.alphabet) + 2
         self.idx_to_token[self.start_token] = '<START>'
         self.idx_to_token[self.end_token] = '<END>'
-
+    
     def encode(self, sentence):
         return [self.start_token] + [self.token_to_idx[c] for c in sentence] + [self.end_token]
-
+    
     def decode(self, sequence):
         return ''.join([self.idx_to_token[int(t)] for t in sequence])
 
@@ -72,16 +71,17 @@ val_dataset = val_dataset.filter(filter_max_length).padded_batch(BATCH_SIZE, pad
 input_vocab_size = tokenizer_in.vocab_size
 target_vocab_size = tokenizer_out.vocab_size
 
-
 from model.layers import Encoder, Decoder
 from model.models import TextTransformer
 
 encoder = Encoder(
-    num_layers=num_layers, d_model=d_model, num_heads=num_heads, dff=dff, maximum_position_encoding=1000, rate=dropout_rate
+    num_layers=num_layers, d_model=d_model, num_heads=num_heads, dff=dff, maximum_position_encoding=1000,
+    rate=dropout_rate
 )
 
 decoder = Decoder(
-    num_layers=num_layers, d_model=d_model, num_heads=num_heads, dff=dff, maximum_position_encoding=1000, rate=dropout_rate
+    num_layers=num_layers, d_model=d_model, num_heads=num_heads, dff=dff, maximum_position_encoding=1000,
+    rate=dropout_rate
 )
 
 transformer = TextTransformer(
@@ -100,7 +100,7 @@ for epoch in range(EPOCHS):
     for (batch, (inp, tar)) in enumerate(train_dataset):
         gradients, loss, tar_real, predictions = transformer.train_step(inp, tar)
         losses.append(loss)
-
+    
     predicted = tf.cast(tf.argmax(predictions[0], axis=-1), tf.int32).numpy()
     predicted_sentence = transformer.predict(inp[0])['output']
     print('epoch {} loss {}'.format(epoch, float(loss)))

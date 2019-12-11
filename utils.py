@@ -1,4 +1,3 @@
-
 # for display mel
 import tensorflow as tf
 import librosa
@@ -23,7 +22,7 @@ def display_mel(ms, sr, file=None):
 
 def display_attention(attention, layer_name, file=None):
     attention = tf.squeeze(attention[layer_name])
-    fig = plt.figure(figsize=(8*attention.shape[0], 8))
+    fig = plt.figure(figsize=(8 * attention.shape[0], 8))
     for head in range(attention.shape[0]):
         ax = fig.add_subplot(1, attention.shape[0], head + 1)
         ax.matshow(attention[head][:-1, :], cmap='viridis')
@@ -34,4 +33,3 @@ def display_attention(attention, layer_name, file=None):
     else:
         plt.savefig(file)
     plt.close('all')
-

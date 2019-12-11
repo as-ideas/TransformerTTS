@@ -10,7 +10,6 @@ sys.path.append(SCRIPT_DIR.parent.as_posix())
 #     print(f'First create control values by running \n{SCRIPT_DIR}/get_control_value.py')
 #     exit()
 
-import pickle
 import time
 import numpy as np
 import tensorflow as tf
@@ -28,7 +27,8 @@ LEARNING_RATE = 1e-5
 start_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) - 2.0
 end_vec = np.ones((1, MEL_CHANNELS)) * np.log(1e-5) + 2.0
 
-TEST_MELS = [np.random.random((SEQ_LEN1, MEL_CHANNELS)) * 5 - 4.0, np.random.random((SEQ_LEN2, MEL_CHANNELS)) * 2 - 6.0] * 5
+TEST_MELS = [np.random.random((SEQ_LEN1, MEL_CHANNELS)) * 5 - 4.0,
+             np.random.random((SEQ_LEN2, MEL_CHANNELS)) * 2 - 6.0] * 5
 STOP_PROBS = [np.zeros(SEQ_LEN1 + 2), np.zeros(SEQ_LEN2 + 2)] * 5
 train_samples = []
 for mel, stop in zip(TEST_MELS, STOP_PROBS):
@@ -57,7 +57,8 @@ train_dataset = train_dataset.cache()
 train_dataset = train_dataset.padded_batch(BATCH_SIZE, padded_shapes=([-1, MEL_CHANNELS], [-1]))
 train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-losses = [tf.keras.losses.MeanAbsoluteError(), tf.keras.losses.BinaryCrossentropy(), tf.keras.losses.MeanAbsoluteError()]
+losses = [tf.keras.losses.MeanAbsoluteError(), tf.keras.losses.BinaryCrossentropy(),
+          tf.keras.losses.MeanAbsoluteError()]
 loss_coeffs = [1.0, 1.0, 1.0]
 optimizer = tf.keras.optimizers.Adam(LEARNING_RATE, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
 
@@ -73,7 +74,7 @@ for epoch in range(EPOCHS):
         losses.append(out['loss'])
     epoch_losses.append(np.mean(losses))
     print('Epoch {} took {} secs. \nAvg loss: {} \n'.format(epoch, time.time() - start, epoch_losses[epoch]))
-
+    
     if epoch_losses[epoch] == min_loss:
         out = melT.predict(sample_norm_mel, max_length=50)
         print('mel', out['mel'])

@@ -63,5 +63,3 @@ for i in tqdm.tqdm(range(len(audio_data))):
                                        fmax=args.F_MAX)
     mel_path = os.path.join(mel_dir, filename)
     np.save(mel_path, S.T)
-
-
