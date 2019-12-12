@@ -206,21 +206,21 @@ for epoch in range(N_EPOCHS):
             for i in range(10, 13):
                 test_val['mel_to_text'] = mel_text_stop_samples[i][0]
                 test_val['text_to_text'] = tokenizer.encode(mel_text_stop_samples[i][1])
+                decoded_target = tokenizer.decode(test_val['text_to_text'])
                 for kind in ['mel_to_text', 'text_to_text']:
                     pred[kind] = transformers[kind].predict(test_val[kind])
                     pred[kind] = tokenizer.decode(pred[kind]['output'])
                     with summary_writers[kind].as_default():
-                        tf.summary.text(f'{kind} from training', pred[kind],
-                                        step=transformers[kind].optimizer.iterations,
-                                        description=f'Target: {test_val["text_to_text"]}')
+                        tf.summary.text(f'{kind} from training', f'(pred) {pred[kind]}\n(target) {decoded_target}',
+                                        step=transformers[kind].optimizer.iterations)
             for i in range(3):
                 test_val['mel_to_text'] = mel_text_stop_samples[i][0]
                 test_val['text_to_text'] = tokenizer.encode(mel_text_stop_samples[i][1])
+                decoded_target= tokenizer.decode(test_val['text_to_text'])
                 for kind in ['mel_to_text', 'text_to_text']:
                     pred[kind] = transformers[kind].predict(test_val[kind])
                     pred[kind] = tokenizer.decode(pred[kind]['output'])
                     with summary_writers[kind].as_default():
-                        tf.summary.text(f'{kind} from training', pred[kind],
-                                        step=transformers[kind].optimizer.iterations,
-                                        description=f'Target: {test_val["text_to_text"]}')
+                        tf.summary.text(f'{kind} from validation',  f'(pred) {pred[kind]}\n(target) {decoded_target}',
+                                        step=transformers[kind].optimizer.iterations)
         batch_count += 1
