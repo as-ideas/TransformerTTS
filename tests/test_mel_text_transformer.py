@@ -46,21 +46,18 @@ class TestMelTextTransformer(unittest.TestCase):
         train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float64, tf.int64))
         train_dataset = train_dataset.shuffle(10000).padded_batch(4, padded_shapes=([-1, 80], [-1]))
         train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-        
-        mel_text_transformer = new_mel_text_transformer(
-            start_token_index=tokenizer.start_token_index,
-            end_token_index=tokenizer.end_token_index,
-            target_vocab_size=tokenizer.vocab_size,
-            num_layers=2,
-            d_model=32,
-            num_heads=2,
-            dff=64,
-            dff_prenet=32,
-            max_position_encoding=1000,
-            dropout_rate=0.1,
-            mel_channels=80
-        )
-        
+
+        mel_text_transformer = new_mel_text_transformer(start_token_index=tokenizer.start_token_index,
+                                                        end_token_index=tokenizer.end_token_index,
+                                                        target_vocab_size=tokenizer.vocab_size,
+                                                        num_layers=2,
+                                                        d_model=32,
+                                                        num_heads=2,
+                                                        dff=64,
+                                                        dff_prenet=32,
+                                                        max_position_encoding=1000,
+                                                        dropout_rate=0.1,
+                                                        mel_channels=80)
         loss_function = masked_crossentropy
         optimizer = tf.keras.optimizers.Adam(1e-4, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
         mel_text_transformer.compile(loss=loss_function, optimizer=optimizer)

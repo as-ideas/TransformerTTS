@@ -46,21 +46,18 @@ class TestTextMelTransformer(unittest.TestCase):
             train_samples.append(('repeated text ' * i, mel, stop_probs))
         
         tokenizer = TestTokenizer(alphabet=list('repeated text'))
-        
-        text_mel_transformer = new_text_mel_transformer(
-            start_vec=start_vec,
-            stop_prob_index=2,
-            input_vocab_size=tokenizer.vocab_size,
-            mel_channels=80,
-            num_layers=4,
-            d_model=256,
-            num_heads=4,
-            dff=512,
-            dff_prenet=256,
-            max_position_encoding=1000,
-            dropout_rate=0.1,
-        )
-        
+
+        text_mel_transformer = new_text_mel_transformer(start_vec=start_vec,
+                                                        stop_prob_index=2,
+                                                        input_vocab_size=tokenizer.vocab_size,
+                                                        mel_channels=80,
+                                                        num_layers=4,
+                                                        d_model=256,
+                                                        num_heads=4,
+                                                        dff=512,
+                                                        dff_prenet=256,
+                                                        max_position_encoding=1000,
+                                                        dropout_rate=0.1)
         losses = [masked_mean_squared_error,
                   masked_crossentropy,
                   masked_mean_squared_error]
