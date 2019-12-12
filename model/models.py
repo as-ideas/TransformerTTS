@@ -36,8 +36,12 @@ class Transformer(tf.keras.Model):
         model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
         return model_output
 
+    def predict(self, inputs, max_length=None):
+        raise NotImplementedError()
+
     def create_masks(self, inputs, tar_inputs):
         raise NotImplementedError()
+
 
 
 class TextTransformer(Transformer):
