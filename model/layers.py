@@ -16,10 +16,10 @@ class PointWiseFFN(tf.keras.layers.Layer):
         return x
 
 
-class ReluFeedForward(tf.keras.layers.Layer):
+class SpeechDecoderPrenet(tf.keras.layers.Layer):
     
     def __init__(self, d_model, dff, dropout_rate=0.5):
-        super(ReluFeedForward, self).__init__()
+        super(SpeechDecoderPrenet, self).__init__()
         self.d1 = tf.keras.layers.Dense(dff, activation='relu')  # (batch_size, seq_len, dff)
         self.d2 = tf.keras.layers.Dense(d_model, activation='relu')  # (batch_size, seq_len, d_model)
         self.dropout_1 = tf.keras.layers.Dropout(dropout_rate)

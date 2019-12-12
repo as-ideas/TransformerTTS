@@ -43,7 +43,6 @@ class Transformer(tf.keras.Model):
         raise NotImplementedError()
 
 
-
 class TextTransformer(Transformer):
     
     def __init__(self,
@@ -66,8 +65,8 @@ class TextTransformer(Transformer):
             tf.TensorSpec(shape=(None, None), dtype=tf.int64)]
         )(self._train_step)
 
-    def predict(self, encoded_inp_sentence, max_length=40):
-        encoder_input = tf.expand_dims(encoded_inp_sentence, 0)
+    def predict(self, inputs, max_length=40):
+        encoder_input = tf.expand_dims(inputs, 0)
         decoder_input = [self.start_token_index]
         output = tf.expand_dims(decoder_input, 0)
         out_dict = {}
