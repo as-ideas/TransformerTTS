@@ -78,7 +78,8 @@ class TextTransformer(Transformer):
             predictions = model_out['final_output'][:, -1:, :]
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
             output = tf.concat([output, predicted_id], axis=-1)
-            out_dict = {'output': tf.squeeze(output, axis=0), 'attn_weights': model_out['attention_weights'],
+            out_dict = {'output': tf.squeeze(output, axis=0),
+                        'attention_weights': model_out['attention_weights'],
                         'logits': predictions}
             if predicted_id == self.end_token_index:
                 break
@@ -168,7 +169,12 @@ class MelTransformer(Transformer):
         tar_stop_prob = stop_prob[:, 1:]
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_inp)
         with tf.GradientTape() as tape:
-            model_out = self.__call__(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
+            model_out = self.__call__(inputs=inp,
+                                      targets=tar_inp,
+                                      training=True,
+                                      enc_padding_mask=enc_padding_mask,
+                                      look_ahead_mask=combined_mask,
+                                      dec_padding_mask=dec_padding_mask)
             loss, loss_vals = weighted_sum_losses(
                 (tar_real, tar_stop_prob, tar_real),
                 (model_out['final_output'], model_out['stop_prob'], model_out['mel_linear']),
@@ -255,8 +261,6 @@ class MelTextTransformer(Transformer):
         return model_out
 
 
-
-
 class TextMelTransformer(Transformer):
     
     def __init__(self,
@@ -267,7 +271,11 @@ class TextMelTransformer(Transformer):
                  decoder_postnet,
                  start_vec,
                  stop_prob_index):
-        super(TextMelTransformer, self).__init__(encoder_prenet, decoder_prenet, encoder, decoder, decoder_postnet)
+        super(TextMelTransformer, self).__init__(encoder_prenet,
+                                                 decoder_prenet,
+                                                 encoder,
+                                                 decoder,
+                                                 decoder_postnet)
         self.start_vec = start_vec
         self.stop_prob_index = stop_prob_index
         self.train_step = self._train_step
@@ -282,19 +290,21 @@ class TextMelTransformer(Transformer):
     def predict(self, inp, max_length=50):
         inp = tf.expand_dims(inp, 0)
         output = tf.expand_dims(self.start_vec, 0)
-        predictions = {}
+        out_dict = {}
         for i in range(max_length):
             enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, output)
-            predictions = self.call(
-                inp, output, False, enc_padding_mask, combined_mask, dec_padding_mask
-            )
-            output = tf.concat([tf.cast(output, tf.float32), predictions['final_output'][:1, -1:, :]], axis=-2)
-            stop_pred = predictions['stop_prob'][:, -1]
+            model_out = self.__call__(inputs=inp,
+                                      targets=output,
+                                      training=False,
+                                      enc_padding_mask=enc_padding_mask,
+                                      look_ahead_mask=combined_mask,
+                                      dec_padding_mask=dec_padding_mask)
+            output = tf.concat([tf.cast(output, tf.float32), model_out['final_output'][:1, -1:, :]], axis=-2)
+            stop_pred = model_out['stop_prob'][:, -1]
+            out_dict = {'mel': output[0, 1:, :], 'attention_weights': model_out['attention_weights']}
             if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
                 break
-        
-        output = {'mel': output[0, 1:, :], 'attention_weights': predictions['attention_weights']}
-        return output
+        return out_dict
 
     def create_masks(self, inp, tar_inp):
         enc_padding_mask = create_text_padding_mask(inp)
@@ -310,13 +320,18 @@ class TextMelTransformer(Transformer):
         tar_stop_prob = stop_prob[:, 1:]
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_inp)
         with tf.GradientTape() as tape:
-            model_out = self.__call__(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
-            loss, loss_vals = weighted_sum_losses(
-                (tar_real, tar_stop_prob, tar_real),
-                (model_out['final_output'], model_out['stop_prob'], model_out['mel_linear']),
-                self.loss,
-                self.loss_weights,
-            )
+            model_out = self.__call__(inputs=inp,
+                                      targets=tar_inp,
+                                      training=True,
+                                      enc_padding_mask=enc_padding_mask,
+                                      look_ahead_mask=combined_mask,
+                                      dec_padding_mask=dec_padding_mask)
+            loss, loss_vals = weighted_sum_losses((tar_real, tar_stop_prob, tar_real),
+                                                  (model_out['final_output'],
+                                                   model_out['stop_prob'],
+                                                   model_out['mel_linear']),
+                                                  self.loss,
+                                                  self.loss_weights)
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         model_out.update({'loss': loss})
