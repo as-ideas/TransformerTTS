@@ -27,7 +27,7 @@ class TestTokenizer:
         return ''.join([self.idx_to_token[int(t)] for t in sequence])
 
 
-mel_path = '/tmp/test_mels/mels'
+mel_path = '/tmp/test_mels/train_mels'
 metafile = '/tmp/test_mels/train_metafile.txt'
 
 train_samples = []
