@@ -71,6 +71,6 @@ class TestMelTextTransformer(unittest.TestCase):
                 losses.append(float(output['loss']))
         
         self.assertAlmostEqual(2.809022903442383, losses[-1], places=6)
-        pred = mel_text_transformer.predict(tokenized_train_samples[0][0], MAX_LENGTH=10)
+        pred = mel_text_transformer.predict(tokenized_train_samples[0][0], max_length=10)
         self.assertEqual((1, 1, 19), pred['logits'].numpy().shape)
         self.assertAlmostEqual(-2.0202836990356445, float(tf.reduce_sum(pred['logits'])))

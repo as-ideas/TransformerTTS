@@ -1,73 +1,43 @@
 import tensorflow as tf
 
-from model.transformer_utils import weighted_sum_losses, create_text_padding_mask, create_mel_padding_mask
+from model.transformer_utils import weighted_sum_losses, create_text_padding_mask, create_mel_padding_mask, \
+    create_look_ahead_mask
 
 
 class Transformer(tf.keras.Model):
+
     def __init__(
-            self, encoder_prenet, decoder_prenet, encoder, decoder, decoder_postnet
-    ):
+            self, encoder_prenet, decoder_prenet, encoder, decoder, decoder_postnet):
         super(Transformer, self).__init__()
         self.encoder_prenet = encoder_prenet
         self.decoder_prenet = decoder_prenet
         self.encoder = encoder
         self.decoder = decoder
         self.decoder_postnet = decoder_postnet
-    
-    def call(
-            self,
-            input_vecs,
-            target_vecs,
-            training,
-            enc_padding_mask,
-            look_ahead_mask,
-            dec_padding_mask,
-    ):
-        enc_input = self.encoder_prenet(input_vecs)
-        enc_output = self.encoder(inputs=enc_input, training=training, mask=enc_padding_mask)
-        dec_input = self.decoder_prenet(target_vecs, training=True)
+
+    def call(self,
+             inputs,
+             targets,
+             training,
+             enc_padding_mask,
+             look_ahead_mask,
+             dec_padding_mask):
+        enc_input = self.encoder_prenet(inputs)
+        enc_output = self.encoder(inputs=enc_input,
+                                  training=training,
+                                  mask=enc_padding_mask)
+        dec_input = self.decoder_prenet(targets, training=training)
         dec_output, attention_weights = self.decoder(inputs=dec_input,
                                                      enc_output=enc_output,
                                                      training=training,
                                                      look_ahead_mask=look_ahead_mask,
                                                      padding_mask=dec_padding_mask)
-        model_output = self.decoder_postnet(inputs=dec_output, training=training
-                                            )
-        model_output.update({'attention_weights': attention_weights,
-                             'decoder_output': dec_output})
+        model_output = self.decoder_postnet(inputs=dec_output, training=training)
+        model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
         return model_output
-    
-    @staticmethod
-    def create_look_ahead_mask(size):
-        mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)
-        return mask
-    
-    def create_input_padding_mask(self, seq):
-        return NotImplementedError
-    
-    def create_target_padding_mask(self, seq):
-        return NotImplementedError
-    
-    def evaluate_loss(self, targets: dict, model_out: dict):
-        return NotImplementedError
-    
-    def create_masks(self, inp, tar):
-        enc_padding_mask = self.create_input_padding_mask(inp)
-        dec_padding_mask = self.create_input_padding_mask(inp)
-        dec_target_padding_mask = self.create_target_padding_mask(tar)
-        look_ahead_mask = self.create_look_ahead_mask(tf.shape(tar)[1])
-        combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
-        return enc_padding_mask, combined_mask, dec_padding_mask
-    
-    def _train_step__(self, inp, targets):
-        enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, targets['input'])
-        with tf.GradientTape() as tape:
-            model_out = self.__call__(inp, targets['input'], True, enc_padding_mask, combined_mask, dec_padding_mask)
-            loss = self.evaluate_loss(targets, model_out)
-        gradients = tape.gradient(loss, self.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
-        model_out.update({'loss': loss})
-        return model_out
+
+    def create_masks(self, inputs, tar_inputs):
+        raise NotImplementedError()
 
 
 class TextTransformer(Transformer):
@@ -80,44 +50,31 @@ class TextTransformer(Transformer):
                  decoder,
                  start_token_index,
                  end_token_index):
-        super(TextTransformer, self).__init__(encoder_prenet, decoder_prenet, encoder, decoder, decoder_postnet)
+        super(TextTransformer, self).__init__(encoder_prenet,
+                                              decoder_prenet,
+                                              encoder,
+                                              decoder,
+                                              decoder_postnet)
         self.start_token_index = start_token_index
         self.end_token_index = end_token_index
         self.train_step = tf.function(input_signature=[
             tf.TensorSpec(shape=(None, None), dtype=tf.int64),
             tf.TensorSpec(shape=(None, None), dtype=tf.int64)]
         )(self._train_step)
-    
-    def create_input_padding_mask(self, seq):
-        return create_text_padding_mask(seq)
-    
-    def create_target_padding_mask(self, seq):
-        return create_text_padding_mask(seq)
-    
-    def _train_step(self, inp, tar):
-        targets = {'input': tar[:, :-1],
-                   'real': tar[:, 1:]}
-        return self._train_step__(inp, targets)
-    
-    def evaluate_loss(self, targets: dict, model_out: dict):
-        loss = self.loss(targets['real'], model_out['final_output'])
-        return loss
-    
-    def predict(self, encoded_inp_sentence, MAX_LENGTH=40):
+
+    def predict(self, encoded_inp_sentence, max_length=40):
         encoder_input = tf.expand_dims(encoded_inp_sentence, 0)
         decoder_input = [self.start_token_index]
         output = tf.expand_dims(decoder_input, 0)
         out_dict = {}
-        for i in range(MAX_LENGTH):
+        for i in range(max_length):
             enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(encoder_input, output)
-            model_out = self.__call__(
-                encoder_input,
-                target_vecs=output,
-                training=False,
-                enc_padding_mask=enc_padding_mask,
-                look_ahead_mask=combined_mask,
-                dec_padding_mask=dec_padding_mask,
-            )
+            model_out = self.__call__(inputs=encoder_input,
+                                      targets=output,
+                                      training=False,
+                                      enc_padding_mask=enc_padding_mask,
+                                      look_ahead_mask=combined_mask,
+                                      dec_padding_mask=dec_padding_mask)
             predictions = model_out['final_output'][:, -1:, :]
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
             output = tf.concat([output, predicted_id], axis=-1)
@@ -126,6 +83,31 @@ class TextTransformer(Transformer):
             if predicted_id == self.end_token_index:
                 break
         return out_dict
+
+    def create_masks(self, inp, tar_inp):
+        enc_padding_mask = create_text_padding_mask(inp)
+        dec_padding_mask = create_text_padding_mask(inp)
+        dec_target_padding_mask = create_text_padding_mask(tar_inp)
+        look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
+        combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
+        return enc_padding_mask, combined_mask, dec_padding_mask
+
+    def _train_step(self, inp, tar):
+        tar_inp = tar[:, :-1]
+        tar_real = tar[:, 1:]
+        enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_inp)
+        with tf.GradientTape() as tape:
+            model_out = self.__call__(inputs=inp,
+                                      targets=tar_inp,
+                                      training=True,
+                                      enc_padding_mask=enc_padding_mask,
+                                      look_ahead_mask=combined_mask,
+                                      dec_padding_mask=dec_padding_mask)
+            loss = self.loss(tar_real, model_out['final_output'])
+        gradients = tape.gradient(loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+        model_out.update({'loss': loss})
+        return model_out
 
 
 class MelTransformer(Transformer):
@@ -138,7 +120,11 @@ class MelTransformer(Transformer):
                  decoder_postnet,
                  start_vec,
                  stop_prob_index):
-        super(MelTransformer, self).__init__(encoder_prenet, decoder_prenet, encoder, decoder, decoder_postnet)
+        super(MelTransformer, self).__init__(encoder_prenet,
+                                             decoder_prenet,
+                                             encoder,
+                                             decoder,
+                                             decoder_postnet)
         self.start_vec = tf.cast(start_vec, tf.float32)
         self.stop_prob_index = stop_prob_index
         self.train_step = tf.function(
@@ -149,41 +135,50 @@ class MelTransformer(Transformer):
             ]
         )(self._train_step)
     
-    def create_input_padding_mask(self, seq):
-        return create_mel_padding_mask(seq)
-    
-    def create_target_padding_mask(self, seq):
-        return create_mel_padding_mask(seq)
-    
-    def evaluate_loss(self, targets: dict, model_out: dict):
-        loss, _ = weighted_sum_losses((targets['real'], targets['stop_prob'], targets['real']),
-                                      (model_out['final_output'], model_out['stop_prob'], model_out['mel_linear']),
-                                      self.loss,
-                                      self.loss_weights)
-        return loss
-    
-    def _train_step(self, inp, tar, stop_prob):
-        targets = {'input': tar[:, :-1],
-                   'real': tar[:, 1:],
-                   'stop_prob': stop_prob[:, 1:]}
-        return self._train_step__(inp, targets)
-    
-    def predict(self, inp, max_length=50):
-        inp = tf.expand_dims(inp, 0)
-        output = tf.expand_dims(self.start_vec, 0)  # shape: (1, 1, mel_channels)
-        predictions = {}
+    def predict(self, inputs, max_length=50):
+        inputs = tf.expand_dims(inputs, 0)
+        output = tf.expand_dims(self.start_vec, 0)
+        out_dict = {}
         for i in range(max_length):
-            enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, output)
-            predictions = self.call(
-                inp, output, False, enc_padding_mask, combined_mask, dec_padding_mask
-            )
-            output = tf.concat([output, predictions['final_output'][:1, -1:, :]], axis=-2)
-            stop_pred = predictions['stop_prob'][:, -1]
+            enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inputs, output)
+            model_out = self.__call__(inputs=inputs,
+                                      targets=output,
+                                      training=False,
+                                      enc_padding_mask=enc_padding_mask,
+                                      look_ahead_mask=combined_mask,
+                                      dec_padding_mask=dec_padding_mask)
+            output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
+            stop_pred = model_out['stop_prob'][:, -1]
+            out_dict = {'mel': output[0, 1:, :], 'attention_weights': model_out['attention_weights']}
             if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
                 break
-        
-        output = {'mel': output[0, 1:, :], 'attention_weights': predictions['attention_weights']}
-        return output
+        return out_dict
+
+    def create_masks(self, inp, tar_inp):
+        enc_padding_mask = create_mel_padding_mask(inp)
+        dec_padding_mask = create_mel_padding_mask(inp)
+        dec_target_padding_mask = create_mel_padding_mask(tar_inp)
+        look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
+        combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
+        return enc_padding_mask, combined_mask, dec_padding_mask
+
+    def _train_step(self, inp, tar, stop_prob):
+        tar_inp = tar[:, :-1, :]
+        tar_real = tar[:, 1:, :]
+        tar_stop_prob = stop_prob[:, 1:]
+        enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_inp)
+        with tf.GradientTape() as tape:
+            model_out = self.__call__(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
+            loss, loss_vals = weighted_sum_losses(
+                (tar_real, tar_stop_prob, tar_real),
+                (model_out['final_output'], model_out['stop_prob'], model_out['mel_linear']),
+                self.loss,
+                self.loss_weights,
+            )
+        gradients = tape.gradient(loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+        model_out.update({'loss': loss})
+        return model_out
 
 
 class MelTextTransformer(Transformer):
@@ -197,7 +192,11 @@ class MelTextTransformer(Transformer):
                  start_token_index,
                  end_token_index,
                  mel_channels):
-        super(MelTextTransformer, self).__init__(encoder_prenet, decoder_prenet, encoder, decoder, decoder_postnet)
+        super(MelTextTransformer, self).__init__(encoder_prenet,
+                                                 decoder_prenet,
+                                                 encoder,
+                                                 decoder,
+                                                 decoder_postnet)
         self.start_token_index = start_token_index
         self.end_token_index = end_token_index
         self.train_step = tf.function(
@@ -206,46 +205,56 @@ class MelTextTransformer(Transformer):
                 tf.TensorSpec(shape=(None, None), dtype=tf.int64),
             ]
         )(self._train_step)
-    
-    def create_input_padding_mask(self, seq):
-        return create_mel_padding_mask(seq)
-    
-    def create_target_padding_mask(self, seq):
-        return create_text_padding_mask(seq)
-    
-    def evaluate_loss(self, targets: dict, model_out: dict):
-        loss = self.loss(targets['real'], model_out['final_output'])
-        return loss
-    
-    def _train_step(self, inp, tar):
-        targets = {'input': tar[:, :-1],
-                   'real': tar[:, 1:]}
-        return self._train_step__(inp, targets)
-    
-    def predict(self, encoded_inp_sentence, MAX_LENGTH=100):
-        encoder_input = tf.expand_dims(encoded_inp_sentence, 0)
+
+    def predict(self, inputs, max_length=100):
+        encoder_input = tf.expand_dims(inputs, 0)
         decoder_input = [self.start_token_index]
         output = tf.expand_dims(decoder_input, 0)
         out_dict = {}
-        for i in range(MAX_LENGTH):
+        for i in range(max_length):
             enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(encoder_input, output)
-            model_out = self.__call__(
-                encoder_input,
-                target_vecs=output,
-                training=False,
-                enc_padding_mask=enc_padding_mask,
-                look_ahead_mask=combined_mask,
-                dec_padding_mask=dec_padding_mask,
-            )
+            model_out = self.__call__(inputs=encoder_input,
+                                      targets=output,
+                                      training=False,
+                                      enc_padding_mask=enc_padding_mask,
+                                      look_ahead_mask=combined_mask,
+                                      dec_padding_mask=dec_padding_mask)
             predictions = model_out['final_output'][:, -1:, :]
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
             output = tf.concat([output, predicted_id], axis=-1)
             out_dict = {'output': tf.squeeze(output, axis=0),
-                        'attn_weights': model_out['attention_weights'],
+                        'attention_weights': model_out['attention_weights'],
                         'logits': predictions}
             if predicted_id == self.end_token_index:
                 break
         return out_dict
+
+    def create_masks(self, inp, tar_inp):
+        enc_padding_mask = create_mel_padding_mask(inp)
+        dec_padding_mask = create_mel_padding_mask(inp)
+        dec_target_padding_mask = create_text_padding_mask(tar_inp)
+        look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
+        combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
+        return enc_padding_mask, combined_mask, dec_padding_mask
+
+    def _train_step(self, inp, tar):
+        tar_inp = tar[:, :-1]
+        tar_real = tar[:, 1:]
+        enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_inp)
+        with tf.GradientTape() as tape:
+            model_out = self.__call__(inputs=inp,
+                                      targets=tar_inp,
+                                      training=True,
+                                      enc_padding_mask=enc_padding_mask,
+                                      look_ahead_mask=combined_mask,
+                                      dec_padding_mask=dec_padding_mask)
+            loss = self.loss(tar_real, model_out['final_output'])
+        gradients = tape.gradient(loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+        model_out.update({'loss': loss})
+        return model_out
+
+
 
 
 class TextMelTransformer(Transformer):
@@ -269,26 +278,7 @@ class TextMelTransformer(Transformer):
                 tf.TensorSpec(shape=(None, None), dtype=tf.int64),
             ]
         )(self._train_step)
-    
-    def create_input_padding_mask(self, seq):
-        return create_text_padding_mask(seq)
-    
-    def create_target_padding_mask(self, seq):
-        return create_mel_padding_mask(seq)
-    
-    def evaluate_loss(self, targets: dict, model_out: dict):
-        loss, _ = weighted_sum_losses((targets['real'], targets['stop_prob'], targets['real']),
-                                      (model_out['final_output'], model_out['stop_prob'], model_out['mel_linear']),
-                                      self.loss,
-                                      self.loss_weights)
-        return loss
-    
-    def _train_step(self, inp, tar, stop_prob):
-        targets = {'input': tar[:, :-1],
-                   'real': tar[:, 1:],
-                   'stop_prob': stop_prob[:, 1:]}
-        return self._train_step__(inp, targets)
-    
+
     def predict(self, inp, max_length=50):
         inp = tf.expand_dims(inp, 0)
         output = tf.expand_dims(self.start_vec, 0)
@@ -298,7 +288,6 @@ class TextMelTransformer(Transformer):
             predictions = self.call(
                 inp, output, False, enc_padding_mask, combined_mask, dec_padding_mask
             )
-            
             output = tf.concat([tf.cast(output, tf.float32), predictions['final_output'][:1, -1:, :]], axis=-2)
             stop_pred = predictions['stop_prob'][:, -1]
             if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
@@ -306,3 +295,30 @@ class TextMelTransformer(Transformer):
         
         output = {'mel': output[0, 1:, :], 'attention_weights': predictions['attention_weights']}
         return output
+
+    def create_masks(self, inp, tar_inp):
+        enc_padding_mask = create_text_padding_mask(inp)
+        dec_padding_mask = create_text_padding_mask(inp)
+        dec_target_padding_mask = create_mel_padding_mask(tar_inp)
+        look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
+        combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
+        return enc_padding_mask, combined_mask, dec_padding_mask
+
+    def _train_step(self, inp, tar, stop_prob):
+        tar_inp = tar[:, :-1]
+        tar_real = tar[:, 1:]
+        tar_stop_prob = stop_prob[:, 1:]
+        enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_inp)
+        with tf.GradientTape() as tape:
+            model_out = self.__call__(inp, tar_inp, True, enc_padding_mask, combined_mask, dec_padding_mask)
+            loss, loss_vals = weighted_sum_losses(
+                (tar_real, tar_stop_prob, tar_real),
+                (model_out['final_output'], model_out['stop_prob'], model_out['mel_linear']),
+                self.loss,
+                self.loss_weights,
+            )
+        gradients = tape.gradient(loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+        model_out.update({'loss': loss})
+        return model_out
+

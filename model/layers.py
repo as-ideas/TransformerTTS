@@ -27,9 +27,10 @@ class ReluFeedForward(tf.keras.layers.Layer):
     
     def call(self, x, training=True):
         x = self.d1(x)
-        x = self.dropout_1(x, training=training)
+        # use dropout also in inference for additional noise as suggested in the original tacotron2 paper
+        x = self.dropout_1(x, training=True)
         x = self.d2(x)
-        x = self.dropout_2(x, training=training)
+        x = self.dropout_2(x, training=True)
         return x
 
 
