@@ -181,27 +181,35 @@ for kind in kinds:
     summary_writers[kind] = tf.summary.create_file_writer(f'/tmp/summaries/train/{current_time}/{kind}')
     weights_paths[kind] = f'/tmp/weights/train/{current_time}/{kind}_weights.hdf5'
     losses[kind] = []
-    
-def droput_schedule(batch):
-    if batch < 500:
-        dropout = 0.9
-    elif batch < 1000:
-        dropout = 0.7
-    elif batch < 1500:
-        dropout = 0.6
-    else:
-        dropout = 0.5
-    return tf.cast(dropout, tf.float32)
 
-tot_batch_count = 0
+
+def nonlin_dropout_schedule(step):
+    dout = max(((-0.9 + 0.5) / 20000.) * step + 0.9, .5)
+    return tf.cast(dout, tf.float32)
+
+
+# def droput_schedule(batch):
+#     if batch < 5000:
+#         dropout = 0.9
+#     elif batch < 10000:
+#         dropout = 0.7
+#     elif batch < 1500:
+#         dropout = 0.6
+#     else:
+#         dropout = 0.5
+#     return tf.cast(dropout, tf.float32)
+
+batch_count = 0
 for epoch in range(N_EPOCHS):
     for (batch, (mel, text, stop)) in enumerate(mel_text_stop_dataset):
-        tot_batch_count += batch
         output = {}
-        decoder_prenet_dropout = droput_schedule(tot_batch_count)
+        batch_count += 1
+        decoder_prenet_dropout = nonlin_dropout_schedule(batch_count)
         output['text_to_text'] = transformers['text_to_text'].train_step(text, text)
-        output['mel_to_mel'] = transformers['mel_to_mel'].train_step(mel, mel, stop, decoder_prenet_dropout=decoder_prenet_dropout)
-        output['text_to_mel'] = transformers['text_to_mel'].train_step(text, mel, stop, decoder_prenet_dropout=decoder_prenet_dropout)
+        output['mel_to_mel'] = transformers['mel_to_mel'].train_step(mel, mel, stop,
+                                                                     decoder_prenet_dropout=decoder_prenet_dropout)
+        output['text_to_mel'] = transformers['text_to_mel'].train_step(text, mel, stop,
+                                                                       decoder_prenet_dropout=decoder_prenet_dropout)
         output['mel_to_text'] = transformers['mel_to_text'].train_step(mel, text)
         for kind in kinds:
             losses[kind].append(float(output[kind]['loss']))
@@ -233,11 +241,11 @@ for epoch in range(N_EPOCHS):
             for i in range(3):
                 test_val['mel_to_text'] = mel_text_stop_samples[i][0]
                 test_val['text_to_text'] = tokenizer.encode(mel_text_stop_samples[i][1])
-                decoded_target= tokenizer.decode(test_val['text_to_text'])
+                decoded_target = tokenizer.decode(test_val['text_to_text'])
                 for kind in ['mel_to_text', 'text_to_text']:
                     pred[kind] = transformers[kind].predict(test_val[kind])
                     pred[kind] = tokenizer.decode(pred[kind]['output'])
                     with summary_writers[kind].as_default():
-                        tf.summary.text(f'{kind} from validation',  f'(pred) {pred[kind]}\n(target) {decoded_target}',
+                        tf.summary.text(f'{kind} from validation', f'(pred) {pred[kind]}\n(target) {decoded_target}',
                                         step=transformers[kind].optimizer.iterations)
         batch_count += 1
