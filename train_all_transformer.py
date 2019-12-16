@@ -9,6 +9,9 @@ import numpy as np
 from losses import masked_crossentropy, masked_mean_squared_error
 from model.transformer_factory import new_everything
 
+np.random.seed(42)
+tf.random.set_seed(42)
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--mel_dir', dest='MEL_DIR', type=str)
 parser.add_argument('--n_samples', dest='MAX_SAMPLES', default=300, type=int)
@@ -190,10 +193,12 @@ def droput_schedule(batch):
         dropout = 0.5
     return tf.cast(dropout, tf.float32)
 
+tot_batch_count = 0
 for epoch in range(N_EPOCHS):
     for (batch, (mel, text, stop)) in enumerate(mel_text_stop_dataset):
+        tot_batch_count += batch
         output = {}
-        decoder_prenet_dropout = droput_schedule(batch)
+        decoder_prenet_dropout = droput_schedule(tot_batch_count)
         output['text_to_text'] = transformers['text_to_text'].train_step(text, text)
         output['mel_to_mel'] = transformers['mel_to_mel'].train_step(mel, mel, stop, decoder_prenet_dropout=decoder_prenet_dropout)
         output['text_to_mel'] = transformers['text_to_mel'].train_step(text, mel, stop, decoder_prenet_dropout=decoder_prenet_dropout)
