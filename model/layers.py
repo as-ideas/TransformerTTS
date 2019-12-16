@@ -25,7 +25,9 @@ class SpeechDecoderPrenet(tf.keras.layers.Layer):
         self.dropout_1 = tf.keras.layers.Dropout(dropout_rate)
         self.dropout_2 = tf.keras.layers.Dropout(dropout_rate)
     
-    def call(self, x, training=True):
+    def call(self, x, training=True, dropout_rate=0.5):
+        self.dropout_1.rate = dropout_rate
+        self.dropout_2.rate = dropout_rate
         x = self.d1(x)
         # use dropout also in inference for additional noise as suggested in the original tacotron2 paper
         x = self.dropout_1(x, training=True)
