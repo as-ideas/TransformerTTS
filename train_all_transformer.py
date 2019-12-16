@@ -211,6 +211,7 @@ for epoch in range(N_EPOCHS):
         output['text_to_mel'] = transformers['text_to_mel'].train_step(text, mel, stop,
                                                                        decoder_prenet_dropout=decoder_prenet_dropout)
         output['mel_to_text'] = transformers['mel_to_text'].train_step(mel, text)
+        tf.summary.scalar('dropout', decoder_prenet_dropout, step=transformers['text_to_text'].optimizer.iterations)
         for kind in kinds:
             losses[kind].append(float(output[kind]['loss']))
         if batch_count % image_freq == 0:
