@@ -178,13 +178,25 @@ for kind in kinds:
     summary_writers[kind] = tf.summary.create_file_writer(f'/tmp/summaries/train/{current_time}/{kind}')
     weights_paths[kind] = f'/tmp/weights/train/{current_time}/{kind}_weights.hdf5'
     losses[kind] = []
+    
+def droput_schedule(batch):
+    if batch < 500:
+        dropout = 0.9
+    elif batch < 1000:
+        dropout = 0.7
+    elif batch < 1500:
+        dropout = 0.6
+    else:
+        dropout = 0.5
+    return tf.cast(dropout, tf.float32)
 
 for epoch in range(N_EPOCHS):
     for (batch, (mel, text, stop)) in enumerate(mel_text_stop_dataset):
         output = {}
+        decoder_prenet_dropout = droput_schedule(batch)
         output['text_to_text'] = transformers['text_to_text'].train_step(text, text)
-        output['mel_to_mel'] = transformers['mel_to_mel'].train_step(mel, mel, stop)
-        output['text_to_mel'] = transformers['text_to_mel'].train_step(text, mel, stop)
+        output['mel_to_mel'] = transformers['mel_to_mel'].train_step(mel, mel, stop, decoder_prenet_dropout=decoder_prenet_dropout)
+        output['text_to_mel'] = transformers['text_to_mel'].train_step(text, mel, stop, decoder_prenet_dropout=decoder_prenet_dropout)
         output['mel_to_text'] = transformers['mel_to_text'].train_step(mel, text)
         for kind in kinds:
             losses[kind].append(float(output[kind]['loss']))
