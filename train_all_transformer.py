@@ -199,11 +199,9 @@ def nonlin_dropout_schedule(step):
 #         dropout = 0.5
 #     return tf.cast(dropout, tf.float32)
 
-batch_count = 0
 for epoch in range(N_EPOCHS):
     for (batch, (mel, text, stop)) in enumerate(mel_text_stop_dataset):
         output = {}
-        batch_count += 1
         decoder_prenet_dropout = nonlin_dropout_schedule(batch_count)
         output['text_to_text'] = transformers['text_to_text'].train_step(text, text)
         output['mel_to_mel'] = transformers['mel_to_mel'].train_step(mel, mel, stop,
