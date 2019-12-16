@@ -61,7 +61,7 @@ class TestTextTransformer(unittest.TestCase):
                 # gradients, loss, tar_real, predictions = text_transformer.train_step(inp, tar)
                 losses.append(float(output['loss']))
         
-        self.assertAlmostEqual(1.6723564863204956, losses[-1], places=6)
+        self.assertAlmostEqual(1.176626443862915, losses[-1], places=6)
         pred = text_transformer.predict(tokenized_train_samples[0][0], max_length=10)
         self.assertEqual((1, 1, 102), pred['logits'].numpy().shape)
-        self.assertAlmostEqual(-38.04957580566406, float(tf.reduce_sum(pred['logits'])))
+        self.assertAlmostEqual(-23.76941680908203, float(tf.reduce_sum(pred['logits'])))

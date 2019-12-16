@@ -64,6 +64,6 @@ class TestMelTransformer(unittest.TestCase):
                 batch_num += 1
         
         pred = mel_transformer.predict(test_mels[0], max_length=50)
-        self.assertAlmostEqual(1.9383492469787598, losses[-1], places=6)
+        self.assertAlmostEqual(1.6592915058135986, losses[-1], places=6)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(2229.06884765625, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(2462.675048828125, float(tf.reduce_sum(pred['mel'])), places=6)
