@@ -134,8 +134,10 @@ tokenized_mel_text_train_samples = [(mel, [start_tok] + tokenizer.encode(text) +
 mel_text_stop_gen = lambda: (pair for pair in tokenized_mel_text_train_samples[10:])
 mel_text_stop_dataset = tf.data.Dataset.from_generator(mel_text_stop_gen,
                                                        output_types=(tf.float64, tf.int64, tf.int64))
-mel_text_stop_dataset = mel_text_stop_dataset.shuffle(10000).padded_batch(args.BATCH_SIZE,
-                                                                          padded_shapes=([-1, 80], [-1], [-1]))
+mel_text_stop_dataset = mel_text_stop_dataset.shuffle(
+    len(tokenized_mel_text_train_samples) // args.BATCH_SIze).padded_batch(args.BATCH_SIZE,
+                                                                           padded_shapes=([-1, 80], [-1], [-1]),
+                                                                           drop_remainder=True)
 #mel_text_stop_dataset = mel_text_stop_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
 input_vocab_size = tokenizer.vocab_size
