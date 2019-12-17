@@ -246,7 +246,7 @@ for epoch in range(N_EPOCHS):
         if batch_count % text_freq == 0:
             pred = {}
             test_val = {}
-            for i in range(10, 13):
+            for i in range(0, 3):
                 test_val['mel_to_text'] = mel_text_stop_samples[i][0]
                 test_val['text_to_text'] = tokenizer.encode(mel_text_stop_samples[i][1])
                 decoded_target = tokenizer.decode(test_val['text_to_text'])
@@ -254,7 +254,7 @@ for epoch in range(N_EPOCHS):
                     pred[kind] = transformers[kind].predict(test_val[kind])
                     pred[kind] = tokenizer.decode(pred[kind]['output'])
                     with summary_writers[kind].as_default():
-                        tf.summary.text(f'{kind} from training', f'(pred) {pred[kind]}\n(target) {decoded_target}',
+                        tf.summary.text(f'{kind} from validation', f'(pred) {pred[kind]}\n(target) {decoded_target}',
                                         step=transformers[kind].optimizer.iterations)
 
         batch_count += 1
