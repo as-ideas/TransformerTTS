@@ -4,9 +4,22 @@ import librosa
 import librosa.display
 import matplotlib.pyplot as plt
 import numpy as np
+import io
 
 
-def display_mel(ms, sr, file=None):
+def buffer_mel(ms, sr):
+    plt.figure(figsize=(10, 4))
+    S_dB = librosa.power_to_db(ms, ref=np.max)
+    librosa.display.specshow(S_dB, x_axis='time', y_axis='mel', sr=sr, fmax=8000)
+    plt.tight_layout()
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close('all')
+    return buf
+
+
+def plot_mel(ms, sr, file=None):
     plt.figure(figsize=(10, 4))
     S_dB = librosa.power_to_db(ms, ref=np.max)
     librosa.display.specshow(S_dB, x_axis='time', y_axis='mel', sr=sr, fmax=8000)

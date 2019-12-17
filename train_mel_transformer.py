@@ -9,7 +9,7 @@ import tensorflow as tf
 
 from losses import masked_mean_squared_error, masked_crossentropy
 from model.transformer_factory import new_mel_transformer
-from utils import display_mel, display_attention
+from utils import plot_mel, display_attention
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--mel_dir', dest='MEL_DIR', type=str, required=True)
@@ -118,5 +118,5 @@ for epoch in range(args.EPOCHS + 1):
         
         for t in ['own', 'TE', 'train']:
             mel_out = np.exp(out[t].numpy()[0].T)
-            display_mel(mel_out, args.SAMPLING_RATE,
-                        file=f'{str(SAMPLE_OUT_PATH)}_{t}_e{args.starting_epoch + epoch}.png')
+            plot_mel(mel_out, args.SAMPLING_RATE,
+                     file=f'{str(SAMPLE_OUT_PATH)}_{t}_e{args.starting_epoch + epoch}.png')
