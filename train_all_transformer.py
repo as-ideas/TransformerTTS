@@ -8,6 +8,7 @@ import numpy as np
 
 from losses import masked_crossentropy, masked_mean_squared_error
 from model.transformer_factory import new_everything
+from utils import plot_mel, buffer_mel
 
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -21,18 +22,19 @@ parser.add_argument('--mel', dest='MEL_CHANNELS', default=80, type=int)
 parser.add_argument('--epochs', dest='EPOCHS', default=10000, type=int)
 parser.add_argument('--batch_size', dest='BATCH_SIZE', default=16, type=int)
 parser.add_argument('--text_freq', dest='TEXT_FREQ', default=1000, type=int)
-parser.add_argument('--image_freq', dest='IMAGE_FREQ', default=1000, type=int)
+parser.add_argument('--image_freq', dest='IMAGE_FREQ', default=10, type=int)
 parser.add_argument('--learning_rate', dest='LEARNING_RATE', default=1e-4, type=float)
 args = parser.parse_args()
 
 mel_path = Path(args.MEL_DIR) / 'mels'
 metafile = Path(args.MEL_DIR) / 'train_metafile.txt'
 
+sr = 22050
 N_EPOCHS = args.EPOCHS
 N_SAMPLES = args.MAX_SAMPLES
 image_freq = args.IMAGE_FREQ
 text_freq = args.TEXT_FREQ
-num_layers = 4
+num_layers = 1
 d_model = 256
 num_heads = 8
 dff = 512
@@ -82,12 +84,20 @@ def norm_tensor(tensor):
     )
 
 
-def plot_attention(outputs, step):
+def plot_attention(outputs, step, info_string=''):
     for k in outputs['attention_weights'].keys():
         for i in range(len(outputs['attention_weights'][k][0])):
             image_batch = norm_tensor(tf.expand_dims(outputs['attention_weights'][k][:, i, :, :], -1))
-            tf.summary.image(k + f' head{i}', image_batch,
+            tf.summary.image(info_string + k + f' head{i}', image_batch,
                              step=step)
+
+
+def display_mel(pred, step, info_string='', sr=22050):
+    img = tf.transpose(tf.exp(pred))
+    buf = buffer_mel(img, sr=sr)
+    img_tf = tf.image.decode_png(buf.getvalue(), channels=3)
+    img_tf = tf.expand_dims(img_tf, 0)
+    tf.summary.image(info_string, img_tf, step=step)
 
 
 def get_norm_mel(mel_path, start_vec, end_vec):
@@ -126,7 +136,7 @@ mel_text_stop_dataset = tf.data.Dataset.from_generator(mel_text_stop_gen,
                                                        output_types=(tf.float64, tf.int64, tf.int64))
 mel_text_stop_dataset = mel_text_stop_dataset.shuffle(10000).padded_batch(args.BATCH_SIZE,
                                                                           padded_shapes=([-1, 80], [-1], [-1]))
-mel_text_stop_dataset = mel_text_stop_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+#mel_text_stop_dataset = mel_text_stop_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
 input_vocab_size = tokenizer.vocab_size
 target_vocab_size = tokenizer.vocab_size
@@ -183,26 +193,15 @@ for kind in kinds:
     losses[kind] = []
 
 
-def nonlin_dropout_schedule(step):
+def linear_dropout_schedule(step):
     dout = max(((-0.9 + 0.5) / 20000.) * step + 0.9, .5)
     return tf.cast(dout, tf.float32)
 
 
-# def droput_schedule(batch):
-#     if batch < 5000:
-#         dropout = 0.9
-#     elif batch < 10000:
-#         dropout = 0.7
-#     elif batch < 1500:
-#         dropout = 0.6
-#     else:
-#         dropout = 0.5
-#     return tf.cast(dropout, tf.float32)
-
 for epoch in range(N_EPOCHS):
     for (batch, (mel, text, stop)) in enumerate(mel_text_stop_dataset):
         output = {}
-        decoder_prenet_dropout = nonlin_dropout_schedule(batch_count)
+        decoder_prenet_dropout = linear_dropout_schedule(batch_count)
         output['text_to_text'] = transformers['text_to_text'].train_step(text, text)
         output['mel_to_mel'] = transformers['mel_to_mel'].train_step(mel, mel, stop,
                                                                      decoder_prenet_dropout=decoder_prenet_dropout)
@@ -216,9 +215,28 @@ for epoch in range(N_EPOCHS):
         if batch_count % image_freq == 0:
             for kind in kinds:
                 with summary_writers[kind].as_default():
-                    plot_attention(output[kind], step=transformers[kind].optimizer.iterations)
+                    plot_attention(output[kind], step=transformers[kind].optimizer.iterations,
+                                   info_string='train attention ')
                 transformers[kind].save_weights(weights_paths[kind])
-        
+            pred = {}
+            test_val = {}
+            for i in range(0, 3):
+                mel_target = mel_text_stop_samples[i][0]
+                max_pred_len = mel_text_stop_samples[i][0].shape[0] + 50
+                test_val['text_to_mel'] = tokenizer.encode(mel_text_stop_samples[i][1])
+                test_val['mel_to_mel'] = mel_target
+                for kind in ['text_to_mel', 'mel_to_mel']:
+                    pred[kind] = transformers[kind].predict(test_val[kind],
+                                                            max_length=max_pred_len,
+                                                            decoder_prenet_dropout=0.5)
+                    with summary_writers[kind].as_default():
+                        plot_attention(pred[kind], step=transformers[kind].optimizer.iterations,
+                                       info_string='test attention ')
+                        display_mel(pred[kind]['mel'], step=transformers[kind].optimizer.iterations,
+                                       info_string='test mel {}'.format(i))
+                        display_mel(mel_target, step=transformers['mel_to_mel'].optimizer.iterations,
+                            info_string='target mel {}'.format(i))
+
         print(f'\nbatch {batch_count}')
         for kind in kinds:
             with summary_writers[kind].as_default():
@@ -238,14 +256,5 @@ for epoch in range(N_EPOCHS):
                     with summary_writers[kind].as_default():
                         tf.summary.text(f'{kind} from training', f'(pred) {pred[kind]}\n(target) {decoded_target}',
                                         step=transformers[kind].optimizer.iterations)
-            for i in range(3):
-                test_val['mel_to_text'] = mel_text_stop_samples[i][0]
-                test_val['text_to_text'] = tokenizer.encode(mel_text_stop_samples[i][1])
-                decoded_target = tokenizer.decode(test_val['text_to_text'])
-                for kind in ['mel_to_text', 'text_to_text']:
-                    pred[kind] = transformers[kind].predict(test_val[kind])
-                    pred[kind] = tokenizer.decode(pred[kind]['output'])
-                    with summary_writers[kind].as_default():
-                        tf.summary.text(f'{kind} from validation', f'(pred) {pred[kind]}\n(target) {decoded_target}',
-                                        step=transformers[kind].optimizer.iterations)
+
         batch_count += 1
