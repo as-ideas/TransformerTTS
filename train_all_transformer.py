@@ -131,10 +131,13 @@ with open(str(metafile), 'r', encoding='utf-8') as f:
 
 tokenizer = TestTokenizer(alphabet=sorted(list(alphabet)))
 start_tok, end_tok = tokenizer.start_token_index, tokenizer.end_token_index
-tokenized_mel_text_train_samples = [(mel, [start_tok] + tokenizer.encode(text) + [end_tok], stop_prob)
-                                    for mel, text, stop_prob in mel_text_stop_samples]
-train_list, test_list = train_test_split(tokenized_mel_text_train_samples, test_size=100, random_state=42)
-train_set_generator = lambda: (item for item in train_list)
+train_list, test_list = train_test_split(mel_text_stop_samples, test_size=100, random_state=42)
+tokenized_train_list = [(mel, [start_tok] + tokenizer.encode(text) + [end_tok], stop_prob)
+                                    for mel, text, stop_prob in train_list]
+tokenized_test_list = [(mel, [start_tok] + tokenizer.encode(text) + [end_tok], stop_prob)
+                                    for mel, text, stop_prob in test_list]
+
+train_set_generator = lambda: (item for item in tokenized_train_list)
 train_dataset = tf.data.Dataset.from_generator(train_set_generator,
                                                output_types=(tf.float64, tf.int64, tf.int64))
 train_dataset = train_dataset.shuffle(1000).padded_batch(
