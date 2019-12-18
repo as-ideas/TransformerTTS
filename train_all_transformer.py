@@ -1,10 +1,12 @@
 import os
 import datetime
 import argparse
+import random
 from pathlib import Path
 
 import tensorflow as tf
 import numpy as np
+from sklearn.model_selection import train_test_split
 
 from losses import masked_crossentropy, masked_mean_squared_error
 from model.transformer_factory import new_everything
@@ -131,13 +133,12 @@ tokenizer = TestTokenizer(alphabet=sorted(list(alphabet)))
 start_tok, end_tok = tokenizer.start_token_index, tokenizer.end_token_index
 tokenized_mel_text_train_samples = [(mel, [start_tok] + tokenizer.encode(text) + [end_tok], stop_prob)
                                     for mel, text, stop_prob in mel_text_stop_samples]
-mel_text_stop_gen = lambda: (pair for pair in tokenized_mel_text_train_samples[10:])
-mel_text_stop_dataset = tf.data.Dataset.from_generator(mel_text_stop_gen,
-                                                       output_types=(tf.float64, tf.int64, tf.int64))
-mel_text_stop_dataset = mel_text_stop_dataset.shuffle(
-    len(tokenized_mel_text_train_samples)).padded_batch(args.BATCH_SIZE, padded_shapes=([-1, 80], [-1], [-1]),
-                                                                         drop_remainder=True)
-#mel_text_stop_dataset = mel_text_stop_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+train_list, test_list = train_test_split(tokenized_mel_text_train_samples, test_size=100, random_state=42)
+train_set_generator = lambda: (item for item in train_list)
+train_dataset = tf.data.Dataset.from_generator(train_set_generator,
+                                               output_types=(tf.float64, tf.int64, tf.int64))
+train_dataset = train_dataset.shuffle(1000).padded_batch(
+    args.BATCH_SIZE, padded_shapes=([-1, 80], [-1], [-1]), drop_remainder=True)
 
 input_vocab_size = tokenizer.vocab_size
 target_vocab_size = tokenizer.vocab_size
@@ -200,7 +201,7 @@ def linear_dropout_schedule(step):
 
 
 for epoch in range(N_EPOCHS):
-    for (batch, (mel, text, stop)) in enumerate(mel_text_stop_dataset):
+    for (batch, (mel, text, stop)) in enumerate(train_dataset):
         output = {}
         decoder_prenet_dropout = linear_dropout_schedule(batch_count)
         output['text_to_text'] = transformers['text_to_text'].train_step(text, text)
@@ -222,9 +223,9 @@ for epoch in range(N_EPOCHS):
             pred = {}
             test_val = {}
             for i in range(0, 3):
-                mel_target = mel_text_stop_samples[i][0]
-                max_pred_len = mel_text_stop_samples[i][0].shape[0] + 50
-                test_val['text_to_mel'] = tokenizer.encode(mel_text_stop_samples[i][1])
+                mel_target = test_list[i][0]
+                max_pred_len = mel_target.shape[0] + 50
+                test_val['text_to_mel'] = tokenizer.encode(test_list[i][1])
                 test_val['mel_to_mel'] = mel_target
                 for kind in ['text_to_mel', 'mel_to_mel']:
                     pred[kind] = transformers[kind].predict(test_val[kind],
@@ -248,8 +249,8 @@ for epoch in range(N_EPOCHS):
             pred = {}
             test_val = {}
             for i in range(0, 3):
-                test_val['mel_to_text'] = mel_text_stop_samples[i][0]
-                test_val['text_to_text'] = tokenizer.encode(mel_text_stop_samples[i][1])
+                test_val['mel_to_text'] = test_list[i][0]
+                test_val['text_to_text'] = tokenizer.encode(test_list[i][1])
                 decoded_target = tokenizer.decode(test_val['text_to_text'])
                 for kind in ['mel_to_text', 'text_to_text']:
                     pred[kind] = transformers[kind].predict(test_val[kind])
