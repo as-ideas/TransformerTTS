@@ -26,6 +26,7 @@ parser.add_argument('--batch_size', dest='BATCH_SIZE', default=16, type=int)
 parser.add_argument('--text_freq', dest='TEXT_FREQ', default=1000, type=int)
 parser.add_argument('--image_freq', dest='IMAGE_FREQ', default=10, type=int)
 parser.add_argument('--learning_rate', dest='LEARNING_RATE', default=1e-4, type=float)
+parser.add_argument('--mask_prob', dest='MASK_PROB', default=0.3, type=float)
 args = parser.parse_args()
 
 mel_path = Path(args.MEL_DIR) / 'mels'
@@ -36,9 +37,9 @@ N_EPOCHS = args.EPOCHS
 N_SAMPLES = args.MAX_SAMPLES
 image_freq = args.IMAGE_FREQ
 text_freq = args.TEXT_FREQ
-num_layers = 4
+num_layers = 1
 d_model = 256
-num_heads = 8
+num_heads = 2
 dff = 512
 # TODO: differentiate
 # DFF_TEXT = 256
@@ -203,12 +204,33 @@ def linear_dropout_schedule(step):
     return tf.cast(dout, tf.float32)
 
 
+def random_mel_mask(tensor, mask_prob):
+    tensor_shape = tf.shape(tensor)
+    mask_floats = tf.random.uniform((tensor_shape[0], tensor_shape[1]))
+    mask = tf.cast(mask_floats > mask_prob, tf.float64)
+    mask = tf.expand_dims(mask, -1)
+    mask = tf.broadcast_to(mask, tensor_shape)
+    masked_tensor = tensor * mask
+    return masked_tensor
+
+
+def random_text_mask(tensor, mask_prob):
+    tensor_shape = tf.shape(tensor)
+    mask_floats = tf.random.uniform((tensor_shape[0], tensor_shape[1]))
+    mask = tf.cast(mask_floats > mask_prob, tf.int64)
+    masked_tensor = tensor * mask
+    return masked_tensor
+
+
+
 for epoch in range(N_EPOCHS):
     for (batch, (mel, text, stop)) in enumerate(train_dataset):
+        masked_text = random_text_mask(text, args.MASK_PROB)
+        masked_mel = random_mel_mask(mel, args.MASK_PROB)
         output = {}
         decoder_prenet_dropout = linear_dropout_schedule(batch_count)
-        output['text_to_text'] = transformers['text_to_text'].train_step(text, text)
-        output['mel_to_mel'] = transformers['mel_to_mel'].train_step(mel, mel, stop,
+        output['text_to_text'] = transformers['text_to_text'].train_step(masked_text, text)
+        output['mel_to_mel'] = transformers['mel_to_mel'].train_step(masked_mel, mel, stop,
                                                                      decoder_prenet_dropout=decoder_prenet_dropout)
         output['text_to_mel'] = transformers['text_to_mel'].train_step(text, mel, stop,
                                                                        decoder_prenet_dropout=decoder_prenet_dropout)
