@@ -33,17 +33,16 @@ class TestTextTransformer(unittest.TestCase):
     
     def test_training(self):
         train_samples = [('I am a student.', 'Ich bin ein Student.'), ('I am cool.', 'Ich bin cool.')]
-        tokenizer_in = TestTokenizer(alphabet=string.ascii_letters + string.punctuation + string.whitespace)
-        tokenizer_out = TestTokenizer(alphabet=string.printable)
-        tokenized_train_samples = [(tokenizer_in.encode(i), tokenizer_out.encode(j)) for i, j in train_samples]
+        tokenizer = TestTokenizer(alphabet=string.printable)
+        tokenized_train_samples = [(tokenizer.encode(i), tokenizer.encode(j)) for i, j in train_samples]
         train_gen = lambda: (pair for pair in tokenized_train_samples)
         train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.int64, tf.int64))
         train_dataset = train_dataset.shuffle(10).padded_batch(2, padded_shapes=([-1], [-1]))
         train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-        text_transformer = new_text_transformer(start_token_index=tokenizer_out.start_token_index,
-                                                end_token_index=tokenizer_out.end_token_index,
-                                                input_vocab_size=tokenizer_in.vocab_size,
-                                                target_vocab_size=tokenizer_out.vocab_size,
+        text_transformer = new_text_transformer(start_token_index=tokenizer.start_token_index,
+                                                end_token_index=tokenizer.end_token_index,
+                                                input_vocab_size=tokenizer.vocab_size,
+                                                target_vocab_size=tokenizer.vocab_size,
                                                 num_layers=2,
                                                 d_model=128,
                                                 num_heads=2,
@@ -61,7 +60,7 @@ class TestTextTransformer(unittest.TestCase):
                 # gradients, loss, tar_real, predictions = text_transformer.train_step(inp, tar)
                 losses.append(float(output['loss']))
         
-        self.assertAlmostEqual(1.176626443862915, losses[-1], places=6)
+        self.assertAlmostEqual(1.2310866117477417, losses[-1], places=6)
         pred = text_transformer.predict(tokenized_train_samples[0][0], max_length=10)
         self.assertEqual((1, 1, 102), pred['logits'].numpy().shape)
-        self.assertAlmostEqual(-23.76941680908203, float(tf.reduce_sum(pred['logits'])))
+        self.assertAlmostEqual(-22.45075035095215, float(tf.reduce_sum(pred['logits'])))
