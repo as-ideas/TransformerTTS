@@ -76,13 +76,14 @@ class TestTextMelTransformer(unittest.TestCase):
         batch_num = 0
         for epoch in range(2):
             for i, (text, mels, stop_probs) in enumerate(train_dataset):
-                out = text_mel_transformer.train_step(text, mels, stop_probs)
+                dout = tf.cast(0.5, tf.float32)
+                out = text_mel_transformer.train_step(text, mels, stop_probs, dout)
                 loss = float(out['loss'])
                 losses.append(loss)
                 print('batch {} loss {}'.format(epoch, loss))
                 batch_num += 1
         
         pred = text_mel_transformer.predict(tokenized_train_samples[0][0], max_length=50)
-        self.assertAlmostEqual(1.6140226125717163, losses[-1], places=6)
+        self.assertAlmostEqual(1.6392383575439453, losses[-1], places=6)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(2362.845703125, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(2564.45556640625, float(tf.reduce_sum(pred['mel'])), places=6)

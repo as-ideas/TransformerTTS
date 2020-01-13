@@ -56,13 +56,14 @@ class TestMelTransformer(unittest.TestCase):
         batch_num = 0
         for epoch in range(2):
             for i, (mels, stop_probs) in enumerate(train_dataset):
-                out = mel_transformer.train_step(mels, mels, stop_probs)
+                dout = tf.cast(0.5, tf.float32)
+                out = mel_transformer.train_step(mels, mels, stop_probs, dout)
                 loss = float(out['loss'])
                 losses.append(loss)
                 print('batch {} loss {}'.format(epoch, loss))
                 batch_num += 1
         
         pred = mel_transformer.predict(test_mels[0], max_length=50)
-        self.assertAlmostEqual(1.9361927509307861, losses[-1], places=6)
+        self.assertAlmostEqual(1.6592915058135986, losses[-1], places=6)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(2505.8525390625, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(2462.675048828125, float(tf.reduce_sum(pred['mel'])), places=6)

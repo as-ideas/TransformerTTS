@@ -67,7 +67,7 @@ class TestMelTextTransformer(unittest.TestCase):
                 output = mel_text_transformer.train_step(inp, tar)
                 losses.append(float(output['loss']))
         
-        self.assertAlmostEqual(2.809022903442383, losses[-1], places=6)
+        self.assertAlmostEqual(2.841470718383789, losses[-1], places=6)
         pred = mel_text_transformer.predict(tokenized_train_samples[0][0], max_length=10)
         self.assertEqual((1, 1, 19), pred['logits'].numpy().shape)
-        self.assertAlmostEqual(-2.0202836990356445, float(tf.reduce_sum(pred['logits'])))
+        self.assertAlmostEqual(-14.454492568969727, float(tf.reduce_sum(pred['logits'])))
