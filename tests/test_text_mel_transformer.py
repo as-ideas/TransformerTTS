@@ -40,6 +40,7 @@ class TestTextMelTransformer(unittest.TestCase):
         train_samples = []
         
         for i, mel in enumerate(test_mels):
+            mel = tf.math.log(tf.clip_by_value(tf.cast(mel, tf.float32), clip_value_min=0., clip_value_max=float('inf')))
             mel = np.concatenate([start_vec, mel, end_vec])
             stop_probs = np.ones((mel.shape[0]))
             stop_probs[-1] = 2
@@ -84,6 +85,6 @@ class TestTextMelTransformer(unittest.TestCase):
                 batch_num += 1
         
         pred = text_mel_transformer.predict(tokenized_train_samples[0][0], max_length=50)
-        self.assertAlmostEqual(1.6392383575439453, losses[-1], places=6)
+        self.assertAlmostEqual(3.520864963531494, losses[-1], places=6)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(2564.45556640625, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(-2841.36376953125, float(tf.reduce_sum(pred['mel'])), places=6)
