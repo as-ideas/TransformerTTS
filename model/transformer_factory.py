@@ -84,9 +84,7 @@ def new_mel_transformer(num_layers=1,
     return mel_transformer
 
 
-def new_mel_text_transformer(start_token_index,
-                             end_token_index,
-                             target_vocab_size,
+def new_mel_text_transformer(tokenizer,
                              mel_channels=80,
                              num_layers=1,
                              d_model=64,
@@ -94,7 +92,11 @@ def new_mel_text_transformer(start_token_index,
                              dff=512,
                              dff_prenet=512,
                              max_position_encoding=10000,
-                             dropout_rate=0):
+                             dropout_rate=0,
+                             start_vec_value=-3,
+                             end_vec_value=1
+
+                             ):
     encoder = Encoder(
         num_layers=num_layers,
         d_model=d_model,
@@ -115,14 +117,14 @@ def new_mel_text_transformer(start_token_index,
     
     mel_text_transformer = MelTextTransformer(
         encoder_prenet=PointWiseFFN(d_model=d_model, dff=dff_prenet),
-        decoder_prenet=tf.keras.layers.Embedding(target_vocab_size, d_model),
-        decoder_postnet=TextPostnet(target_vocab_size),
+        decoder_prenet=tf.keras.layers.Embedding(tokenizer.vocab_size, d_model),
+        decoder_postnet=TextPostnet(tokenizer.vocab_size),
         encoder=encoder,
         decoder=decoder,
-        start_token_index=start_token_index,
-        end_token_index=end_token_index,
-        mel_channels=mel_channels
-    )
+        tokenizer=tokenizer,
+        mel_channels=mel_channels,
+        start_vec_value=start_vec_value,
+        end_vec_value=end_vec_value)
     
     return mel_text_transformer
 

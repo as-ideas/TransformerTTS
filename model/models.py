@@ -254,26 +254,38 @@ class MelTextTransformer(Transformer):
                  decoder_postnet,
                  encoder,
                  decoder,
-                 start_token_index,
-                 end_token_index,
-                 mel_channels):
+                 tokenizer,
+                 mel_channels,
+                 start_vec_value=-3,
+                 end_vec_value=1):
         super(MelTextTransformer, self).__init__(encoder_prenet,
                                                  decoder_prenet,
                                                  encoder,
                                                  decoder,
                                                  decoder_postnet)
-        self.start_token_index = start_token_index
-        self.end_token_index = end_token_index
+        self.tokenizer = tokenizer
+        self.start_vec = tf.ones((1, mel_channels), dtype=tf.float32) * start_vec_value
+        self.end_vec = tf.ones((1, mel_channels), dtype=tf.float32) * end_vec_value
         self.train_step = tf.function(
             input_signature=[
                 tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float64),
                 tf.TensorSpec(shape=(None, None), dtype=tf.int64),
             ]
         )(self._train_step)
+        
+    def _check_tokenizer(self):
+        for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
+            assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
+
+    def preprocess_mel(self, mel, clip_min=1e-5, clip_max=float('inf')):
+        norm_mel = tf.cast(mel, tf.float32)
+        norm_mel = tf.math.log(tf.clip_by_value(norm_mel, clip_value_min=clip_min, clip_value_max=clip_max))
+        norm_mel = tf.concat([self.start_vec, norm_mel, self.end_vec], 0)
+        return norm_mel
     
     def predict(self, inputs, max_length=100):
         encoder_input = tf.expand_dims(inputs, 0)
-        decoder_input = [self.start_token_index]
+        decoder_input = [self.tokenizer.start_token_index]
         output = tf.expand_dims(decoder_input, 0)
         out_dict = {}
         for i in range(max_length):
@@ -290,7 +302,7 @@ class MelTextTransformer(Transformer):
             out_dict = {'output': tf.squeeze(output, axis=0),
                         'attention_weights': model_out['attention_weights'],
                         'logits': predictions}
-            if predicted_id == self.end_token_index:
+            if predicted_id == self.tokenizer.end_token_index:
                 break
         return out_dict
     
