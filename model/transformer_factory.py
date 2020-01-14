@@ -180,12 +180,9 @@ def new_text_mel_transformer(tokenizer,
     return mel_text_transformer
 
 
-def new_everything(start_vec,
-                   stop_prob_index,
-                   input_vocab_size,
-                   start_token_index,
-                   end_token_index,
-                   target_vocab_size,
+def new_everything(tokenizer,
+                   start_vec_value=-3,
+                   end_vec_value=1,
                    mel_channels=80,
                    num_layers=1,
                    d_model=64,
@@ -216,9 +213,9 @@ def new_everything(start_vec,
                              maximum_position_encoding=max_position_encoding,
                              rate=dropout_rate)
     
-    text_encoder_prenet = tf.keras.layers.Embedding(input_vocab_size, d_model)
-    text_decoder_prenet = tf.keras.layers.Embedding(target_vocab_size, d_model)
-    text_decoder_postnet = TextPostnet(target_vocab_size)
+    text_encoder_prenet = tf.keras.layers.Embedding(tokenizer.vocab_size, d_model)
+    text_decoder_prenet = tf.keras.layers.Embedding(tokenizer.vocab_size, d_model)
+    text_decoder_postnet = TextPostnet(tokenizer.vocab_size)
     text_encoder = Encoder(num_layers=num_layers,
                            d_model=d_model,
                            num_heads=num_heads,
@@ -237,32 +234,33 @@ def new_everything(start_vec,
                                                       decoder_postnet=speech_decoder_postnet,
                                                       encoder=text_encoder,
                                                       decoder=speech_decoder,
-                                                      start_vec=start_vec,
-                                                      stop_prob_index=stop_prob_index
+                                                      tokenizer=tokenizer,
+                                                      start_vec_value=start_vec_value,
+                                                      end_vec_value=end_vec_value
                                                       ),
                     'mel_to_text': MelTextTransformer(encoder_prenet=speech_encoder_prenet,
                                                       decoder_prenet=text_decoder_prenet,
                                                       decoder_postnet=text_decoder_postnet,
                                                       encoder=speech_encoder,
                                                       decoder=text_decoder,
-                                                      start_token_index=start_token_index,
-                                                      end_token_index=end_token_index,
-                                                      mel_channels=mel_channels
+                                                      tokenizer=tokenizer,
+                                                      mel_channels=mel_channels,
+                                                      start_vec_value=start_vec_value,
+                                                      end_vec_value=end_vec_value
                                                       ),
                     'mel_to_mel': MelTransformer(encoder_prenet=speech_encoder_prenet,
                                                  decoder_prenet=speech_decoder_prenet,
                                                  encoder=speech_encoder,
                                                  decoder=speech_decoder,
                                                  decoder_postnet=speech_decoder_postnet,
-                                                 start_vec=start_vec,
-                                                 stop_prob_index=stop_prob_index),
+                                                 start_vec_value=start_vec_value,
+                                                 end_vec_value=end_vec_value),
                     'text_to_text': TextTransformer(encoder_prenet=text_encoder_prenet,
                                                     decoder_prenet=text_decoder_prenet,
                                                     decoder_postnet=text_decoder_postnet,
                                                     encoder=text_encoder,
                                                     decoder=text_decoder,
-                                                    start_token_index=start_token_index,
-                                                    end_token_index=end_token_index)}
+                                                    tokenizer=tokenizer)}
     
     return transformers
 
