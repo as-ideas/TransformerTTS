@@ -146,15 +146,16 @@ class MelTransformer(Transformer):
                  encoder,
                  decoder,
                  decoder_postnet,
-                 start_vec,
-                 stop_prob_index):
+                 start_vec_value=-3,
+                 end_vec_value=1):
         super(MelTransformer, self).__init__(encoder_prenet,
                                              decoder_prenet,
                                              encoder,
                                              decoder,
                                              decoder_postnet)
-        self.start_vec = tf.cast(start_vec, tf.float32)
-        self.stop_prob_index = stop_prob_index
+        self.start_vec = tf.ones((1, decoder_postnet.mel_channels), dtype=tf.float32) * start_vec_value
+        self.end_vec = tf.ones((1, decoder_postnet.mel_channels), dtype=tf.float32) * end_vec_value
+        self.stop_prob_index = 2
         self.train_step = tf.function(
             input_signature=[
                 tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float64),
@@ -163,6 +164,12 @@ class MelTransformer(Transformer):
                 tf.TensorSpec(shape=(None), dtype=tf.float32)
             ]
         )(self._train_step)
+    
+    def preprocess_mel(self, mel, clip_min=1e-5, clip_max=float('inf')):
+        norm_mel = tf.cast(mel, tf.float32)
+        norm_mel = tf.math.log(tf.clip_by_value(norm_mel, clip_value_min=clip_min, clip_value_max=clip_max))
+        norm_mel = tf.concat([self.start_vec, norm_mel, self.end_vec], 0)
+        return norm_mel
     
     def predict(self, inputs, max_length=50, decoder_prenet_dropout=0.5):
         inputs = tf.expand_dims(inputs, 0)

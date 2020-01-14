@@ -41,9 +41,7 @@ def new_text_transformer(tokenizer,
     return text_transformer
 
 
-def new_mel_transformer(start_vec,
-                        stop_prob_index,
-                        num_layers=1,
+def new_mel_transformer(num_layers=1,
                         d_model=64,
                         num_heads=1,
                         dff=512,
@@ -53,7 +51,9 @@ def new_mel_transformer(start_vec,
                         mel_channels=80,
                         postnet_conv_filters=32,
                         postnet_conv_layers=2,
-                        postnet_kernel_size=5):
+                        postnet_kernel_size=5,
+                        start_vec_value=-3,
+                        end_vec_value=1):
     encoder = Encoder(num_layers=num_layers,
                       d_model=d_model,
                       num_heads=num_heads,
@@ -78,8 +78,8 @@ def new_mel_transformer(start_vec,
                                      encoder=encoder,
                                      decoder=decoder,
                                      decoder_postnet=speech_out_module,
-                                     start_vec=start_vec,
-                                     stop_prob_index=stop_prob_index)
+                                     start_vec_value=start_vec_value,
+                                     end_vec_value=end_vec_value)
     
     return mel_transformer
 
