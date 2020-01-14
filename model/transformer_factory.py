@@ -4,10 +4,7 @@ from model.layers import Encoder, Decoder, SpeechPostnet, PointWiseFFN, SpeechDe
 from model.models import TextTransformer, MelTransformer, MelTextTransformer, TextMelTransformer
 
 
-def new_text_transformer(start_token_index,
-                         end_token_index,
-                         input_vocab_size,
-                         target_vocab_size,
+def new_text_transformer(tokenizer,
                          num_layers=1,
                          d_model=64,
                          num_heads=1,
@@ -33,13 +30,12 @@ def new_text_transformer(start_token_index,
     )
     
     text_transformer = TextTransformer(
-        encoder_prenet=tf.keras.layers.Embedding(input_vocab_size, d_model),
-        decoder_prenet=tf.keras.layers.Embedding(target_vocab_size, d_model),
-        decoder_postnet=TextPostnet(target_vocab_size),
+        encoder_prenet=tf.keras.layers.Embedding(tokenizer.vocab_size, d_model),
+        decoder_prenet=tf.keras.layers.Embedding(tokenizer.vocab_size, d_model),
+        decoder_postnet=TextPostnet(tokenizer.vocab_size),
         encoder=encoder,
         decoder=decoder,
-        start_token_index=start_token_index,
-        end_token_index=end_token_index
+        tokenizer=tokenizer,
     )
     
     return text_transformer
@@ -234,36 +230,36 @@ def new_everything(start_vec,
                            rate=dropout_rate)
     
     transformers = {'text_to_mel': TextMelTransformer(encoder_prenet=text_encoder_prenet,
-                                                   decoder_prenet=speech_decoder_prenet,
-                                                   decoder_postnet=speech_decoder_postnet,
-                                                   encoder=text_encoder,
-                                                   decoder=speech_decoder,
-                                                   start_vec=start_vec,
-                                                   stop_prob_index=stop_prob_index
-                                                   ),
+                                                      decoder_prenet=speech_decoder_prenet,
+                                                      decoder_postnet=speech_decoder_postnet,
+                                                      encoder=text_encoder,
+                                                      decoder=speech_decoder,
+                                                      start_vec=start_vec,
+                                                      stop_prob_index=stop_prob_index
+                                                      ),
                     'mel_to_text': MelTextTransformer(encoder_prenet=speech_encoder_prenet,
-                                                   decoder_prenet=text_decoder_prenet,
-                                                   decoder_postnet=text_decoder_postnet,
-                                                   encoder=speech_encoder,
-                                                   decoder=text_decoder,
-                                                   start_token_index=start_token_index,
-                                                   end_token_index=end_token_index,
-                                                   mel_channels=mel_channels
-                                                   ),
+                                                      decoder_prenet=text_decoder_prenet,
+                                                      decoder_postnet=text_decoder_postnet,
+                                                      encoder=speech_encoder,
+                                                      decoder=text_decoder,
+                                                      start_token_index=start_token_index,
+                                                      end_token_index=end_token_index,
+                                                      mel_channels=mel_channels
+                                                      ),
                     'mel_to_mel': MelTransformer(encoder_prenet=speech_encoder_prenet,
-                                              decoder_prenet=speech_decoder_prenet,
-                                              encoder=speech_encoder,
-                                              decoder=speech_decoder,
-                                              decoder_postnet=speech_decoder_postnet,
-                                              start_vec=start_vec,
-                                              stop_prob_index=stop_prob_index),
+                                                 decoder_prenet=speech_decoder_prenet,
+                                                 encoder=speech_encoder,
+                                                 decoder=speech_decoder,
+                                                 decoder_postnet=speech_decoder_postnet,
+                                                 start_vec=start_vec,
+                                                 stop_prob_index=stop_prob_index),
                     'text_to_text': TextTransformer(encoder_prenet=text_encoder_prenet,
-                                                 decoder_prenet=text_decoder_prenet,
-                                                 decoder_postnet=text_decoder_postnet,
-                                                 encoder=text_encoder,
-                                                 decoder=text_decoder,
-                                                 start_token_index=start_token_index,
-                                                 end_token_index=end_token_index)}
+                                                    decoder_prenet=text_decoder_prenet,
+                                                    decoder_postnet=text_decoder_postnet,
+                                                    encoder=text_encoder,
+                                                    decoder=text_decoder,
+                                                    start_token_index=start_token_index,
+                                                    end_token_index=end_token_index)}
     
     return transformers
 
