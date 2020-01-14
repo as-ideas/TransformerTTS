@@ -34,22 +34,10 @@ class TestTextMelTransformer(unittest.TestCase):
         np.random.seed(42)
     
     def test_training(self):
-        start_vec = np.ones((1, 80))
-        end_vec = np.ones((1, 80)) * 2
-        test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
-        train_samples = []
-        
-        for i, mel in enumerate(test_mels):
-            mel = np.concatenate([start_vec, mel, end_vec])
-            stop_probs = np.ones((mel.shape[0]))
-            stop_probs[-1] = 2
-            train_samples.append(('repeated text ' * i, mel, stop_probs))
-        
         tokenizer = TestTokenizer(alphabet=list('repeated text'))
-
-        text_mel_transformer = new_text_mel_transformer(start_vec=start_vec,
-                                                        stop_prob_index=2,
-                                                        input_vocab_size=tokenizer.vocab_size,
+        text_mel_transformer = new_text_mel_transformer(start_vec_value=1,
+                                                        end_vec_value=2,
+                                                        tokenizer=tokenizer,
                                                         mel_channels=80,
                                                         num_layers=4,
                                                         d_model=256,
@@ -58,14 +46,26 @@ class TestTextMelTransformer(unittest.TestCase):
                                                         dff_prenet=256,
                                                         max_position_encoding=1000,
                                                         dropout_rate=0.1)
+        test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
+        train_samples = []
+        
+        for i, mel in enumerate(test_mels):
+            mel = text_mel_transformer.preprocess_mel(mel, clip_min=0.)
+            stop_probs = np.ones((mel.shape[0]))
+            stop_probs[-1] = 2
+            train_samples.append(('repeated text ' * i, mel, stop_probs))
+        
+        
+
+        
         losses = [masked_mean_squared_error,
                   masked_crossentropy,
                   masked_mean_squared_error]
         loss_coeffs = [1.0, 1.0, 1.0]
         optimizer = tf.keras.optimizers.Adam(1e-4, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
         text_mel_transformer.compile(loss=losses, loss_weights=loss_coeffs, optimizer=optimizer)
-        start_tok, end_tok = tokenizer.start_token_index, tokenizer.end_token_index
-        tokenized_train_samples = [([start_tok] + tokenizer.encode(text) + [end_tok], mel, stops)
+        start_tok, end_tok = text_mel_transformer.tokenizer.start_token_index, text_mel_transformer.tokenizer.end_token_index
+        tokenized_train_samples = [([start_tok] + text_mel_transformer.tokenizer.encode(text) + [end_tok], mel, stops)
                                    for text, mel, stops in train_samples]
         train_gen = lambda: (triple for triple in tokenized_train_samples)
         train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.int64, tf.float64, tf.int64))
@@ -84,6 +84,6 @@ class TestTextMelTransformer(unittest.TestCase):
                 batch_num += 1
         
         pred = text_mel_transformer.predict(tokenized_train_samples[0][0], max_length=50)
-        self.assertAlmostEqual(1.6392383575439453, losses[-1], places=6)
+        self.assertAlmostEqual(3.520864963531494, losses[-1], places=6)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(2564.45556640625, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(-2841.36376953125, float(tf.reduce_sum(pred['mel'])), places=6)

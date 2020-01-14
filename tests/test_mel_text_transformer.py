@@ -34,22 +34,8 @@ class TestMelTextTransformer(unittest.TestCase):
         np.random.seed(42)
     
     def test_training(self):
-        train_samples = []
-        for i in range(10):
-            mel = np.random.random((100 + i * 5, 80))
-            train_samples.append((mel, 'sample out text.'))
         tokenizer = TestTokenizer(alphabet=sorted(list('sample out text.')))
-        start_tok, end_tok = tokenizer.start_token_index, tokenizer.end_token_index
-        tokenized_train_samples = [(mel, [start_tok] + tokenizer.encode(text) + [end_tok])
-                                   for mel, text in train_samples]
-        train_gen = lambda: (pair for pair in tokenized_train_samples)
-        train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float64, tf.int64))
-        train_dataset = train_dataset.shuffle(10000).padded_batch(4, padded_shapes=([-1, 80], [-1]))
-        train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
-
-        mel_text_transformer = new_mel_text_transformer(start_token_index=tokenizer.start_token_index,
-                                                        end_token_index=tokenizer.end_token_index,
-                                                        target_vocab_size=tokenizer.vocab_size,
+        mel_text_transformer = new_mel_text_transformer(tokenizer=tokenizer,
                                                         num_layers=2,
                                                         d_model=32,
                                                         num_heads=2,
@@ -57,7 +43,24 @@ class TestMelTextTransformer(unittest.TestCase):
                                                         dff_prenet=32,
                                                         max_position_encoding=1000,
                                                         dropout_rate=0.1,
-                                                        mel_channels=80)
+                                                        mel_channels=80,
+                                                        start_vec_value=1,
+                                                        end_vec_value=2
+                                                        )
+        test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
+        train_samples = []
+        for i, mel in enumerate(test_mels):
+            mel = mel_text_transformer.preprocess_mel(mel, clip_min=0.)
+            train_samples.append((mel, 'sample out text.'))
+        
+        start_tok, end_tok = mel_text_transformer.tokenizer.start_token_index, mel_text_transformer.tokenizer.end_token_index
+        tokenized_train_samples = [(mel, [start_tok] + mel_text_transformer.tokenizer.encode(text) + [end_tok])
+                                   for mel, text in train_samples]
+        train_gen = lambda: (pair for pair in tokenized_train_samples)
+        train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float64, tf.int64))
+        train_dataset = train_dataset.shuffle(10000).padded_batch(4, padded_shapes=([-1, 80], [-1]))
+        train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
+        
         loss_function = masked_crossentropy
         optimizer = tf.keras.optimizers.Adam(1e-4, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
         mel_text_transformer.compile(loss=loss_function, optimizer=optimizer)
@@ -67,7 +70,7 @@ class TestMelTextTransformer(unittest.TestCase):
                 output = mel_text_transformer.train_step(inp, tar)
                 losses.append(float(output['loss']))
         
-        self.assertAlmostEqual(2.841470718383789, losses[-1], places=6)
+        self.assertAlmostEqual(2.844273328781128, losses[-1], places=6)
         pred = mel_text_transformer.predict(tokenized_train_samples[0][0], max_length=10)
         self.assertEqual((1, 1, 19), pred['logits'].numpy().shape)
-        self.assertAlmostEqual(-14.454492568969727, float(tf.reduce_sum(pred['logits'])))
+        self.assertAlmostEqual(-16.165546417236328, float(tf.reduce_sum(pred['logits'])))

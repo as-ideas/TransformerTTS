@@ -144,17 +144,7 @@ train_dataset = tf.data.Dataset.from_generator(train_set_generator,
 train_dataset = train_dataset.shuffle(1000).padded_batch(
     args.BATCH_SIZE, padded_shapes=([-1, 80], [-1], [-1]), drop_remainder=True)
 
-input_vocab_size = tokenizer.vocab_size
-target_vocab_size = tokenizer.vocab_size
-start_token_index = tokenizer.start_token_index
-end_token_index = tokenizer.end_token_index
-
-transformers = new_everything(start_vec=start_vec,
-                              stop_prob_index=stop_prob_index,
-                              input_vocab_size=input_vocab_size,
-                              start_token_index=start_token_index,
-                              end_token_index=end_token_index,
-                              target_vocab_size=target_vocab_size,
+transformers = new_everything(tokenizer=tokenizer,
                               mel_channels=mel_channels,
                               num_layers=num_layers,
                               d_model=d_model,
@@ -165,7 +155,9 @@ transformers = new_everything(start_vec=start_vec,
                               postnet_conv_filters=postnet_conv_filters,
                               postnet_conv_layers=postnet_conv_layers,
                               postnet_kernel_size=postnet_kernel_size,
-                              dropout_rate=dropout_rate)
+                              dropout_rate=dropout_rate,
+                              start_vec_value=-3,
+                              end_vec_value=1)
 loss_coeffs = [1.0, 1.0, 1.0]
 transformers['mel_to_text'].compile(loss=masked_crossentropy,
                                     optimizer=tf.keras.optimizers.Adam(args.LEARNING_RATE, beta_1=0.9, beta_2=0.98,

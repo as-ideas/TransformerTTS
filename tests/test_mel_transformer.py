@@ -14,24 +14,8 @@ class TestMelTransformer(unittest.TestCase):
         np.random.seed(42)
     
     def test_training(self):
-        start_vec = np.ones((1, 80))
-        end_vec = np.ones((1, 80)) * 2
-        test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
-        train_samples = []
-        for mel in test_mels:
-            mel = np.concatenate([start_vec, mel, end_vec])
-            stop_probs = np.ones((mel.shape[0]))
-            stop_probs[-1] = 2
-            train_samples.append((mel, stop_probs))
-        
-        losses = [masked_mean_squared_error,
-                  masked_crossentropy,
-                  masked_mean_squared_error]
-        loss_coeffs = [1.0, 1.0, 1.0]
-        optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
-        
-        mel_transformer = new_mel_transformer(start_vec=start_vec,
-                                              stop_prob_index=2,
+        mel_transformer = new_mel_transformer(start_vec_value=1,
+                                              end_vec_value=2,
                                               num_layers=2,
                                               d_model=64,
                                               num_heads=2,
@@ -43,6 +27,19 @@ class TestMelTransformer(unittest.TestCase):
                                               postnet_conv_filters=32,
                                               postnet_conv_layers=2,
                                               postnet_kernel_size=5)
+        test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
+        train_samples = []
+        for mel in test_mels:
+            mel = mel_transformer.preprocess_mel(mel, clip_min=0.)
+            stop_probs = np.ones((mel.shape[0]))
+            stop_probs[-1] = 2
+            train_samples.append((mel, stop_probs))
+        
+        losses = [masked_mean_squared_error,
+                  masked_crossentropy,
+                  masked_mean_squared_error]
+        loss_coeffs = [1.0, 1.0, 1.0]
+        optimizer = tf.keras.optimizers.Adam(learning_rate=1e-3, beta_1=0.9, beta_2=0.98, epsilon=1e-9)
         
         mel_transformer.compile(loss=losses, loss_weights=loss_coeffs, optimizer=optimizer)
         train_gen = lambda: (mel for mel in train_samples)
@@ -56,14 +53,13 @@ class TestMelTransformer(unittest.TestCase):
         batch_num = 0
         for epoch in range(2):
             for i, (mels, stop_probs) in enumerate(train_dataset):
-                dout = tf.cast(0.5, tf.float32)
-                out = mel_transformer.train_step(mels, mels, stop_probs, dout)
+                out = mel_transformer.train_step(mels, mels, stop_probs, 0.5)
                 loss = float(out['loss'])
                 losses.append(loss)
                 print('batch {} loss {}'.format(epoch, loss))
                 batch_num += 1
         
         pred = mel_transformer.predict(test_mels[0], max_length=50)
-        self.assertAlmostEqual(1.6592915058135986, losses[-1], places=6)
+        self.assertAlmostEqual(4.054421901702881, losses[-1], places=6)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(2462.675048828125, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(-2393.274658203125, float(tf.reduce_sum(pred['mel'])), places=6)

@@ -4,10 +4,7 @@ from model.layers import Encoder, Decoder, SpeechPostnet, PointWiseFFN, SpeechDe
 from model.models import TextTransformer, MelTransformer, MelTextTransformer, TextMelTransformer
 
 
-def new_text_transformer(start_token_index,
-                         end_token_index,
-                         input_vocab_size,
-                         target_vocab_size,
+def new_text_transformer(tokenizer,
                          num_layers=1,
                          d_model=64,
                          num_heads=1,
@@ -33,21 +30,18 @@ def new_text_transformer(start_token_index,
     )
     
     text_transformer = TextTransformer(
-        encoder_prenet=tf.keras.layers.Embedding(input_vocab_size, d_model),
-        decoder_prenet=tf.keras.layers.Embedding(target_vocab_size, d_model),
-        decoder_postnet=TextPostnet(target_vocab_size),
+        encoder_prenet=tf.keras.layers.Embedding(tokenizer.vocab_size, d_model),
+        decoder_prenet=tf.keras.layers.Embedding(tokenizer.vocab_size, d_model),
+        decoder_postnet=TextPostnet(tokenizer.vocab_size),
         encoder=encoder,
         decoder=decoder,
-        start_token_index=start_token_index,
-        end_token_index=end_token_index
+        tokenizer=tokenizer,
     )
     
     return text_transformer
 
 
-def new_mel_transformer(start_vec,
-                        stop_prob_index,
-                        num_layers=1,
+def new_mel_transformer(num_layers=1,
                         d_model=64,
                         num_heads=1,
                         dff=512,
@@ -57,7 +51,9 @@ def new_mel_transformer(start_vec,
                         mel_channels=80,
                         postnet_conv_filters=32,
                         postnet_conv_layers=2,
-                        postnet_kernel_size=5):
+                        postnet_kernel_size=5,
+                        start_vec_value=-3,
+                        end_vec_value=1):
     encoder = Encoder(num_layers=num_layers,
                       d_model=d_model,
                       num_heads=num_heads,
@@ -82,15 +78,13 @@ def new_mel_transformer(start_vec,
                                      encoder=encoder,
                                      decoder=decoder,
                                      decoder_postnet=speech_out_module,
-                                     start_vec=start_vec,
-                                     stop_prob_index=stop_prob_index)
+                                     start_vec_value=start_vec_value,
+                                     end_vec_value=end_vec_value)
     
     return mel_transformer
 
 
-def new_mel_text_transformer(start_token_index,
-                             end_token_index,
-                             target_vocab_size,
+def new_mel_text_transformer(tokenizer,
                              mel_channels=80,
                              num_layers=1,
                              d_model=64,
@@ -98,7 +92,11 @@ def new_mel_text_transformer(start_token_index,
                              dff=512,
                              dff_prenet=512,
                              max_position_encoding=10000,
-                             dropout_rate=0):
+                             dropout_rate=0,
+                             start_vec_value=-3,
+                             end_vec_value=1
+
+                             ):
     encoder = Encoder(
         num_layers=num_layers,
         d_model=d_model,
@@ -119,21 +117,19 @@ def new_mel_text_transformer(start_token_index,
     
     mel_text_transformer = MelTextTransformer(
         encoder_prenet=PointWiseFFN(d_model=d_model, dff=dff_prenet),
-        decoder_prenet=tf.keras.layers.Embedding(target_vocab_size, d_model),
-        decoder_postnet=TextPostnet(target_vocab_size),
+        decoder_prenet=tf.keras.layers.Embedding(tokenizer.vocab_size, d_model),
+        decoder_postnet=TextPostnet(tokenizer.vocab_size),
         encoder=encoder,
         decoder=decoder,
-        start_token_index=start_token_index,
-        end_token_index=end_token_index,
-        mel_channels=mel_channels
-    )
+        tokenizer=tokenizer,
+        mel_channels=mel_channels,
+        start_vec_value=start_vec_value,
+        end_vec_value=end_vec_value)
     
     return mel_text_transformer
 
 
-def new_text_mel_transformer(start_vec,
-                             stop_prob_index,
-                             input_vocab_size,
+def new_text_mel_transformer(tokenizer,
                              mel_channels=80,
                              num_layers=1,
                              d_model=64,
@@ -144,7 +140,9 @@ def new_text_mel_transformer(start_vec,
                              postnet_conv_filters=32,
                              postnet_conv_layers=2,
                              postnet_kernel_size=5,
-                             dropout_rate=0):
+                             dropout_rate=0,
+                             start_vec_value=-3,
+                             end_vec_value=1):
     encoder = Encoder(
         num_layers=num_layers,
         d_model=d_model,
@@ -169,24 +167,22 @@ def new_text_mel_transformer(start_vec,
                                       kernel_size=postnet_kernel_size)
     
     mel_text_transformer = TextMelTransformer(
-        encoder_prenet=tf.keras.layers.Embedding(input_vocab_size, d_model),
+        encoder_prenet=tf.keras.layers.Embedding(tokenizer.vocab_size, d_model),
         decoder_prenet=SpeechDecoderPrenet(d_model=d_model, dff=dff_prenet),
         decoder_postnet=speech_out_module,
         encoder=encoder,
         decoder=decoder,
-        start_vec=start_vec,
-        stop_prob_index=stop_prob_index
+        tokenizer=tokenizer,
+        start_vec_value=start_vec_value,
+        end_vec_value=end_vec_value
     )
     
     return mel_text_transformer
 
 
-def new_everything(start_vec,
-                   stop_prob_index,
-                   input_vocab_size,
-                   start_token_index,
-                   end_token_index,
-                   target_vocab_size,
+def new_everything(tokenizer,
+                   start_vec_value=-3,
+                   end_vec_value=1,
                    mel_channels=80,
                    num_layers=1,
                    d_model=64,
@@ -217,9 +213,9 @@ def new_everything(start_vec,
                              maximum_position_encoding=max_position_encoding,
                              rate=dropout_rate)
     
-    text_encoder_prenet = tf.keras.layers.Embedding(input_vocab_size, d_model)
-    text_decoder_prenet = tf.keras.layers.Embedding(target_vocab_size, d_model)
-    text_decoder_postnet = TextPostnet(target_vocab_size)
+    text_encoder_prenet = tf.keras.layers.Embedding(tokenizer.vocab_size, d_model)
+    text_decoder_prenet = tf.keras.layers.Embedding(tokenizer.vocab_size, d_model)
+    text_decoder_postnet = TextPostnet(tokenizer.vocab_size)
     text_encoder = Encoder(num_layers=num_layers,
                            d_model=d_model,
                            num_heads=num_heads,
@@ -234,36 +230,37 @@ def new_everything(start_vec,
                            rate=dropout_rate)
     
     transformers = {'text_to_mel': TextMelTransformer(encoder_prenet=text_encoder_prenet,
-                                                   decoder_prenet=speech_decoder_prenet,
-                                                   decoder_postnet=speech_decoder_postnet,
-                                                   encoder=text_encoder,
-                                                   decoder=speech_decoder,
-                                                   start_vec=start_vec,
-                                                   stop_prob_index=stop_prob_index
-                                                   ),
+                                                      decoder_prenet=speech_decoder_prenet,
+                                                      decoder_postnet=speech_decoder_postnet,
+                                                      encoder=text_encoder,
+                                                      decoder=speech_decoder,
+                                                      tokenizer=tokenizer,
+                                                      start_vec_value=start_vec_value,
+                                                      end_vec_value=end_vec_value
+                                                      ),
                     'mel_to_text': MelTextTransformer(encoder_prenet=speech_encoder_prenet,
-                                                   decoder_prenet=text_decoder_prenet,
-                                                   decoder_postnet=text_decoder_postnet,
-                                                   encoder=speech_encoder,
-                                                   decoder=text_decoder,
-                                                   start_token_index=start_token_index,
-                                                   end_token_index=end_token_index,
-                                                   mel_channels=mel_channels
-                                                   ),
+                                                      decoder_prenet=text_decoder_prenet,
+                                                      decoder_postnet=text_decoder_postnet,
+                                                      encoder=speech_encoder,
+                                                      decoder=text_decoder,
+                                                      tokenizer=tokenizer,
+                                                      mel_channels=mel_channels,
+                                                      start_vec_value=start_vec_value,
+                                                      end_vec_value=end_vec_value
+                                                      ),
                     'mel_to_mel': MelTransformer(encoder_prenet=speech_encoder_prenet,
-                                              decoder_prenet=speech_decoder_prenet,
-                                              encoder=speech_encoder,
-                                              decoder=speech_decoder,
-                                              decoder_postnet=speech_decoder_postnet,
-                                              start_vec=start_vec,
-                                              stop_prob_index=stop_prob_index),
+                                                 decoder_prenet=speech_decoder_prenet,
+                                                 encoder=speech_encoder,
+                                                 decoder=speech_decoder,
+                                                 decoder_postnet=speech_decoder_postnet,
+                                                 start_vec_value=start_vec_value,
+                                                 end_vec_value=end_vec_value),
                     'text_to_text': TextTransformer(encoder_prenet=text_encoder_prenet,
-                                                 decoder_prenet=text_decoder_prenet,
-                                                 decoder_postnet=text_decoder_postnet,
-                                                 encoder=text_encoder,
-                                                 decoder=text_decoder,
-                                                 start_token_index=start_token_index,
-                                                 end_token_index=end_token_index)}
+                                                    decoder_prenet=text_decoder_prenet,
+                                                    decoder_postnet=text_decoder_postnet,
+                                                    encoder=text_encoder,
+                                                    decoder=text_decoder,
+                                                    tokenizer=tokenizer)}
     
     return transformers
 
