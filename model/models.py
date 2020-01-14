@@ -264,6 +264,7 @@ class MelTextTransformer(Transformer):
                                                  decoder,
                                                  decoder_postnet)
         self.tokenizer = tokenizer
+        self._check_tokenizer()
         self.start_vec = tf.ones((1, mel_channels), dtype=tf.float32) * start_vec_value
         self.end_vec = tf.ones((1, mel_channels), dtype=tf.float32) * end_vec_value
         self.train_step = tf.function(
@@ -372,6 +373,7 @@ class TextMelTransformer(Transformer):
         self.start_vec = tf.ones((1, decoder_postnet.mel_channels), dtype=tf.float32) * start_vec_value
         self.end_vec = tf.ones((1, decoder_postnet.mel_channels), dtype=tf.float32) * end_vec_value
         self.tokenizer = tokenizer
+        self._check_tokenizer()
         self.stop_prob_index = 2
         self.train_step = self._train_step
         self.train_step = tf.function(
