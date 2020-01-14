@@ -19,6 +19,7 @@ class TestMelTransformer(unittest.TestCase):
         test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
         train_samples = []
         for mel in test_mels:
+            mel = tf.cast(mel, tf.float32)
             mel = np.concatenate([start_vec, tf.math.log(mel), end_vec])
             stop_probs = np.ones((mel.shape[0]))
             stop_probs[-1] = 2
@@ -64,6 +65,6 @@ class TestMelTransformer(unittest.TestCase):
                 batch_num += 1
         
         pred = mel_transformer.predict(test_mels[0], max_length=50)
-        self.assertAlmostEqual(4.052087783813477, losses[-1], places=6)
+        self.assertAlmostEqual(4.054421901702881, losses[-1], places=6)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(-2392.96484375, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(-2393.274658203125, float(tf.reduce_sum(pred['mel'])), places=6)
