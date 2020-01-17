@@ -39,7 +39,8 @@ class TestTextTransformer(unittest.TestCase):
                                                 num_heads=2,
                                                 dff=256,
                                                 max_position_encoding=1000,
-                                                dropout_rate=0.1)
+                                                dropout_rate=0.1,
+                                                debug=True)
         train_samples = [('I am a student.', 'Ich bin ein Student.'), ('I am cool.', 'Ich bin cool.')]
         tokenized_train_samples = [(text_transformer.tokenizer.encode(i), text_transformer.tokenizer.encode(j)) for i, j in train_samples]
         train_gen = lambda: (pair for pair in tokenized_train_samples)
@@ -57,7 +58,7 @@ class TestTextTransformer(unittest.TestCase):
                 output = text_transformer.train_step(inp, tar)
                 losses.append(float(output['loss']))
         
-        self.assertAlmostEqual(1.2310866117477417, losses[-1], places=6)
+        self.assertAlmostEqual(1.084794282913208, losses[-1], places=6)
         pred = text_transformer.predict(tokenized_train_samples[0][0], max_length=10)
         self.assertEqual((1, 1, 102), pred['logits'].numpy().shape)
-        self.assertAlmostEqual(-22.45075035095215, float(tf.reduce_sum(pred['logits'])))
+        self.assertAlmostEqual(-17.600025177001953, float(tf.reduce_sum(pred['logits'])))

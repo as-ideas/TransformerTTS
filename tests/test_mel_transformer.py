@@ -26,7 +26,8 @@ class TestMelTransformer(unittest.TestCase):
                                               mel_channels=80,
                                               postnet_conv_filters=32,
                                               postnet_conv_layers=2,
-                                              postnet_kernel_size=5)
+                                              postnet_kernel_size=5,
+                                              debug=True)
         test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
         train_samples = []
         for mel in test_mels:
@@ -60,6 +61,6 @@ class TestMelTransformer(unittest.TestCase):
                 batch_num += 1
         
         pred = mel_transformer.predict(test_mels[0], max_length=50)
-        self.assertAlmostEqual(4.054421901702881, losses[-1], places=6)
+        self.assertAlmostEqual(3.914466381072998, losses[-1], places=6)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(-2393.274658203125, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(-2109.190673828125, float(tf.reduce_sum(pred['mel'])), places=6)

@@ -152,7 +152,8 @@ def new_text_transformer(tokenizer,
                          num_heads=1,
                          dff=512,
                          max_position_encoding=10000,
-                         dropout_rate=0):
+                         dropout_rate=0,
+                         debug=False):
     encoder = Encoder(
         num_layers=num_layers,
         d_model=d_model,
@@ -178,6 +179,7 @@ def new_text_transformer(tokenizer,
         encoder=encoder,
         decoder=decoder,
         tokenizer=tokenizer,
+        debug=debug
     )
     
     return text_transformer
@@ -195,7 +197,8 @@ def new_mel_transformer(num_layers=1,
                         postnet_conv_layers=2,
                         postnet_kernel_size=5,
                         start_vec_value=-3,
-                        end_vec_value=1):
+                        end_vec_value=1,
+                        debug=False):
     encoder = Encoder(num_layers=num_layers,
                       d_model=d_model,
                       num_heads=num_heads,
@@ -221,7 +224,8 @@ def new_mel_transformer(num_layers=1,
                                      decoder=decoder,
                                      decoder_postnet=speech_out_module,
                                      start_vec_value=start_vec_value,
-                                     end_vec_value=end_vec_value)
+                                     end_vec_value=end_vec_value,
+                                     debug=debug)
     
     return mel_transformer
 
@@ -236,9 +240,8 @@ def new_mel_text_transformer(tokenizer,
                              max_position_encoding=10000,
                              dropout_rate=0,
                              start_vec_value=-3,
-                             end_vec_value=1
-
-                             ):
+                             end_vec_value=1,
+                             debug=False):
     encoder = Encoder(
         num_layers=num_layers,
         d_model=d_model,
@@ -266,7 +269,8 @@ def new_mel_text_transformer(tokenizer,
         tokenizer=tokenizer,
         mel_channels=mel_channels,
         start_vec_value=start_vec_value,
-        end_vec_value=end_vec_value)
+        end_vec_value=end_vec_value,
+        debug=debug)
     
     return mel_text_transformer
 
@@ -284,7 +288,8 @@ def new_text_mel_transformer(tokenizer,
                              postnet_kernel_size=5,
                              dropout_rate=0,
                              start_vec_value=-3,
-                             end_vec_value=1):
+                             end_vec_value=1,
+                             debug=False):
     encoder = Encoder(
         num_layers=num_layers,
         d_model=d_model,
@@ -316,8 +321,8 @@ def new_text_mel_transformer(tokenizer,
         decoder=decoder,
         tokenizer=tokenizer,
         start_vec_value=start_vec_value,
-        end_vec_value=end_vec_value
-    )
+        end_vec_value=end_vec_value,
+        debug=debug)
     
     return mel_text_transformer
 
