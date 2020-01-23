@@ -35,10 +35,14 @@ class Combiner:  # (tf.keras.Model):
                  dropout_rate: float,
                  mel_start_vec_value: int,
                  mel_end_vec_value: int,
-                 tokenizer_alphabet: list = None):
+                 tokenizer_alphabet: list = None,
+                 debug: bool=False,
+                 transformer_kinds=None):
         
         # super(Combiner, self).__init__()
-        
+
+        if transformer_kinds is None:
+            transformer_kinds = ['text_to_text', 'mel_to_mel', 'text_to_mel', 'mel_to_text']
         if tokenizer_type == 'char':
             if tokenizer_alphabet is None:
                 tokenizer_alphabet = string.printable
@@ -79,7 +83,7 @@ class Combiner:  # (tf.keras.Model):
                                dff=text_decoder_feed_forward_dimension,
                                maximum_position_encoding=max_position_encoding,
                                rate=dropout_rate)
-        self.transformer_kinds = ['text_to_text', 'mel_to_mel', 'text_to_mel', 'mel_to_text']
+        self.transformer_kinds = transformer_kinds
         self.transformers = {'text_to_mel': TextMelTransformer(encoder_prenet=text_encoder_prenet,
                                                                decoder_prenet=speech_decoder_prenet,
                                                                decoder_postnet=speech_decoder_postnet,
@@ -87,7 +91,8 @@ class Combiner:  # (tf.keras.Model):
                                                                decoder=speech_decoder,
                                                                tokenizer=self.tokenizer,
                                                                start_vec_value=mel_start_vec_value,
-                                                               end_vec_value=mel_end_vec_value),
+                                                               end_vec_value=mel_end_vec_value,
+                                                               debug=debug),
                              'mel_to_text': MelTextTransformer(encoder_prenet=speech_encoder_prenet,
                                                                decoder_prenet=text_decoder_prenet,
                                                                decoder_postnet=text_decoder_postnet,
@@ -96,20 +101,23 @@ class Combiner:  # (tf.keras.Model):
                                                                tokenizer=self.tokenizer,
                                                                mel_channels=mel_channels,
                                                                start_vec_value=mel_start_vec_value,
-                                                               end_vec_value=mel_end_vec_value),
+                                                               end_vec_value=mel_end_vec_value,
+                                                               debug=debug),
                              'mel_to_mel': MelTransformer(encoder_prenet=speech_encoder_prenet,
                                                           decoder_prenet=speech_decoder_prenet,
                                                           encoder=speech_encoder,
                                                           decoder=speech_decoder,
                                                           decoder_postnet=speech_decoder_postnet,
                                                           start_vec_value=mel_start_vec_value,
-                                                          end_vec_value=mel_end_vec_value),
+                                                          end_vec_value=mel_end_vec_value,
+                                                          debug=debug),
                              'text_to_text': TextTransformer(encoder_prenet=text_encoder_prenet,
                                                              decoder_prenet=text_decoder_prenet,
                                                              decoder_postnet=text_decoder_postnet,
                                                              encoder=text_encoder,
                                                              decoder=text_decoder,
-                                                             tokenizer=self.tokenizer)}
+                                                             tokenizer=self.tokenizer,
+                                                             debug=debug)}
     
     @staticmethod
     def random_mel_mask(tensor, mask_prob):
@@ -132,12 +140,17 @@ class Combiner:  # (tf.keras.Model):
     def train_step(self, text, mel, stop, speech_decoder_prenet_dropout, mask_prob=0.):
         masked_text = self.random_text_mask(text, mask_prob)
         masked_mel = self.random_mel_mask(mel, mask_prob)
-        output = {'text_to_text': self.transformers['text_to_text'].train_step(masked_text, text),
-                  'mel_to_mel': self.transformers['mel_to_mel'].train_step(masked_mel, mel, stop,
-                                                                           decoder_prenet_dropout=speech_decoder_prenet_dropout),
-                  'text_to_mel': self.transformers['text_to_mel'].train_step(text, mel, stop,
-                                                                             decoder_prenet_dropout=speech_decoder_prenet_dropout),
-                  'mel_to_text': self.transformers['mel_to_text'].train_step(mel, text)}
+        output = {}
+        if 'mel_to_mel' in self.transformer_kinds:
+            output.update({'mel_to_mel': self.transformers['mel_to_mel'].train_step(masked_mel, mel, stop,
+                                                                     decoder_prenet_dropout=speech_decoder_prenet_dropout)})
+        if 'text_to_mel' in self.transformer_kinds:
+            output.update({'text_to_mel': self.transformers['text_to_mel'].train_step(text, mel, stop,
+                                                                       decoder_prenet_dropout=speech_decoder_prenet_dropout)})
+        if 'mel_to_text' in self.transformer_kinds:
+            output.update({'mel_to_text': self.transformers['mel_to_text'].train_step(mel, text)})
+        if 'text_to_text' in self.transformer_kinds:
+            output.update({'text_to_text': self.transformers['text_to_text'].train_step(masked_text, text)})
         
         return output
     

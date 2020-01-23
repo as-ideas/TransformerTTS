@@ -52,7 +52,7 @@ class TextTransformer(Transformer):
                  encoder,
                  decoder,
                  tokenizer,
-                 debug = False):
+                 debug=False):
         super(TextTransformer, self).__init__(encoder_prenet,
                                               decoder_prenet,
                                               encoder,
@@ -152,7 +152,7 @@ class MelTransformer(Transformer):
                  decoder_postnet,
                  start_vec_value=-3,
                  end_vec_value=1,
-                 debug = False):
+                 debug=False):
         super(MelTransformer, self).__init__(encoder_prenet,
                                              decoder_prenet,
                                              encoder,
