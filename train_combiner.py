@@ -22,6 +22,7 @@ parser.add_argument('--config', dest='config', type=str)
 args = parser.parse_args()
 config = yaml.safe_load(open(args.config, 'r'))
 args.log_dir = os.path.join(args.log_dir, os.path.splitext(os.path.basename(args.config))[0])
+kinds = config['transformer_kinds']
 
 
 def norm_tensor(tensor):
@@ -108,7 +109,8 @@ combiner = Combiner(
     mel_start_vec_value=-3,
     mel_end_vec_value=1,
     tokenizer_alphabet=sorted(list(alphabet)),
-    debug=config['debug']
+    debug=config['debug'],
+    transformer_kinds=kinds
 )
 
 print('Creating dataset')
@@ -161,8 +163,6 @@ summary_writers = {}
 current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 weights_paths = os.path.join(args.log_dir, f'weights/{current_time}/')
 os.makedirs(weights_paths, exist_ok=False)
-
-kinds = config['transformer_kinds']
 
 for kind in kinds:
     summary_writers[kind] = tf.summary.create_file_writer(os.path.join(args.log_dir, f'{current_time}/{kind}'))
