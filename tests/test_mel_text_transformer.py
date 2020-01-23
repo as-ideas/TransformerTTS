@@ -58,7 +58,7 @@ class TestMelTextTransformer(unittest.TestCase):
         tokenized_train_samples = [(mel, [start_tok] + mel_text_transformer.tokenizer.encode(text) + [end_tok])
                                    for mel, text in train_samples]
         train_gen = lambda: (pair for pair in tokenized_train_samples)
-        train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float64, tf.int64))
+        train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float32, tf.int64))
         train_dataset = train_dataset.shuffle(10000).padded_batch(4, padded_shapes=([-1, 80], [-1]))
         train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
         

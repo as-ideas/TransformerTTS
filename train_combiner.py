@@ -155,7 +155,7 @@ tokenized_test_list = [(mel, [start_tok] + combiner.tokenizer.encode(text) + [en
 
 train_set_generator = lambda: (item for item in tokenized_train_list)
 train_dataset = tf.data.Dataset.from_generator(train_set_generator,
-                                               output_types=(tf.float64, tf.int64, tf.int64))
+                                               output_types=(tf.float32, tf.int64, tf.int64))
 train_dataset = train_dataset.shuffle(1000).padded_batch(
     args.BATCH_SIZE, padded_shapes=([-1, 80], [-1], [-1]), drop_remainder=True)
 
@@ -205,7 +205,7 @@ def linear_dropout_schedule(step):
 def random_mel_mask(tensor, mask_prob):
     tensor_shape = tf.shape(tensor)
     mask_floats = tf.random.uniform((tensor_shape[0], tensor_shape[1]))
-    mask = tf.cast(mask_floats > mask_prob, tf.float64)
+    mask = tf.cast(mask_floats > mask_prob, tf.float32)
     mask = tf.expand_dims(mask, -1)
     mask = tf.broadcast_to(mask, tensor_shape)
     masked_tensor = tensor * mask

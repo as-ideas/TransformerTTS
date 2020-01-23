@@ -115,7 +115,7 @@ class Combiner:  # (tf.keras.Model):
     def random_mel_mask(tensor, mask_prob):
         tensor_shape = tf.shape(tensor)
         mask_floats = tf.random.uniform((tensor_shape[0], tensor_shape[1]))
-        mask = tf.cast(mask_floats > mask_prob, tf.float64)
+        mask = tf.cast(mask_floats > mask_prob, tf.float32)
         mask = tf.expand_dims(mask, -1)
         mask = tf.broadcast_to(mask, tensor_shape)
         masked_tensor = tensor * mask

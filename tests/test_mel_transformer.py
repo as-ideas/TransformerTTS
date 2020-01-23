@@ -44,7 +44,7 @@ class TestMelTransformer(unittest.TestCase):
         
         mel_transformer.compile(loss=losses, loss_weights=loss_coeffs, optimizer=optimizer)
         train_gen = lambda: (mel for mel in train_samples)
-        train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float64, tf.int64))
+        train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float32, tf.int64))
         train_dataset = train_dataset.cache()
         train_dataset = train_dataset.padded_batch(batch_size=2,
                                                    padded_shapes=([-1, 80], [-1]))
@@ -60,7 +60,7 @@ class TestMelTransformer(unittest.TestCase):
                 print('batch {} loss {}'.format(epoch, loss))
                 batch_num += 1
         
-        pred = mel_transformer.predict(test_mels[0], max_length=50)
+        pred = mel_transformer.predict(tf.cast(test_mels[0], tf.float32), max_length=50)
         self.assertAlmostEqual(3.914466381072998, losses[-1], places=6)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
         self.assertAlmostEqual(-2109.190673828125, float(tf.reduce_sum(pred['mel'])), places=6)

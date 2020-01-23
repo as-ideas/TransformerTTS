@@ -164,8 +164,8 @@ class MelTransformer(Transformer):
         if not debug:
             self.train_step = tf.function(
                 input_signature=[
-                    tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float64),
-                    tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float64),
+                    tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
+                    tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
                     tf.TensorSpec(shape=(None, None), dtype=tf.int64),
                     tf.TensorSpec(shape=(None), dtype=tf.float32)
                 ]
@@ -279,7 +279,7 @@ class MelTextTransformer(Transformer):
         if not debug:
             self.train_step = tf.function(
                 input_signature=[
-                    tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float64),
+                    tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
                     tf.TensorSpec(shape=(None, None), dtype=tf.int64),
                 ]
             )(self._train_step)
@@ -393,7 +393,7 @@ class TextMelTransformer(Transformer):
             self.train_step = tf.function(
                 input_signature=[
                     tf.TensorSpec(shape=(None, None), dtype=tf.int64),
-                    tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float64),
+                    tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
                     tf.TensorSpec(shape=(None, None), dtype=tf.int64),
                     tf.TensorSpec(shape=(None), dtype=tf.float32)
                 ]
