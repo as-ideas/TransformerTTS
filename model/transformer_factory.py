@@ -1,5 +1,3 @@
-import string
-
 import tensorflow as tf
 
 from model.layers import Encoder, Decoder, SpeechPostnet, PointWiseFFN, SpeechDecoderPrenet, TextPostnet
@@ -10,45 +8,47 @@ from model.transformer_utils import CharTokenizer
 class Combiner:  # (tf.keras.Model):
     def __init__(self,
                  *,
-                 tokenizer_type: str,
-                 mel_channels: int,
-                 speech_encoder_num_layers: int,
-                 speech_decoder_num_layers: int,
-                 text_encoder_num_layers: int,
-                 text_decoder_num_layers: int,
-                 speech_model_dimension: int,
-                 text_model_dimension: int,
-                 speech_encoder_num_heads: int,
-                 speech_decoder_num_heads: int,
-                 text_encoder_num_heads: int,
-                 text_decoder_num_heads: int,
-                 text_encoder_feed_forward_dimension: int,
-                 text_decoder_feed_forward_dimension: int,
-                 speech_encoder_feed_forward_dimension: int,
-                 speech_decoder_feed_forward_dimension: int,
-                 speech_encoder_prenet_dimension: int,
-                 speech_decoder_prenet_dimension: int,
-                 max_position_encoding: int,
-                 speech_postnet_conv_filters: int,
-                 speech_postnet_conv_layers: int,
-                 speech_postnet_kernel_size: int,
-                 dropout_rate: float,
-                 mel_start_vec_value: int,
-                 mel_end_vec_value: int,
-                 tokenizer_alphabet: list = None,
-                 debug: bool = False,
-                 transformer_kinds=None):
+                 config: dict,
+                 tokenizer_alphabet: list = None):
         
         # super(Combiner, self).__init__()
+        if tokenizer_alphabet:
+            config['tokenizer_alphabet'] = tokenizer_alphabet
+            
+        self.config = config
+        assert self._check_config(), 'Invalid configuration.'
+        
+        mel_channels = self.config['mel_channels']
+        speech_encoder_num_layers = self.config['speech_encoder_num_layers']
+        speech_decoder_num_layers = self.config['speech_decoder_num_layers']
+        text_encoder_num_layers = self.config['text_encoder_num_layers']
+        text_decoder_num_layers = self.config['text_decoder_num_layers']
+        speech_model_dimension = self.config['speech_model_dimension']
+        text_model_dimension = self.config['text_model_dimension']
+        speech_encoder_num_heads = self.config['speech_encoder_num_heads']
+        speech_decoder_num_heads = self.config['speech_decoder_num_heads']
+        text_encoder_num_heads = self.config['text_encoder_num_heads']
+        text_decoder_num_heads = self.config['text_decoder_num_heads']
+        text_encoder_feed_forward_dimension = self.config['text_encoder_feed_forward_dimension']
+        text_decoder_feed_forward_dimension = self.config['text_decoder_feed_forward_dimension']
+        speech_encoder_feed_forward_dimension = self.config['speech_encoder_feed_forward_dimension']
+        speech_decoder_feed_forward_dimension = self.config['speech_decoder_feed_forward_dimension']
+        speech_encoder_prenet_dimension = self.config['speech_encoder_prenet_dimension']
+        speech_decoder_prenet_dimension = self.config['speech_decoder_prenet_dimension']
+        max_position_encoding = self.config['max_position_encoding']
+        speech_postnet_conv_filters = self.config['speech_postnet_conv_filters']
+        speech_postnet_conv_layers = self.config['speech_postnet_conv_layers']
+        speech_postnet_kernel_size = self.config['speech_postnet_kernel_size']
+        dropout_rate = self.config['dropout_rate']
+        debug = self.config['debug']
+        mel_start_vec_value = self.config['mel_start_vec_value']
+        mel_end_vec_value = self.config['mel_end_vec_value']
+        transformer_kinds = self.config['transformer_kinds']
+        
+        self.tokenizer = CharTokenizer(alphabet=sorted(list(self.config['tokenizer_alphabet'])))
         
         if transformer_kinds is None:
             transformer_kinds = ['text_to_text', 'mel_to_mel', 'text_to_mel', 'mel_to_text']
-        if tokenizer_type == 'char':
-            if tokenizer_alphabet is None:
-                tokenizer_alphabet = string.printable
-            self.tokenizer = CharTokenizer(alphabet=sorted(list(tokenizer_alphabet)))
-        else:
-            raise NotImplementedError(f'{tokenizer_type} tokenizer not implemented.')
         
         speech_encoder_prenet = PointWiseFFN(d_model=speech_model_dimension, dff=speech_encoder_prenet_dimension)
         speech_decoder_prenet = SpeechDecoderPrenet(d_model=speech_model_dimension, dff=speech_decoder_prenet_dimension)
@@ -118,6 +118,27 @@ class Combiner:  # (tf.keras.Model):
                                                              decoder=text_decoder,
                                                              tokenizer=self.tokenizer,
                                                              debug=debug)}
+    
+    def _check_config(self):
+        key_list = ['mel_channels', 'speech_encoder_num_layers', 'speech_decoder_num_layers',
+                    'text_encoder_num_layers', 'text_decoder_num_layers', 'speech_model_dimension',
+                    'text_model_dimension', 'speech_encoder_num_heads', 'speech_decoder_num_heads',
+                    'text_encoder_num_heads', 'text_decoder_num_heads', 'text_encoder_feed_forward_dimension',
+                    'text_decoder_feed_forward_dimension', 'speech_encoder_feed_forward_dimension',
+                    'speech_decoder_feed_forward_dimension', 'speech_encoder_prenet_dimension',
+                    'speech_decoder_prenet_dimension', 'max_position_encoding', 'speech_postnet_conv_filters',
+                    'speech_postnet_conv_layers', 'speech_postnet_kernel_size', 'dropout_rate', 'debug',
+                    'mel_start_vec_value', 'mel_end_vec_value', 'transformer_kinds', 'tokenizer_alphabet']
+        missing = []
+        for key in key_list:
+            if key not in list(self.config.keys()):
+                missing.append(key)
+        if len(missing) == 0:
+            return True
+        else:
+            print('Config is missing the following keys:')
+            print(missing)
+            return False
     
     @staticmethod
     def random_mel_mask(tensor, mask_prob):

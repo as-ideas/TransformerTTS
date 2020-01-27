@@ -2,7 +2,7 @@ import os
 import datetime
 import argparse
 
-import yaml
+import ruamel.yaml
 import tensorflow as tf
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -20,9 +20,14 @@ parser.add_argument('--metafile', dest='metafile', type=str)
 parser.add_argument('--logdir', dest='log_dir', type=str)
 parser.add_argument('--config', dest='config', type=str)
 args = parser.parse_args()
-config = yaml.safe_load(open(args.config, 'r'))
+
+yaml = ruamel.yaml.YAML()
+config = yaml.load(open(args.config, 'r'))
 args.log_dir = os.path.join(args.log_dir, os.path.splitext(os.path.basename(args.config))[0])
 kinds = config['transformer_kinds']
+current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+weights_paths = os.path.join(args.log_dir, f'weights/{current_time}/')
+os.makedirs(weights_paths, exist_ok=False)
 
 
 def norm_tensor(tensor):
@@ -81,57 +86,11 @@ with open(str(args.metafile), 'r', encoding='utf-8') as f:
         count += 1
         if count > config['n_samples']:
             break
+
 print('Creating model')
 combiner = Combiner(
-    tokenizer_type=config['tokenizer_type'],
-    mel_channels=config['mel_channels'],
-    speech_encoder_num_layers=config['speech_encoder_num_layers'],
-    speech_decoder_num_layers=config['speech_decoder_num_layers'],
-    text_encoder_num_layers=config['text_encoder_num_layers'],
-    text_decoder_num_layers=config['text_decoder_num_layers'],
-    speech_model_dimension=config['speech_model_dimension'],
-    text_model_dimension=config['text_model_dimension'],
-    speech_encoder_num_heads=config['speech_encoder_num_heads'],
-    speech_decoder_num_heads=config['speech_decoder_num_heads'],
-    text_encoder_num_heads=config['text_encoder_num_heads'],
-    text_decoder_num_heads=config['text_decoder_num_heads'],
-    text_encoder_feed_forward_dimension=config['text_encoder_feed_forward_dimension'],
-    text_decoder_feed_forward_dimension=config['text_decoder_feed_forward_dimension'],
-    speech_encoder_feed_forward_dimension=config['speech_encoder_feed_forward_dimension'],
-    speech_decoder_feed_forward_dimension=config['speech_decoder_feed_forward_dimension'],
-    speech_encoder_prenet_dimension=config['speech_encoder_prenet_dimension'],
-    speech_decoder_prenet_dimension=config['speech_decoder_prenet_dimension'],
-    max_position_encoding=config['max_position_encoding'],
-    speech_postnet_conv_filters=config['speech_postnet_conv_filters'],
-    speech_postnet_conv_layers=config['speech_postnet_conv_layers'],
-    speech_postnet_kernel_size=config['speech_postnet_kernel_size'],
-    dropout_rate=config['dropout_rate'],
-    mel_start_vec_value=-3,
-    mel_end_vec_value=1,
-    tokenizer_alphabet=sorted(list(alphabet)),
-    debug=config['debug'],
-    transformer_kinds=kinds
-)
-
-print('Creating dataset')
-train_list, test_list = train_test_split(mel_text_stop_samples, test_size=100, random_state=42)
-
-
-def encode_text(text, tokenizer):
-    encoded_text = tokenizer.encode(text)
-    return [tokenizer.start_token_index] + encoded_text + [tokenizer.end_token_index]
-
-
-tokenized_train_list = [(mel, encode_text(text, combiner.tokenizer), stop_prob)
-                        for mel, text, stop_prob in train_list]
-tokenized_test_list = [(mel, encode_text(text, combiner.tokenizer), stop_prob)
-                       for mel, text, stop_prob in test_list]
-
-train_set_generator = lambda: (item for item in tokenized_train_list)
-train_dataset = tf.data.Dataset.from_generator(train_set_generator,
-                                               output_types=(tf.float32, tf.int64, tf.int64))
-train_dataset = train_dataset.shuffle(1000).padded_batch(
-    config['batch_size'], padded_shapes=([-1, 80], [-1], [-1]), drop_remainder=True)
+    config=config,
+    tokenizer_alphabet=sorted(list(alphabet)))
 
 loss_coeffs = [1.0, 1.0, 1.0]
 combiner.transformers['mel_to_text'].compile(loss=masked_crossentropy,
@@ -156,13 +115,34 @@ combiner.transformers['text_to_mel'].compile(loss=[masked_mean_squared_error,
                                              optimizer=tf.keras.optimizers.Adam(config['learning_rate'], beta_1=0.9,
                                                                                 beta_2=0.98,
                                                                                 epsilon=1e-9))
+
+print('Dumping config.')
+print(config)
+yaml.dump(config, open(os.path.join(args.log_dir, os.path.basename(args.config)), 'w'))
+exit()
+print('Creating dataset')
+train_list, test_list = train_test_split(mel_text_stop_samples, test_size=100, random_state=42)
+
+
+def encode_text(text, tokenizer):
+    encoded_text = tokenizer.encode(text)
+    return [tokenizer.start_token_index] + encoded_text + [tokenizer.end_token_index]
+
+
+tokenized_train_list = [(mel, encode_text(text, combiner.tokenizer), stop_prob)
+                        for mel, text, stop_prob in train_list]
+tokenized_test_list = [(mel, encode_text(text, combiner.tokenizer), stop_prob)
+                       for mel, text, stop_prob in test_list]
+
+train_set_generator = lambda: (item for item in tokenized_train_list)
+train_dataset = tf.data.Dataset.from_generator(train_set_generator,
+                                               output_types=(tf.float32, tf.int64, tf.int64))
+train_dataset = train_dataset.shuffle(1000).padded_batch(
+    config['batch_size'], padded_shapes=([-1, 80], [-1], [-1]), drop_remainder=True)
+
 batch_count = 0
 losses = {}
 summary_writers = {}
-
-current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-weights_paths = os.path.join(args.log_dir, f'weights/{current_time}/')
-os.makedirs(weights_paths, exist_ok=False)
 
 for kind in kinds:
     summary_writers[kind] = tf.summary.create_file_writer(os.path.join(args.log_dir, f'{current_time}/{kind}'))
@@ -219,7 +199,7 @@ for epoch in range(config['epochs']):
         print(f'\nbatch {batch_count}')
         for kind in kinds:
             with summary_writers[kind].as_default():
-                if (kind == 'text_to_mel') or (kind=='mel_to_mel'):
+                if (kind == 'text_to_mel') or (kind == 'mel_to_mel'):
                     for k in output[kind]['losses'].keys():
                         tf.summary.scalar(kind + '_' + k, output[kind]['losses'][k],
                                           step=combiner.transformers[kind].optimizer.iterations)
