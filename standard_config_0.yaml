@@ -3,8 +3,10 @@ tokenizer_type : 'char'
 tokenizer_alphabet : null
 # ARCHITECTURE
 transformer_kinds :
-    - 'mel_to_mel'
+    - 'text_to_text'
+    - 'mel_to_text'
     - 'text_to_mel'
+    - 'mel_to_mel'
 speech_encoder_num_layers : 4
 speech_decoder_num_layers : 4
 text_encoder_num_layers : 4
@@ -33,9 +35,9 @@ sr : 22050
 # TRAINING
 use_decoder_prenet_dropout_schedule : True
 decoder_prenet_dropout_schedule_max : 0.9
-decoder_prenet_dropout_schedule_min : 0.5
-decoder_prenet_dropout_schedule_max_steps : 20_000
-fixed_decoder_prenet_dropout : 0.5
+decoder_prenet_dropout_schedule_min : 0.6
+decoder_prenet_dropout_schedule_max_steps : 30_000
+fixed_decoder_prenet_dropout : 0.6
 epochs : 10000
 batch_size : 16
 learning_rate : 1.0e-4
@@ -50,3 +52,4 @@ text_freq : 5000
 image_freq : 1000
 weights_save_freq: 5000
 plot_attention_freq: 500
+

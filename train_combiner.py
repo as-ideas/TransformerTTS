@@ -219,21 +219,25 @@ for epoch in range(config['epochs']):
         print(f'\nbatch {batch_count}')
         for kind in kinds:
             with summary_writers[kind].as_default():
+                if (kind == 'text_to_mel') or (kind=='mel_to_mel'):
+                    for k in output[kind]['losses'].keys():
+                        tf.summary.scalar(kind + '_' + k, output[kind]['losses'][k],
+                                          step=combiner.transformers[kind].optimizer.iterations)
                 tf.summary.scalar('loss', output[kind]['loss'],
                                   step=combiner.transformers[kind].optimizer.iterations)
             print(f'{kind} mean loss: {sum(losses[kind]) / len(losses[kind])}')
         
         batch_count += 1
+        if batch_count % config['plot_attention_freq'] == 0:
+            for kind in kinds:
+                with summary_writers[kind].as_default():
+                    plot_attention(output[kind], step=combiner.transformers[kind].optimizer.iterations,
+                                   info_string='train attention ')
+        if batch_count % config['weights_save_freq'] == 0:
+            combiner.save_weights(weights_paths, batch_count)
         
         if ('mel_to_mel' in kinds) and ('text_to_mel' in kinds):
             if batch_count % config['image_freq'] == 0:
-                for kind in kinds:
-                    with summary_writers[kind].as_default():
-                        plot_attention(output[kind], step=combiner.transformers[kind].optimizer.iterations,
-                                       info_string='train attention ')
-                    
-                    combiner.save_weights(weights_paths, batch_count)
-                
                 pred = {}
                 test_val = {}
                 for i in range(0, 2):

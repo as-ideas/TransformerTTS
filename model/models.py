@@ -229,6 +229,7 @@ class MelTransformer(Transformer):
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         model_out.update({'loss': loss})
+        model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})
         return model_out
     
     def call(self,
@@ -285,11 +286,11 @@ class MelTextTransformer(Transformer):
             )(self._train_step)
         else:
             self.train_step = self._train_step
-        
+    
     def _check_tokenizer(self):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
             assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
-
+    
     def preprocess_mel(self, mel, clip_min=1e-5, clip_max=float('inf')):
         norm_mel = tf.cast(mel, tf.float32)
         norm_mel = tf.math.log(tf.clip_by_value(norm_mel, clip_value_min=clip_min, clip_value_max=clip_max))
@@ -400,11 +401,11 @@ class TextMelTransformer(Transformer):
             )(self._train_step)
         else:
             self.train_step = self._train_step
-            
+    
     def _check_tokenizer(self):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
             assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
-
+    
     def preprocess_mel(self, mel, clip_min=1e-5, clip_max=float('inf')):
         norm_mel = tf.cast(mel, tf.float32)
         norm_mel = tf.math.log(tf.clip_by_value(norm_mel, clip_value_min=clip_min, clip_value_max=clip_max))
@@ -461,6 +462,7 @@ class TextMelTransformer(Transformer):
         gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         model_out.update({'loss': loss})
+        model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})
         return model_out
     
     def call(self,
