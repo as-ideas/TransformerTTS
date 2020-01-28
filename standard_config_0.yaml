@@ -54,7 +54,3 @@ plot_attention_freq: 2_000
 keep_n_weights: 5
 # TOKENIZER
 # tokenizer_alphabet: null
-# RESUME
-resume_from: 300_000
-warmup_steps: 1_000
-warmup_lr: 1.0e-6
