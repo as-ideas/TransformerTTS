@@ -14,7 +14,7 @@ class Combiner:  # (tf.keras.Model):
         # super(Combiner, self).__init__()
         if tokenizer_alphabet:
             config['tokenizer_alphabet'] = tokenizer_alphabet
-            
+        
         self.config = config
         assert self._check_config(), 'Invalid configuration.'
         
@@ -175,9 +175,36 @@ class Combiner:  # (tf.keras.Model):
         
         return output
     
-    def save_weights(self, path, steps):
-        for kind in self.transformer_kinds:
-            self.transformers[kind].save_weights(f'{path}/{kind}_weights_steps{steps}.hdf5')
+
+    # this is deprecated, only to load old weights. Should use checkpoints
+    def load_weights(self, path: dict, steps: int, kinds: list = None):
+        if kinds is None:
+            kinds = self.transformer_kinds
+        for kind in kinds:
+            if kind.startswith('text'):
+                _ = self.transformers[kind].predict([], max_length=1, encode=False)
+                self.transformers[kind].load_weights(f'{path[kind]}{kind}_weights_steps{steps}.hdf5')
+            else:
+                x = tf.zeros((1, self.config['mel_channels']))
+                _ = self.transformers[kind].predict(x, max_length=1)
+                self.transformers[kind].load_weights(f'{path[kind]}{kind}_weights_steps{steps}.hdf5')
+                
+    # def checkpoint_manager(self):
+    #     checkpoints = {}
+    #     managers = {}
+    #     for kind in self.transformer_kinds:
+    #         checkpoints[kind] = tf.train.Checkpoint(step=tf.Variable(1),
+    #                                                 optimizer=self.transformers[kind].optimizer,
+    #                                                 net=self.transformers[kind])
+    #         managers[kind] = tf.train.CheckpointManager(checkpoints[kind], self.weights_paths[kind],
+    #                                                     max_to_keep=self.config['keep_n_weights'])
+    #
+    # def restore_latest_checkpoint(self):
+    #         checkpoints[kind].restore(managers[kind].latest_checkpoint)
+    #         if managers[kind].latest_checkpoint:
+    #             print(f'Restored {kind} from {managers[kind].latest_checkpoint}')
+    #         else:
+    #             print(f'Initializing {kind} from scratch.')
 
 
 def new_text_transformer(tokenizer,

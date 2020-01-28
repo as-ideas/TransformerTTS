@@ -59,6 +59,6 @@ class TestTextTransformer(unittest.TestCase):
                 losses.append(float(output['loss']))
         
         self.assertAlmostEqual(1.084794282913208, losses[-1], places=6)
-        pred = text_transformer.predict(tokenized_train_samples[0][0], max_length=10)
+        pred = text_transformer.predict(tokenized_train_samples[0][0], max_length=10, encode=False)
         self.assertEqual((1, 1, 102), pred['logits'].numpy().shape)
         self.assertAlmostEqual(-17.600025177001953, float(tf.reduce_sum(pred['logits'])))

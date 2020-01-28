@@ -34,12 +34,12 @@ mel_end_vec_value : 1
 # TRAINING
 use_decoder_prenet_dropout_schedule : True
 decoder_prenet_dropout_schedule_max : 0.9
-decoder_prenet_dropout_schedule_min : 0.6
+decoder_prenet_dropout_schedule_min : 0.5
 decoder_prenet_dropout_schedule_max_steps : 30_000
-fixed_decoder_prenet_dropout : 0.6
+fixed_decoder_prenet_dropout : 0.5
 epochs : 10000
 batch_size : 16
-learning_rate : 1.0e-4
+learning_rate : 5.0e-5
 mask_prob : 0.3
 use_block_attention : False
 block_attention_schedule:
@@ -47,9 +47,14 @@ block_attention_schedule:
     - [2, 40_000]
 debug : False
 # LOGGING
-text_freq : 5000
-image_freq : 1000
-weights_save_freq: 5000
-plot_attention_freq: 500
+text_freq : 20_000
+image_freq : 10_000
+weights_save_freq: 10_000
+plot_attention_freq: 2_000
+keep_n_weights: 5
 # TOKENIZER
 # tokenizer_alphabet: null
+# RESUME
+resume_from: 300_000
+warmup_steps: 1_000
+warmup_lr: 1.0e-6

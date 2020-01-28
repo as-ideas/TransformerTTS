@@ -72,7 +72,9 @@ class TextTransformer(Transformer):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
             assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
     
-    def predict(self, inputs, max_length=40):
+    def predict(self, inputs, max_length=40, encode=False):
+        if encode:
+            inputs = self.tokenizer.encode(inputs)
         encoder_input = tf.expand_dims(inputs, 0)
         decoder_input = [self.tokenizer.start_token_index]
         output = tf.expand_dims(decoder_input, 0)
@@ -412,7 +414,9 @@ class TextMelTransformer(Transformer):
         norm_mel = tf.concat([self.start_vec, norm_mel, self.end_vec], 0)
         return norm_mel
     
-    def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5):
+    def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, encode=False):
+        if encode:
+            inp = self.tokenizer.encode(inp)
         inp = tf.expand_dims(inp, 0)
         output = tf.expand_dims(self.start_vec, 0)
         out_dict = {}
@@ -429,6 +433,7 @@ class TextMelTransformer(Transformer):
             stop_pred = model_out['stop_prob'][:, -1]
             out_dict = {'mel': output[0, 1:, :], 'attention_weights': model_out['attention_weights']}
             if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
+                print('Stopping')
                 break
         return out_dict
     
