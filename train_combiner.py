@@ -41,13 +41,13 @@ os.makedirs(weights_paths, exist_ok=True)
 weights_paths = {}
 for kind in config['transformer_kinds']:
     weights_paths[kind] = os.path.join(args.log_dir, f'weights/{kind}/')
-    
+
 samples, alphabet = load_files(metafile=args.metafile,
                                meldir=args.meldir,
                                num_samples=config['n_samples'])
 
-print('creating model')
 combiner = Combiner(config=config, tokenizer_alphabet=alphabet)
+
 print('preprocessing data')
 train_samples, test_samples = train_test_split(samples, test_size=100, random_state=42)
 preprocessor = Preprocessor(mel_channels=config['mel_channels'],
@@ -96,8 +96,7 @@ for epoch in range(config['epochs']):
                                      mel=mel,
                                      stop=stop,
                                      speech_decoder_prenet_dropout=decoder_prenet_dropout,
-                                     mask_prob=config['mask_prob'],
-                                     )
+                                     mask_prob=config['mask_prob'])
         print(f'\nbatch {int(checkpoints[config["transformer_kinds"][0]].step)}')
         
         # CHECKPOINTING

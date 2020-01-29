@@ -17,7 +17,7 @@ class Combiner:
             config['tokenizer_alphabet'] = tokenizer_alphabet
 
         self.config = config
-        assert self._check_config(), 'Invalid configuration.'
+        self._check_config()
 
         mel_channels = self.config['mel_channels']
         speech_encoder_num_layers = self.config['speech_encoder_num_layers']
@@ -155,17 +155,10 @@ class Combiner:
                     'speech_decoder_feed_forward_dimension', 'speech_encoder_prenet_dimension',
                     'speech_decoder_prenet_dimension', 'max_position_encoding', 'speech_postnet_conv_filters',
                     'speech_postnet_conv_layers', 'speech_postnet_kernel_size', 'dropout_rate', 'debug',
-                    'mel_start_vec_value', 'mel_end_vec_value', 'transformer_kinds', 'tokenizer_alphabet']
-        missing = []
-        for key in key_list:
-            if key not in list(self.config.keys()):
-                missing.append(key)
-        if len(missing) == 0:
-            return True
-        else:
-            print('Config is missing the following keys:')
-            print(missing)
-            return False
+                    'mel_start_vec_value', 'mel_end_vec_value', 'transformer_kinds']
+        config_keys = set(self.config.keys())
+        missing = [key for key in key_list if key not in config_keys]
+        assert len(missing) == 0, 'Config is missing the following keys: {}'.format(missing)
 
     def train_step(self, text, mel, stop, speech_decoder_prenet_dropout, mask_prob=0.):
         masked_text = random_text_mask(text, mask_prob)

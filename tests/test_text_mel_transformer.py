@@ -85,6 +85,6 @@ class TestTextMelTransformer(unittest.TestCase):
                 batch_num += 1
         
         pred = text_mel_transformer.predict(tokenized_train_samples[0][0], max_length=50, encode=False)
-        self.assertAlmostEqual(3.5308585166931152, losses[-1], places=6)
+        self.assertAlmostEqual(3.5308585166931152, losses[-1], places=5)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(-2679.2021484375, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(-2679.2021484375, float(tf.reduce_sum(pred['mel'])), places=5)
