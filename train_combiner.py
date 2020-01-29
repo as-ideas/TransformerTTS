@@ -33,6 +33,7 @@ def create_dirs(args, config):
         weights_paths[kind] = os.path.join(args.log_dir, f'weights/{kind}/')
     return weights_paths
 
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--meldir', dest='meldir', type=str)
 parser.add_argument('--metafile', dest='metafile', type=str)
