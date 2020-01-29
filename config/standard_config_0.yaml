@@ -4,14 +4,14 @@ transformer_kinds :
     - 'mel_to_text'
     - 'text_to_mel'
     - 'mel_to_mel'
-speech_encoder_num_layers : 4
-speech_decoder_num_layers : 4
-text_encoder_num_layers : 4
-text_decoder_num_layers : 4
+speech_encoder_num_layers : 1
+speech_decoder_num_layers : 1
+text_encoder_num_layers : 1
+text_decoder_num_layers : 1
 speech_model_dimension : 256
 text_model_dimension : 256
-speech_encoder_num_heads : 4
-speech_decoder_num_heads : 4
+speech_encoder_num_heads : 1
+speech_decoder_num_heads : 1
 text_encoder_num_heads : 4
 text_decoder_num_heads : 4
 text_encoder_feed_forward_dimension : 512
@@ -26,7 +26,8 @@ speech_postnet_conv_layers : 5
 speech_postnet_kernel_size : 5
 dropout_rate : 0.1
 # DATA
-n_samples : 100000
+#n_samples : 100000
+n_samples : 1000
 mel_channels : 80
 sr : 22050
 mel_start_vec_value : -3
@@ -38,7 +39,7 @@ decoder_prenet_dropout_schedule_min : 0.5
 decoder_prenet_dropout_schedule_max_steps : 30_000
 fixed_decoder_prenet_dropout : 0.5
 epochs : 10000
-batch_size : 16
+batch_size : 4
 learning_rate : 5.0e-5
 mask_prob : 0.3
 use_block_attention : False
