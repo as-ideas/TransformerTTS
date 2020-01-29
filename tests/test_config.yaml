@@ -52,9 +52,6 @@ image_freq : 1000
 weights_save_freq: 10
 plot_attention_freq: 500
 keep_n_weights: 5
-# TOKENIZER
-# tokenizer_alphabet: null
-# RESUME
-#resume_from: 300_000
 warmup_steps: 1_000
 warmup_lr: 1.0e-6
+tokenizer_alphabet: "!,.:;?'- abcdefghijklmnopqrstuvwxyzäüöß"

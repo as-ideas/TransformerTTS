@@ -46,7 +46,7 @@ samples, alphabet = load_files(metafile=args.metafile,
                                meldir=args.meldir,
                                num_samples=config['n_samples'])
 
-combiner = Combiner(config=config, tokenizer_alphabet=alphabet)
+combiner = Combiner(config=config)
 
 print('preprocessing data')
 train_samples, test_samples = train_test_split(samples, test_size=100, random_state=42)

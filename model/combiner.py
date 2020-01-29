@@ -9,16 +9,9 @@ from preprocessing.utils import random_text_mask, random_mel_mask
 
 class Combiner:
 
-    def __init__(self,
-                 config: dict,
-                 tokenizer_alphabet: list):
-
-        if tokenizer_alphabet:
-            config['tokenizer_alphabet'] = tokenizer_alphabet
-
+    def __init__(self, config: dict):
         self.config = config
         self._check_config()
-
         mel_channels = self.config['mel_channels']
         speech_encoder_num_layers = self.config['speech_encoder_num_layers']
         speech_decoder_num_layers = self.config['speech_decoder_num_layers']
@@ -45,8 +38,8 @@ class Combiner:
         mel_start_vec_value = self.config['mel_start_vec_value']
         mel_end_vec_value = self.config['mel_end_vec_value']
         transformer_kinds = self.config['transformer_kinds']
-
-        self.tokenizer = CharTokenizer(alphabet=sorted(list(self.config['tokenizer_alphabet'])))
+        alphabet = config['tokenizer_alphabet']
+        self.tokenizer = CharTokenizer(list(alphabet))
 
         speech_encoder_prenet = PointWiseFFN(d_model=speech_model_dimension, dff=speech_encoder_prenet_dimension)
         speech_decoder_prenet = SpeechDecoderPrenet(d_model=speech_model_dimension, dff=speech_decoder_prenet_dimension)

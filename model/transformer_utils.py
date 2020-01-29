@@ -16,10 +16,10 @@ class CharTokenizer:
         self.idx_to_token[self.end_token_index] = end_token
     
     def encode(self, sentence):
-        return [self.token_to_idx[c] for c in sentence]
+        return [self.token_to_idx[c] for c in sentence if c in self.token_to_idx]
 
     def decode(self, sequence):
-        return ''.join([self.idx_to_token[int(t)] for t in sequence])
+        return ''.join([self.idx_to_token[int(t)] for t in sequence if t in self.idx_to_token])
 
 
 def get_angles(pos, i, d_model):

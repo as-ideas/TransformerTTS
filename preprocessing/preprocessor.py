@@ -22,6 +22,7 @@ class Preprocessor:
         return self.encode(text, mel)
 
     def encode(self, text, mel):
+        text = text.lower()
         encoded_text = self.tokenizer.encode(text)
         encoded_text = [self.tokenizer.start_token_index] + encoded_text + [self.tokenizer.end_token_index]
         norm_mel = np.log(mel.clip(1e-5))
