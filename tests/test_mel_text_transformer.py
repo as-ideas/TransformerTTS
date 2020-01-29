@@ -7,6 +7,7 @@ from losses import masked_crossentropy
 from model.transformer_factory import new_mel_text_transformer
 
 
+
 class TestTokenizer:
     
     def __init__(self, alphabet):
@@ -32,7 +33,7 @@ class TestMelTextTransformer(unittest.TestCase):
     def setUp(self) -> None:
         tf.random.set_seed(42)
         np.random.seed(42)
-    
+
     def test_training(self):
         tokenizer = TestTokenizer(alphabet=sorted(list('sample out text.')))
         mel_text_transformer = new_mel_text_transformer(tokenizer=tokenizer,

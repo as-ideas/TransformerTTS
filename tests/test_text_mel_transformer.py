@@ -55,10 +55,6 @@ class TestTextMelTransformer(unittest.TestCase):
             stop_probs = np.ones((mel.shape[0]))
             stop_probs[-1] = 2
             train_samples.append(('repeated text ' * i, mel, stop_probs))
-        
-        
-
-        
         losses = [masked_mean_squared_error,
                   masked_crossentropy,
                   masked_mean_squared_error]

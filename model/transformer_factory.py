@@ -7,7 +7,6 @@ from model.transformer_utils import CharTokenizer
 
 class Combiner:  # (tf.keras.Model):
     def __init__(self,
-                 *,
                  config: dict,
                  tokenizer_alphabet: list = None):
         
