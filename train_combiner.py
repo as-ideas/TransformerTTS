@@ -5,7 +5,8 @@ import ruamel.yaml
 import tensorflow as tf
 import numpy as np
 from sklearn.model_selection import train_test_split
-from model.transformer_factory import Combiner
+
+from model.combiner import Combiner
 from preprocessing.utils import load_files
 from preprocessing.preprocessor import Preprocessor
 from utils import plot_attention, display_mel

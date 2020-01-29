@@ -175,12 +175,7 @@ class MelTransformer(Transformer):
         else:
             self.train_step = self._train_step
     
-    def preprocess_mel(self, mel, clip_min=1e-5, clip_max=float('inf')):
-        norm_mel = tf.cast(mel, tf.float32)
-        norm_mel = tf.math.log(tf.clip_by_value(norm_mel, clip_value_min=clip_min, clip_value_max=clip_max))
-        norm_mel = tf.concat([self.start_vec, norm_mel, self.end_vec], 0)
-        return norm_mel
-    
+
     def predict(self, inputs, max_length=50, decoder_prenet_dropout=0.5):
         inputs = tf.expand_dims(inputs, 0)
         output = tf.expand_dims(self.start_vec, 0)
@@ -407,13 +402,7 @@ class TextMelTransformer(Transformer):
     def _check_tokenizer(self):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
             assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
-    
-    def preprocess_mel(self, mel, clip_min=1e-5, clip_max=float('inf')):
-        norm_mel = tf.cast(mel, tf.float32)
-        norm_mel = tf.math.log(tf.clip_by_value(norm_mel, clip_value_min=clip_min, clip_value_max=clip_max))
-        norm_mel = tf.concat([self.start_vec, norm_mel, self.end_vec], 0)
-        return norm_mel
-    
+
     def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, encode=False):
         if encode:
             inp = self.tokenizer.encode(inp)

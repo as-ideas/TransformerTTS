@@ -5,7 +5,7 @@ import tensorflow as tf
 
 from losses import masked_crossentropy
 from model.transformer_factory import new_mel_text_transformer
-
+from preprocessing.utils import preprocess_mel
 
 
 class TestTokenizer:
@@ -52,7 +52,10 @@ class TestMelTextTransformer(unittest.TestCase):
         test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
         train_samples = []
         for i, mel in enumerate(test_mels):
-            mel = mel_text_transformer.preprocess_mel(mel, clip_min=0.)
+            mel = preprocess_mel(mel,
+                                 mel_text_transformer.start_vec,
+                                 mel_text_transformer.end_vec,
+                                 clip_min=0.)
             train_samples.append((mel, 'sample out text.'))
         
         start_tok, end_tok = mel_text_transformer.tokenizer.start_token_index, mel_text_transformer.tokenizer.end_token_index

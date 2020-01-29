@@ -5,6 +5,7 @@ import tensorflow as tf
 
 from losses import masked_mean_squared_error, masked_crossentropy
 from model.transformer_factory import new_mel_transformer
+from preprocessing.utils import preprocess_mel
 
 
 class TestMelTransformer(unittest.TestCase):
@@ -31,7 +32,10 @@ class TestMelTransformer(unittest.TestCase):
         test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
         train_samples = []
         for mel in test_mels:
-            mel = mel_transformer.preprocess_mel(mel, clip_min=0.)
+            mel = preprocess_mel(mel,
+                                 mel_transformer.start_vec,
+                                 mel_transformer.end_vec,
+                                 clip_min=0.)
             stop_probs = np.ones((mel.shape[0]))
             stop_probs[-1] = 2
             train_samples.append((mel, stop_probs))

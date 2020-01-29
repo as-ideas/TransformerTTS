@@ -1,13 +1,15 @@
 import numpy as np
 
+from model.transformer_utils import CharTokenizer
+
 
 class Preprocessor:
 
     def __init__(self,
-                 mel_channels,
-                 start_vec_val,
-                 end_vec_val,
-                 tokenizer,
+                 mel_channels: int,
+                 start_vec_val: float,
+                 end_vec_val: float,
+                 tokenizer: CharTokenizer,
                  clip_val=1e-5):
         self.start_vec = np.ones((1, mel_channels)) * start_vec_val
         self.end_vec = np.ones((1, mel_channels)) * end_vec_val

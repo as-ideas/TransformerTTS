@@ -19,6 +19,17 @@ def random_text_mask(tensor, mask_prob):
     masked_tensor = tensor * mask
     return masked_tensor
 
+# TODO: deprecated, remove soon
+def preprocess_mel(mel,
+                   start_vec,
+                   end_vec,
+                   clip_min=1e-5,
+                   clip_max=float('inf')):
+    norm_mel = tf.cast(mel, tf.float32)
+    norm_mel = tf.math.log(tf.clip_by_value(norm_mel, clip_value_min=clip_min, clip_value_max=clip_max))
+    norm_mel = tf.concat([start_vec, norm_mel, end_vec], 0)
+    return norm_mel
+
 
 def load_files(metafile,
                meldir,

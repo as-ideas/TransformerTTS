@@ -5,8 +5,7 @@ import numpy as np
 import ruamel.yaml
 import tensorflow as tf
 
-from losses import masked_mean_squared_error, masked_crossentropy
-from model.transformer_factory import Combiner
+from model.combiner import Combiner
 from preprocessing.preprocessor import Preprocessor
 
 
