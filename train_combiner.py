@@ -14,16 +14,6 @@ from utils import plot_attention, display_mel
 np.random.seed(42)
 tf.random.set_seed(42)
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--meldir', dest='meldir', type=str)
-parser.add_argument('--metafile', dest='metafile', type=str)
-parser.add_argument('--logdir', dest='log_dir', type=str)
-parser.add_argument('--config', dest='config', type=str)
-args = parser.parse_args()
-yaml = ruamel.yaml.YAML()
-config = yaml.load(open(args.config, 'r'))
-config_name = os.path.splitext(os.path.basename(args.config))[0]
-
 
 def linear_dropout_schedule(step):
     mx = config['decoder_prenet_dropout_schedule_max']
@@ -33,28 +23,39 @@ def linear_dropout_schedule(step):
     return tf.cast(dout, tf.float32)
 
 
-# CREATE DIRS AND PATHS
-args.log_dir = os.path.join(args.log_dir, config_name)
-weights_paths = os.path.join(args.log_dir, f'weights/')
-os.makedirs(args.log_dir, exist_ok=True)
-os.makedirs(weights_paths, exist_ok=True)
-weights_paths = {}
-for kind in config['transformer_kinds']:
-    weights_paths[kind] = os.path.join(args.log_dir, f'weights/{kind}/')
+def create_dirs(args, config):
+    args.log_dir = os.path.join(args.log_dir, config_name)
+    weights_paths = os.path.join(args.log_dir, f'weights/')
+    os.makedirs(args.log_dir, exist_ok=True)
+    os.makedirs(weights_paths, exist_ok=True)
+    weights_paths = {}
+    for kind in config['transformer_kinds']:
+        weights_paths[kind] = os.path.join(args.log_dir, f'weights/{kind}/')
+    return weights_paths
 
-samples, alphabet = load_files(metafile=args.metafile,
-                               meldir=args.meldir,
-                               num_samples=config['n_samples'])
+parser = argparse.ArgumentParser()
+parser.add_argument('--meldir', dest='meldir', type=str)
+parser.add_argument('--metafile', dest='metafile', type=str)
+parser.add_argument('--logdir', dest='log_dir', type=str)
+parser.add_argument('--config', dest='config', type=str)
+args = parser.parse_args()
+yaml = ruamel.yaml.YAML()
+config = yaml.load(open(args.config, 'r'))
+config_name = os.path.splitext(os.path.basename(args.config))[0]
+weights_paths = create_dirs(args, config)
 
+print('creating model')
 combiner = Combiner(config=config)
 
 print('preprocessing data')
+samples, alphabet = load_files(metafile=args.metafile,
+                               meldir=args.meldir,
+                               num_samples=config['n_samples'])
 train_samples, test_samples = train_test_split(samples, test_size=100, random_state=42)
 preprocessor = Preprocessor(mel_channels=config['mel_channels'],
                             start_vec_val=config['mel_start_vec_value'],
                             end_vec_val=config['mel_end_vec_value'],
                             tokenizer=combiner.tokenizer)
-
 yaml.dump(config, open(os.path.join(args.log_dir, os.path.basename(args.config)), 'w'))
 train_gen = lambda: (preprocessor(s) for s in train_samples)
 test_list = [preprocessor(s) for s in test_samples]
@@ -62,7 +63,7 @@ train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float
 train_dataset = train_dataset.shuffle(1000).padded_batch(config['batch_size'],
                                                          padded_shapes=([-1, 80], [-1], [-1]),
                                                          drop_remainder=True)
-# PREPARE LOGGING
+
 losses = {}
 summary_writers = {}
 checkpoints = {}
@@ -84,8 +85,8 @@ for kind in transformer_kinds:
     else:
         print(f'Initializing {kind} from scratch.')
 
+print('starting training')
 decoder_prenet_dropout = config['fixed_decoder_prenet_dropout']
-print('Starting training')
 for epoch in range(config['epochs']):
     print(f'Epoch {epoch}')
     for (batch, (mel, text, stop)) in enumerate(train_dataset):
