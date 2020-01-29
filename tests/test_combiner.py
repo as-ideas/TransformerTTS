@@ -7,6 +7,7 @@ import tensorflow as tf
 
 from losses import masked_mean_squared_error, masked_crossentropy
 from model.transformer_factory import Combiner
+from preprocessing.preprocessor import Preprocessor
 
 
 class TestTokenizer:
@@ -47,56 +48,18 @@ class TestCombiner(unittest.TestCase):
             self.config = yaml.load(f)
 
     def test_training(self):
-        tokenizer = TestTokenizer(alphabet=list('repeated text'))
         test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
-        train_samples = []
-        combiner = Combiner(self.config, tokenizer.alphabet)
-        for i, mel in enumerate(test_mels):
-            mel = combiner.transformers['text_to_mel'].preprocess_mel(mel)
-            stop_probs = np.ones((mel.shape[0]))
-            stop_probs[-1] = 2
-            train_samples.append((mel, 'repeated text', stop_probs))
-
-        loss_coeffs = [1.0, 1.0, 1.0]
-
-        mel_text = combiner.transformers['mel_to_text']
-        mel_mel = combiner.transformers['mel_to_mel']
-        text_mel = combiner.transformers['text_to_mel']
-        text_text = combiner.transformers['text_to_text']
-        learning_rate = self.config['learning_rate']
-
-        mel_text.compile(loss=masked_crossentropy,
-                         optimizer=tf.keras.optimizers.Adam(learning_rate,
-                                                            beta_1=0.9,
-                                                            beta_2=0.98,
-                                                            epsilon=1e-9))
-        text_text.compile(loss=masked_crossentropy,
-                          optimizer=tf.keras.optimizers.Adam(learning_rate,
-                                                             beta_1=0.9,
-                                                             beta_2=0.98,
-                                                             epsilon=1e-9))
-        mel_mel.compile(loss=[masked_mean_squared_error,
-                              masked_crossentropy,
-                              masked_mean_squared_error],
-                        loss_weights=loss_coeffs,
-                        optimizer=tf.keras.optimizers.Adam(learning_rate,
-                                                           beta_1=0.9,
-                                                           beta_2=0.98,
-                                                           epsilon=1e-9))
-        text_mel.compile(loss=[masked_mean_squared_error,
-                               masked_crossentropy,
-                               masked_mean_squared_error],
-                         loss_weights=loss_coeffs,
-                         optimizer=tf.keras.optimizers.Adam(learning_rate,
-                                                            beta_1=0.9,
-                                                            beta_2=0.98,
-                                                            epsilon=1e-9))
-        train_tokenized = [(mel, encode_text(text, combiner.tokenizer), stop_prob)
-                           for mel, text, stop_prob in train_samples]
-        train_set_generator = lambda: (item for item in train_tokenized)
-        train_dataset = tf.data.Dataset.from_generator(train_set_generator,
+        combiner = Combiner(self.config, tokenizer_alphabet=list('repeated text'))
+        preprocessor = Preprocessor(mel_channels=self.config['mel_channels'],
+                                    start_vec_val=self.config['mel_start_vec_value'],
+                                    end_vec_val=self.config['mel_end_vec_value'],
+                                    tokenizer=combiner.tokenizer)
+        train_samples = [preprocessor.encode('repeated text', mel)
+                         for mel in test_mels]
+        train_set_gen = lambda: (item for item in train_samples)
+        train_dataset = tf.data.Dataset.from_generator(train_set_gen,
                                                        output_types=(tf.float32, tf.int64, tf.int64))
-        train_dataset = train_dataset.shuffle(1000).padded_batch(
+        train_dataset = train_dataset.shuffle(10).padded_batch(
             self.config['batch_size'], padded_shapes=([-1, 80], [-1], [-1]), drop_remainder=True)
 
         outputs = []
@@ -109,19 +72,18 @@ class TestCombiner(unittest.TestCase):
                                              mask_prob=self.config['mask_prob'])
                 outputs.append(output)
 
-        self.assertAlmostEqual(2.2208781242370605, float(outputs[-1]['text_to_mel']['loss']), places=6)
-        self.assertAlmostEqual(2.245584011077881, float(outputs[-1]['mel_to_mel']['loss']), places=6)
-        self.assertAlmostEqual(0.0009718284127302468, float(outputs[-1]['mel_to_text']['loss']), places=6)
-        self.assertAlmostEqual(0.000927555956877768, float(outputs[-1]['text_to_text']['loss']), places=6)
+        self.assertAlmostEqual(2.2427563667297363, float(outputs[-1]['text_mel']['loss']), places=6)
+        self.assertAlmostEqual(2.268824577331543 , float(outputs[-1]['mel_mel']['loss']), places=6)
+        self.assertAlmostEqual(0.0010048405965790153, float(outputs[-1]['mel_text']['loss']), places=6)
+        self.assertAlmostEqual(0.0009328527958132327, float(outputs[-1]['text_text']['loss']), places=6)
 
-        mel_input, text_input = train_tokenized[0][0], train_tokenized[0][1]
-
-        pred_mel_text = mel_text.predict(mel_input, max_length=10)
-        pred_text_text = text_text.predict(text_input, max_length=10)
-        pred_text_mel = text_mel.predict(text_input, max_length=10)
-        pred_mel_mel = mel_mel.predict(mel_input, max_length=10)
-        self.assertAlmostEqual(-2.5223498344421387, float(tf.reduce_sum(pred_mel_text['logits'])))
-        self.assertAlmostEqual(-1.15986967086792, float(tf.reduce_sum(pred_text_text['logits'])))
-        self.assertAlmostEqual(-797.7020263671875, float(tf.reduce_sum(pred_text_mel['mel'])))
-        self.assertAlmostEqual(-799.1455078125, float(tf.reduce_sum(pred_mel_mel['mel'])))
+        mel_input, text_input = train_samples[0][0], train_samples[0][1]
+        pred_mel_text = combiner.mel_text.predict(mel_input, max_length=10)
+        pred_text_text = combiner.text_text.predict(text_input, max_length=10)
+        pred_text_mel = combiner.text_mel.predict(text_input, max_length=10)
+        pred_mel_mel = combiner.mel_mel.predict(mel_input, max_length=10)
+        self.assertAlmostEqual(-2.70261812210083, float(tf.reduce_sum(pred_mel_text['logits'])))
+        self.assertAlmostEqual(-1.2408349514007568, float(tf.reduce_sum(pred_text_text['logits'])))
+        self.assertAlmostEqual(-780.1448974609375 , float(tf.reduce_sum(pred_text_mel['mel'])))
+        self.assertAlmostEqual(-780.7695922851562, float(tf.reduce_sum(pred_mel_mel['mel'])))
 

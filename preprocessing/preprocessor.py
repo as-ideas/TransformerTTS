@@ -16,18 +16,14 @@ class Preprocessor:
 
     def __call__(self, sample):
         text, mel_path = sample[0], sample[1]
-        text_seq = self.preprocess_text(text)
         mel = np.load(mel_path)
-        mel = self.preprocess_mel(mel)
-        stop_probs = np.ones((mel.shape[0]))
-        stop_probs[-1] = 2
-        return mel, text_seq, stop_probs
+        return self.encode(text, mel)
 
-    def preprocess_mel(self, mel):
-        norm_mel = np.log(mel.clip(1e-5))
-        norm_mel = np.concatenate([self.start_vec, norm_mel, self.end_vec])
-        return norm_mel
-
-    def preprocess_text(self, text):
+    def encode(self, text, mel):
         encoded_text = self.tokenizer.encode(text)
-        return [self.tokenizer.start_token_index] + encoded_text + [self.tokenizer.end_token_index]
+        encoded_text = [self.tokenizer.start_token_index] + encoded_text + [self.tokenizer.end_token_index]
+        norm_mel = np.log(mel.clip(1e-5))
+        norm_mel = np.concatenate([self.start_vec, norm_mel, self.end_vec], axis=0)
+        stop_probs = np.ones((norm_mel.shape[0]))
+        stop_probs[-1] = 2
+        return norm_mel, encoded_text, stop_probs

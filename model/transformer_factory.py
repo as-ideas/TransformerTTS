@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+from losses import masked_crossentropy, masked_mean_squared_error
 from model.layers import Encoder, Decoder, SpeechPostnet, PointWiseFFN, SpeechDecoderPrenet, TextPostnet
 from model.models import TextTransformer, MelTransformer, MelTextTransformer, TextMelTransformer
 from model.transformer_utils import CharTokenizer
@@ -8,12 +9,12 @@ from model.transformer_utils import CharTokenizer
 class Combiner:  # (tf.keras.Model):
     def __init__(self,
                  config: dict,
-                 tokenizer_alphabet: list = None):
+                 tokenizer_alphabet: list):
         
         # super(Combiner, self).__init__()
         if tokenizer_alphabet:
             config['tokenizer_alphabet'] = tokenizer_alphabet
-        
+
         self.config = config
         assert self._check_config(), 'Invalid configuration.'
         
@@ -45,10 +46,7 @@ class Combiner:  # (tf.keras.Model):
         transformer_kinds = self.config['transformer_kinds']
         
         self.tokenizer = CharTokenizer(alphabet=sorted(list(self.config['tokenizer_alphabet'])))
-        
-        if transformer_kinds is None:
-            transformer_kinds = ['text_to_text', 'mel_to_mel', 'text_to_mel', 'mel_to_text']
-        
+
         speech_encoder_prenet = PointWiseFFN(d_model=speech_model_dimension, dff=speech_encoder_prenet_dimension)
         speech_decoder_prenet = SpeechDecoderPrenet(d_model=speech_model_dimension, dff=speech_decoder_prenet_dimension)
         speech_decoder_postnet = SpeechPostnet(mel_channels=mel_channels,
@@ -83,41 +81,70 @@ class Combiner:  # (tf.keras.Model):
                                maximum_position_encoding=max_position_encoding,
                                rate=dropout_rate)
         self.transformer_kinds = transformer_kinds
-        self.transformers = {'text_to_mel': TextMelTransformer(encoder_prenet=text_encoder_prenet,
-                                                               decoder_prenet=speech_decoder_prenet,
-                                                               decoder_postnet=speech_decoder_postnet,
-                                                               encoder=text_encoder,
-                                                               decoder=speech_decoder,
-                                                               tokenizer=self.tokenizer,
-                                                               start_vec_value=mel_start_vec_value,
-                                                               end_vec_value=mel_end_vec_value,
-                                                               debug=debug),
-                             'mel_to_text': MelTextTransformer(encoder_prenet=speech_encoder_prenet,
-                                                               decoder_prenet=text_decoder_prenet,
-                                                               decoder_postnet=text_decoder_postnet,
-                                                               encoder=speech_encoder,
-                                                               decoder=text_decoder,
-                                                               tokenizer=self.tokenizer,
-                                                               mel_channels=mel_channels,
-                                                               start_vec_value=mel_start_vec_value,
-                                                               end_vec_value=mel_end_vec_value,
-                                                               debug=debug),
-                             'mel_to_mel': MelTransformer(encoder_prenet=speech_encoder_prenet,
-                                                          decoder_prenet=speech_decoder_prenet,
-                                                          encoder=speech_encoder,
-                                                          decoder=speech_decoder,
-                                                          decoder_postnet=speech_decoder_postnet,
-                                                          start_vec_value=mel_start_vec_value,
-                                                          end_vec_value=mel_end_vec_value,
-                                                          debug=debug),
-                             'text_to_text': TextTransformer(encoder_prenet=text_encoder_prenet,
-                                                             decoder_prenet=text_decoder_prenet,
-                                                             decoder_postnet=text_decoder_postnet,
-                                                             encoder=text_encoder,
-                                                             decoder=text_decoder,
-                                                             tokenizer=self.tokenizer,
-                                                             debug=debug)}
-    
+        self.mel_text, self.text_text, self.text_mel, self.mel_mel = None, None, None, None
+        learning_rate = self.config['learning_rate']
+        if 'text_mel' in transformer_kinds:
+            self.text_mel = TextMelTransformer(encoder_prenet=text_encoder_prenet,
+                                               decoder_prenet=speech_decoder_prenet,
+                                               decoder_postnet=speech_decoder_postnet,
+                                               encoder=text_encoder,
+                                               decoder=speech_decoder,
+                                               tokenizer=self.tokenizer,
+                                               start_vec_value=mel_start_vec_value,
+                                               end_vec_value=mel_end_vec_value,
+                                               debug=debug)
+            self.text_mel.compile(loss=[masked_mean_squared_error,
+                                        masked_crossentropy,
+                                        masked_mean_squared_error],
+                                  loss_weights=[1., 1., 1.],
+                                  optimizer=self.new_adam(learning_rate))
+
+        if 'mel_text' in transformer_kinds:
+            self.mel_text = MelTextTransformer(encoder_prenet=speech_encoder_prenet,
+                                               decoder_prenet=text_decoder_prenet,
+                                               decoder_postnet=text_decoder_postnet,
+                                               encoder=speech_encoder,
+                                               decoder=text_decoder,
+                                               tokenizer=self.tokenizer,
+                                               mel_channels=mel_channels,
+                                               start_vec_value=mel_start_vec_value,
+                                               end_vec_value=mel_end_vec_value,
+                                               debug=debug)
+            self.mel_text.compile(loss=masked_crossentropy,
+                                  optimizer=self.new_adam(learning_rate))
+
+        if 'mel_mel' in transformer_kinds:
+            self.mel_mel = MelTransformer(encoder_prenet=speech_encoder_prenet,
+                                          decoder_prenet=speech_decoder_prenet,
+                                          encoder=speech_encoder,
+                                          decoder=speech_decoder,
+                                          decoder_postnet=speech_decoder_postnet,
+                                          start_vec_value=mel_start_vec_value,
+                                          end_vec_value=mel_end_vec_value,
+                                          debug=debug)
+            self.mel_mel.compile(loss=[masked_mean_squared_error,
+                                       masked_crossentropy,
+                                       masked_mean_squared_error],
+                                 loss_weights=[1, 1, 1],
+                                 optimizer=self.new_adam(learning_rate))
+
+        if 'text_text' in transformer_kinds:
+            self.text_text = TextTransformer(encoder_prenet=text_encoder_prenet,
+                                             decoder_prenet=text_decoder_prenet,
+                                             decoder_postnet=text_decoder_postnet,
+                                             encoder=text_encoder,
+                                             decoder=text_decoder,
+                                             tokenizer=self.tokenizer,
+                                             debug=debug)
+            self.text_text.compile(loss=masked_crossentropy,
+                                   optimizer=self.new_adam(learning_rate))
+
+    def new_adam(self, learning_rate):
+        return tf.keras.optimizers.Adam(learning_rate,
+                                        beta_1=0.9,
+                                        beta_2=0.98,
+                                        epsilon=1e-9)
+
     def _check_config(self):
         key_list = ['mel_channels', 'speech_encoder_num_layers', 'speech_decoder_num_layers',
                     'text_encoder_num_layers', 'text_decoder_num_layers', 'speech_model_dimension',
@@ -161,17 +188,20 @@ class Combiner:  # (tf.keras.Model):
         masked_text = self.random_text_mask(text, mask_prob)
         masked_mel = self.random_mel_mask(mel, mask_prob)
         output = {}
-        if 'mel_to_mel' in self.transformer_kinds:
-            output.update({'mel_to_mel': self.transformers['mel_to_mel'].train_step(masked_mel, mel, stop,
-                                                                                    decoder_prenet_dropout=speech_decoder_prenet_dropout)})
-        if 'text_to_mel' in self.transformer_kinds:
-            output.update({'text_to_mel': self.transformers['text_to_mel'].train_step(text, mel, stop,
-                                                                                      decoder_prenet_dropout=speech_decoder_prenet_dropout)})
-        if 'mel_to_text' in self.transformer_kinds:
-            output.update({'mel_to_text': self.transformers['mel_to_text'].train_step(mel, text)})
-        if 'text_to_text' in self.transformer_kinds:
-            output.update({'text_to_text': self.transformers['text_to_text'].train_step(masked_text, text)})
-        
+        if 'mel_mel' in self.transformer_kinds:
+            train_out = self.mel_mel.train_step(masked_mel, mel, stop,
+                                                decoder_prenet_dropout=speech_decoder_prenet_dropout)
+            output.update({'mel_mel': train_out})
+        if 'text_mel' in self.transformer_kinds:
+            train_out = self.text_mel.train_step(text, mel, stop,
+                                                 decoder_prenet_dropout=speech_decoder_prenet_dropout)
+            output.update({'text_mel': train_out})
+        if 'mel_text' in self.transformer_kinds:
+            train_out = self.mel_text.train_step(mel, text)
+            output.update({'mel_text': train_out})
+        if 'text_text' in self.transformer_kinds:
+            train_out = self.text_text.train_step(masked_text, text)
+            output.update({'text_text': train_out})
         return output
     
 

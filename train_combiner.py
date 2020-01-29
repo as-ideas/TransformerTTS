@@ -6,7 +6,6 @@ import tensorflow as tf
 import numpy as np
 from sklearn.model_selection import train_test_split
 from model.transformer_factory import Combiner
-from losses import masked_crossentropy, masked_mean_squared_error
 from preprocessing.utils import load_files
 from preprocessing.preprocessor import Preprocessor
 from utils import plot_attention, display_mel
@@ -54,29 +53,7 @@ preprocessor = Preprocessor(mel_channels=config['mel_channels'],
                             start_vec_val=config['mel_start_vec_value'],
                             end_vec_val=config['mel_end_vec_value'],
                             tokenizer=combiner.tokenizer)
-loss_coeffs = [1.0, 1.0, 1.0]
-combiner.transformers['mel_to_text'].compile(loss=masked_crossentropy,
-                                             optimizer=tf.keras.optimizers.Adam(config['learning_rate'], beta_1=0.9,
-                                                                                beta_2=0.98,
-                                                                                epsilon=1e-9))
-combiner.transformers['text_to_text'].compile(loss=masked_crossentropy,
-                                              optimizer=tf.keras.optimizers.Adam(config['learning_rate'], beta_1=0.9,
-                                                                                 beta_2=0.98,
-                                                                                 epsilon=1e-9))
-combiner.transformers['mel_to_mel'].compile(loss=[masked_mean_squared_error,
-                                                  masked_crossentropy,
-                                                  masked_mean_squared_error],
-                                            loss_weights=loss_coeffs,
-                                            optimizer=tf.keras.optimizers.Adam(config['learning_rate'], beta_1=0.9,
-                                                                               beta_2=0.98,
-                                                                               epsilon=1e-9))
-combiner.transformers['text_to_mel'].compile(loss=[masked_mean_squared_error,
-                                                   masked_crossentropy,
-                                                   masked_mean_squared_error],
-                                             loss_weights=loss_coeffs,
-                                             optimizer=tf.keras.optimizers.Adam(config['learning_rate'], beta_1=0.9,
-                                                                                beta_2=0.98,
-                                                                                epsilon=1e-9))
+
 yaml.dump(config, open(os.path.join(args.log_dir, os.path.basename(args.config)), 'w'))
 train_gen = lambda: (preprocessor(s) for s in train_samples)
 test_list = [preprocessor(s) for s in test_samples]
@@ -89,14 +66,14 @@ losses = {}
 summary_writers = {}
 checkpoints = {}
 managers = {}
-for kind in config['transformer_kinds']:
+transformer_kinds = config['transformer_kinds']
+for kind in transformer_kinds:
     path = os.path.join(args.log_dir, kind)
     summary_writers[kind] = tf.summary.create_file_writer(path)
     losses[kind] = []
-    # here step could be config['batch_size'] instead
     checkpoints[kind] = tf.train.Checkpoint(step=tf.Variable(1),
-                                            optimizer=combiner.transformers[kind].optimizer,
-                                            net=combiner.transformers[kind])
+                                            optimizer=getattr(combiner, kind).optimizer,
+                                            net=getattr(combiner, kind))
     managers[kind] = tf.train.CheckpointManager(checkpoints[kind], weights_paths[kind],
                                                 max_to_keep=config['keep_n_weights'])
     # RESTORE LATEST MODEL
@@ -106,15 +83,14 @@ for kind in config['transformer_kinds']:
     else:
         print(f'Initializing {kind} from scratch.')
 
-# START TRAINING
 decoder_prenet_dropout = config['fixed_decoder_prenet_dropout']
 print('Starting training')
 for epoch in range(config['epochs']):
     print(f'Epoch {epoch}')
     for (batch, (mel, text, stop)) in enumerate(train_dataset):
         if config['use_decoder_prenet_dropout_schedule']:
-            decoder_prenet_dropout = linear_dropout_schedule(int(checkpoints[config['transformer_kinds'][0]].step))
-        # set_learning_rate(int(checkpoints[config['transformer_kinds'][0]].step))
+            decoder_prenet_dropout = linear_dropout_schedule(int(checkpoints[transformer_kinds[0]].step))
+        # set_learning_rate(int(checkpoints[transformer_kinds[0]].step))
         output = combiner.train_step(text=text,
                                      mel=mel,
                                      stop=stop,
@@ -124,74 +100,70 @@ for epoch in range(config['epochs']):
         print(f'\nbatch {int(checkpoints[config["transformer_kinds"][0]].step)}')
         
         # CHECKPOINTING
-        for kind in config['transformer_kinds']:
+        first_kind = transformer_kinds[0]
+        step = getattr(combiner, first_kind).optimizer.iterations
+        for kind in transformer_kinds:
             checkpoints[kind].step.assign_add(1)
             losses[kind].append(float(output[kind]['loss']))
             with summary_writers[kind].as_default():
-                if (kind == 'text_to_mel') or (kind == 'mel_to_mel'):
+                if (kind == 'text_mel') or (kind == 'mel_mel'):
                     for k in output[kind]['losses'].keys():
-                        tf.summary.scalar(kind + '_' + k, output[kind]['losses'][k],
-                                          step=combiner.transformers[kind].optimizer.iterations)
-                tf.summary.scalar('loss', output[kind]['loss'],
-                                  step=combiner.transformers[kind].optimizer.iterations)
+                        tf.summary.scalar(kind + '_' + k, output[kind]['losses'][k], step=step)
+                tf.summary.scalar('loss', output[kind]['loss'], step=step)
             print(f'{kind} mean loss: {sum(losses[kind]) / len(losses[kind])}')
-            
+
             if int(checkpoints[kind].step) % config['weights_save_freq'] == 0:
                 save_path = managers[kind].save()
                 print(f'Saved checkpoint for step {int(checkpoints[kind].step)}: {save_path}')
             
             if int(checkpoints[kind].step) % config['plot_attention_freq'] == 0:
                 with summary_writers[kind].as_default():
-                    plot_attention(output[kind],
-                                   step=combiner.transformers[kind].optimizer.iterations,
-                                   info_string='train attention ')
+                    plot_attention(output[kind], step=step, info_string='train attention ')
         
-        with summary_writers[config['transformer_kinds'][0]].as_default():
-            tf.summary.scalar('dropout', decoder_prenet_dropout,
-                              step=combiner.transformers[
-                                  config['transformer_kinds'][0]].optimizer.iterations)
-            tf.summary.scalar('learning_rate', combiner.transformers[config['transformer_kinds'][0]].optimizer.lr,
-                              step=combiner.transformers[
-                                  config['transformer_kinds'][0]].optimizer.iterations)
+        with summary_writers[transformer_kinds[0]].as_default():
+            first_kind = transformer_kinds[0]
+            tf.summary.scalar('dropout', decoder_prenet_dropout, step=step)
+            tf.summary.scalar(name='learning_rate',
+                              data=getattr(combiner, first_kind).optimizer.lr,
+                              step=step)
             
-        # PRINT MODEL SPECIFIC STUFF
         # PREDICT MEL
-        if ('mel_to_mel' in config['transformer_kinds']) and ('text_to_mel' in config['transformer_kinds']):
-            if int(checkpoints[config['transformer_kinds'][0]].step) % config['image_freq'] == 0:
+        if ('mel_mel' in transformer_kinds) and ('text_mel' in transformer_kinds):
+            if int(checkpoints[transformer_kinds[0]].step) % config['image_freq'] == 0:
                 pred = {}
                 test_val = {}
                 for i in range(0, 2):
                     mel_target = test_list[i][0]
                     max_pred_len = mel_target.shape[0] + 50
-                    test_val['text_to_mel'] = combiner.tokenizer.encode(test_list[i][1])
-                    test_val['mel_to_mel'] = mel_target
-                    for kind in ['text_to_mel', 'mel_to_mel']:
-                        pred[kind] = combiner.transformers[kind].predict(test_val[kind],
-                                                                         max_length=max_pred_len,
-                                                                         decoder_prenet_dropout=0.5)
+                    test_val['text_mel'] = test_list[i][1]
+                    test_val['mel_mel'] = mel_target
+                    for kind in ['text_mel', 'mel_mel']:
+                        pred[kind] = getattr(combiner, kind).predict(test_val[kind],
+                                                                     max_length=max_pred_len,
+                                                                     decoder_prenet_dropout=0.5)
                         with summary_writers[kind].as_default():
-                            plot_attention(pred[kind], step=combiner.transformers[
-                                kind].optimizer.iterations,
+                            plot_attention(outputs=pred[kind],
+                                           step=step,
                                            info_string='test attention ')
-                            display_mel(pred[kind]['mel'], step=combiner.transformers[kind].optimizer.iterations,
+                            display_mel(pred=pred[kind]['mel'],
+                                        step=step,
                                         info_string='test mel {}'.format(i))
-                            display_mel(mel_target, step=combiner.transformers[
-                                'mel_to_mel'].optimizer.iterations,
+                            display_mel(pred=mel_target,
+                                        step=step,
                                         info_string='target mel {}'.format(i))
         # PREDICT TEXT
-        if ('mel_to_text' in config['transformer_kinds']) and ('text_to_text' in config['transformer_kinds']):
-            if int(checkpoints[config['transformer_kinds'][0]].step) % config['text_freq'] == 0:
+        if ('mel_text' in transformer_kinds) and ('text_text' in transformer_kinds):
+            if int(checkpoints[transformer_kinds[0]].step) % config['text_freq'] == 0:
                 pred = {}
                 test_val = {}
                 for i in range(0, 2):
-                    test_val['mel_to_text'] = test_list[i][0]
-                    test_val['text_to_text'] = combiner.tokenizer.encode(test_list[i][1])
-                    decoded_target = combiner.tokenizer.decode(test_val['text_to_text'])
-                    for kind in ['mel_to_text', 'text_to_text']:
-                        pred[kind] = combiner.transformers[kind].predict(test_val[kind])
+                    test_val['mel_text'] = test_list[i][0]
+                    test_val['text_text'] = test_list[i][1]
+                    decoded_target = combiner.tokenizer.decode(test_val['text_text'])
+                    for kind in ['mel_text', 'text_text']:
+                        pred[kind] = getattr(combiner, kind).predict(test_val[kind])
                         pred[kind] = combiner.tokenizer.decode(pred[kind]['output'])
                         with summary_writers[kind].as_default():
-                            tf.summary.text(f'{kind} from validation',
-                                            f'(pred) {pred[kind]}\n(target) {decoded_target}',
-                                            step=combiner.transformers[
-                                                kind].optimizer.iterations)
+                            tf.summary.text(name=f'{kind} from validation',
+                                            data=f'(pred) {pred[kind]}\n(target) {decoded_target}',
+                                            step=step)

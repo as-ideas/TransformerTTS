@@ -1,9 +1,9 @@
 # ARCHITECTURE
 transformer_kinds :
-    - 'text_to_text'
-    - 'mel_to_text'
-    - 'text_to_mel'
-    - 'mel_to_mel'
+    - 'text_text'
+    - 'mel_text'
+    - 'text_mel'
+    - 'mel_mel'
 speech_encoder_num_layers : 1
 speech_decoder_num_layers : 1
 text_encoder_num_layers : 1
