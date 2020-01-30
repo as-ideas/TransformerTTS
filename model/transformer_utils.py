@@ -4,7 +4,7 @@ import tensorflow as tf
 
 class CharTokenizer:
     
-    def __init__(self, alphabet, start_token='<', end_token='>'):
+    def __init__(self, alphabet, start_token='>', end_token='<'):
         self.alphabet = alphabet
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet, start=1)}
         self.idx_to_token[0] = '/'

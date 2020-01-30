@@ -99,8 +99,10 @@ class SummaryManager:
     def _write_text(self, kind, text, pred_decoded, step):
         with self.summary_writers[kind].as_default():
             name = u'{} from validation'.format(kind)
-            data = u'(pred) {} \n(target) {}'.format(pred_decoded, text)
-            tf.summary.text(name=name, data=data, step=step)
+            data_pred = u'(pred) {}'.format(pred_decoded)
+            data_target = u'(target) {}'.format(text)
+            tf.summary.text(name=name, data=data_pred, step=step)
+            tf.summary.text(name=name, data=data_target, step=step)
 
 
 parser = argparse.ArgumentParser()
