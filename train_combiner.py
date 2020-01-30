@@ -172,16 +172,18 @@ for epoch in range(config['epochs']):
                                      mask_prob=config['mask_prob'])
         print(f'\nbatch {int(combiner.step)}')
 
+        summary_manager.write_loss(output, combiner.step)
+        summary_manager.write_meta(name='dropout',
+                                   value=decoder_prenet_dropout,
+                                   step=combiner.step)
+        summary_manager.write_meta(name='learning_rate',
+                                   value=config['learning_rate'],
+                                   step=combiner.step)
+
         for kind in transformer_kinds:
             checkpoints[kind].step.assign_add(1)
             losses[kind].append(float(output[kind]['loss']))
-            summary_manager.write_loss(output, combiner.step)
-            summary_manager.write_meta(name='dropout',
-                                       value=decoder_prenet_dropout,
-                                       step=combiner.step)
-            summary_manager.write_meta(name='learning_rate',
-                                       value=config['learning_rate'],
-                                       step=combiner.step)
+
             if int(checkpoints[kind].step) % config['plot_attention_freq'] == 0:
                 summary_manager.write_attention(output, combiner.step)
             print(f'{kind} mean loss: {sum(losses[kind]) / len(losses[kind])}')
