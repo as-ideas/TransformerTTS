@@ -33,16 +33,31 @@ def plot_mel(ms, sr, file=None):
     plt.close('all')
 
 
-def display_attention(attention, layer_name, file=None):
-    attention = tf.squeeze(attention[layer_name])
-    fig = plt.figure(figsize=(8 * attention.shape[0], 8))
-    for head in range(attention.shape[0]):
-        ax = fig.add_subplot(1, attention.shape[0], head + 1)
-        ax.matshow(attention[head][:-1, :], cmap='viridis')
-        ax.set_xlabel('head {}'.format(head + 1))
-    plt.tight_layout()
-    if not file:
-        plt.show()
-    else:
-        plt.savefig(file)
-    plt.close('all')
+def plot_attention(outputs, step, info_string=''):
+    for k in outputs['attention_weights'].keys():
+        for i in range(len(outputs['attention_weights'][k][0])):
+            image_batch = norm_tensor(tf.expand_dims(outputs['attention_weights'][k][:, i, :, :], -1))
+            tf.summary.image(info_string + k + f' head{i}', image_batch, step=step)
+
+
+def display_mel(pred, step, info_string='', sr=22050):
+    img = tf.transpose(tf.exp(pred))
+    buf = buffer_mel(img, sr=sr)
+    img_tf = tf.image.decode_png(buf.getvalue(), channels=3)
+    img_tf = tf.expand_dims(img_tf, 0)
+    tf.summary.image(info_string, img_tf, step=step)
+
+
+def norm_tensor(tensor):
+    return tf.math.divide(
+        tf.math.subtract(
+            tensor,
+            tf.math.reduce_min(tensor)
+        ),
+        tf.math.subtract(
+            tf.math.reduce_max(tensor),
+            tf.math.reduce_min(tensor)
+        )
+    )
+
+

@@ -1,9 +1,9 @@
 # ARCHITECTURE
 transformer_kinds :
-    - 'text_to_text'
-    - 'mel_to_text'
-    - 'text_to_mel'
-    - 'mel_to_mel'
+    - 'text_text'
+    - 'mel_text'
+    - 'text_mel'
+    - 'mel_mel'
 speech_encoder_num_layers : 4
 speech_decoder_num_layers : 4
 text_encoder_num_layers : 4
@@ -20,7 +20,7 @@ speech_encoder_feed_forward_dimension : 512
 speech_decoder_feed_forward_dimension : 512
 speech_encoder_prenet_dimension : 256
 speech_decoder_prenet_dimension : 256
-max_position_encoding : 10000
+max_position_encoding : 100000
 speech_postnet_conv_filters : 256
 speech_postnet_conv_layers : 5
 speech_postnet_kernel_size : 5
@@ -53,4 +53,4 @@ weights_save_freq: 10_000
 plot_attention_freq: 2_000
 keep_n_weights: 5
 # TOKENIZER
-# tokenizer_alphabet: null
+tokenizer_alphabet: "\"!,.:;?'-() abcdefghijklmnopqrstuvwxyzäüöß"

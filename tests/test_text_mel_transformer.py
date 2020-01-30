@@ -5,6 +5,7 @@ import tensorflow as tf
 
 from losses import masked_mean_squared_error, masked_crossentropy
 from model.transformer_factory import new_text_mel_transformer
+from preprocessing.utils import preprocess_mel
 
 
 class TestTokenizer:
@@ -51,14 +52,13 @@ class TestTextMelTransformer(unittest.TestCase):
         train_samples = []
         
         for i, mel in enumerate(test_mels):
-            mel = text_mel_transformer.preprocess_mel(mel, clip_min=0.)
+            mel = preprocess_mel(mel,
+                                 text_mel_transformer.start_vec,
+                                 text_mel_transformer.end_vec,
+                                 clip_min=0.)
             stop_probs = np.ones((mel.shape[0]))
             stop_probs[-1] = 2
             train_samples.append(('repeated text ' * i, mel, stop_probs))
-        
-        
-
-        
         losses = [masked_mean_squared_error,
                   masked_crossentropy,
                   masked_mean_squared_error]
@@ -85,6 +85,6 @@ class TestTextMelTransformer(unittest.TestCase):
                 batch_num += 1
         
         pred = text_mel_transformer.predict(tokenized_train_samples[0][0], max_length=50, encode=False)
-        self.assertAlmostEqual(3.5308585166931152, losses[-1], places=6)
+        self.assertAlmostEqual(3.5308585166931152, losses[-1], places=5)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(-2679.2021484375, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(-2679.2021484375, float(tf.reduce_sum(pred['mel'])), places=5)

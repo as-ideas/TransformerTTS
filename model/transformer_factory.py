@@ -2,179 +2,7 @@ import tensorflow as tf
 
 from model.layers import Encoder, Decoder, SpeechPostnet, PointWiseFFN, SpeechDecoderPrenet, TextPostnet
 from model.models import TextTransformer, MelTransformer, MelTextTransformer, TextMelTransformer
-from model.transformer_utils import CharTokenizer
 
-
-class Combiner:  # (tf.keras.Model):
-    def __init__(self,
-                 *,
-                 config: dict,
-                 tokenizer_alphabet: list = None):
-        
-        # super(Combiner, self).__init__()
-        if tokenizer_alphabet:
-            config['tokenizer_alphabet'] = tokenizer_alphabet
-        
-        self.config = config
-        assert self._check_config(), 'Invalid configuration.'
-        
-        mel_channels = self.config['mel_channels']
-        speech_encoder_num_layers = self.config['speech_encoder_num_layers']
-        speech_decoder_num_layers = self.config['speech_decoder_num_layers']
-        text_encoder_num_layers = self.config['text_encoder_num_layers']
-        text_decoder_num_layers = self.config['text_decoder_num_layers']
-        speech_model_dimension = self.config['speech_model_dimension']
-        text_model_dimension = self.config['text_model_dimension']
-        speech_encoder_num_heads = self.config['speech_encoder_num_heads']
-        speech_decoder_num_heads = self.config['speech_decoder_num_heads']
-        text_encoder_num_heads = self.config['text_encoder_num_heads']
-        text_decoder_num_heads = self.config['text_decoder_num_heads']
-        text_encoder_feed_forward_dimension = self.config['text_encoder_feed_forward_dimension']
-        text_decoder_feed_forward_dimension = self.config['text_decoder_feed_forward_dimension']
-        speech_encoder_feed_forward_dimension = self.config['speech_encoder_feed_forward_dimension']
-        speech_decoder_feed_forward_dimension = self.config['speech_decoder_feed_forward_dimension']
-        speech_encoder_prenet_dimension = self.config['speech_encoder_prenet_dimension']
-        speech_decoder_prenet_dimension = self.config['speech_decoder_prenet_dimension']
-        max_position_encoding = self.config['max_position_encoding']
-        speech_postnet_conv_filters = self.config['speech_postnet_conv_filters']
-        speech_postnet_conv_layers = self.config['speech_postnet_conv_layers']
-        speech_postnet_kernel_size = self.config['speech_postnet_kernel_size']
-        dropout_rate = self.config['dropout_rate']
-        debug = self.config['debug']
-        mel_start_vec_value = self.config['mel_start_vec_value']
-        mel_end_vec_value = self.config['mel_end_vec_value']
-        transformer_kinds = self.config['transformer_kinds']
-        
-        self.tokenizer = CharTokenizer(alphabet=sorted(list(self.config['tokenizer_alphabet'])))
-        
-        if transformer_kinds is None:
-            transformer_kinds = ['text_to_text', 'mel_to_mel', 'text_to_mel', 'mel_to_text']
-        
-        speech_encoder_prenet = PointWiseFFN(d_model=speech_model_dimension, dff=speech_encoder_prenet_dimension)
-        speech_decoder_prenet = SpeechDecoderPrenet(d_model=speech_model_dimension, dff=speech_decoder_prenet_dimension)
-        speech_decoder_postnet = SpeechPostnet(mel_channels=mel_channels,
-                                               conv_filters=speech_postnet_conv_filters,
-                                               conv_layers=speech_postnet_conv_layers,
-                                               kernel_size=speech_postnet_kernel_size)
-        speech_encoder = Encoder(num_layers=speech_encoder_num_layers,
-                                 d_model=speech_model_dimension,
-                                 num_heads=speech_encoder_num_heads,
-                                 dff=speech_encoder_feed_forward_dimension,
-                                 maximum_position_encoding=max_position_encoding,
-                                 rate=dropout_rate)
-        speech_decoder = Decoder(num_layers=speech_decoder_num_layers,
-                                 d_model=speech_model_dimension,
-                                 num_heads=speech_decoder_num_heads,
-                                 dff=speech_decoder_feed_forward_dimension,
-                                 maximum_position_encoding=max_position_encoding,
-                                 rate=dropout_rate)
-        text_encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, text_model_dimension)
-        text_decoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, text_model_dimension)
-        text_decoder_postnet = TextPostnet(self.tokenizer.vocab_size)
-        text_encoder = Encoder(num_layers=text_encoder_num_layers,
-                               d_model=text_model_dimension,
-                               num_heads=text_encoder_num_heads,
-                               dff=text_encoder_feed_forward_dimension,
-                               maximum_position_encoding=max_position_encoding,
-                               rate=dropout_rate, )
-        text_decoder = Decoder(num_layers=text_decoder_num_layers,
-                               d_model=text_model_dimension,
-                               num_heads=text_decoder_num_heads,
-                               dff=text_decoder_feed_forward_dimension,
-                               maximum_position_encoding=max_position_encoding,
-                               rate=dropout_rate)
-        self.transformer_kinds = transformer_kinds
-        self.transformers = {'text_to_mel': TextMelTransformer(encoder_prenet=text_encoder_prenet,
-                                                               decoder_prenet=speech_decoder_prenet,
-                                                               decoder_postnet=speech_decoder_postnet,
-                                                               encoder=text_encoder,
-                                                               decoder=speech_decoder,
-                                                               tokenizer=self.tokenizer,
-                                                               start_vec_value=mel_start_vec_value,
-                                                               end_vec_value=mel_end_vec_value,
-                                                               debug=debug),
-                             'mel_to_text': MelTextTransformer(encoder_prenet=speech_encoder_prenet,
-                                                               decoder_prenet=text_decoder_prenet,
-                                                               decoder_postnet=text_decoder_postnet,
-                                                               encoder=speech_encoder,
-                                                               decoder=text_decoder,
-                                                               tokenizer=self.tokenizer,
-                                                               mel_channels=mel_channels,
-                                                               start_vec_value=mel_start_vec_value,
-                                                               end_vec_value=mel_end_vec_value,
-                                                               debug=debug),
-                             'mel_to_mel': MelTransformer(encoder_prenet=speech_encoder_prenet,
-                                                          decoder_prenet=speech_decoder_prenet,
-                                                          encoder=speech_encoder,
-                                                          decoder=speech_decoder,
-                                                          decoder_postnet=speech_decoder_postnet,
-                                                          start_vec_value=mel_start_vec_value,
-                                                          end_vec_value=mel_end_vec_value,
-                                                          debug=debug),
-                             'text_to_text': TextTransformer(encoder_prenet=text_encoder_prenet,
-                                                             decoder_prenet=text_decoder_prenet,
-                                                             decoder_postnet=text_decoder_postnet,
-                                                             encoder=text_encoder,
-                                                             decoder=text_decoder,
-                                                             tokenizer=self.tokenizer,
-                                                             debug=debug)}
-    
-    def _check_config(self):
-        key_list = ['mel_channels', 'speech_encoder_num_layers', 'speech_decoder_num_layers',
-                    'text_encoder_num_layers', 'text_decoder_num_layers', 'speech_model_dimension',
-                    'text_model_dimension', 'speech_encoder_num_heads', 'speech_decoder_num_heads',
-                    'text_encoder_num_heads', 'text_decoder_num_heads', 'text_encoder_feed_forward_dimension',
-                    'text_decoder_feed_forward_dimension', 'speech_encoder_feed_forward_dimension',
-                    'speech_decoder_feed_forward_dimension', 'speech_encoder_prenet_dimension',
-                    'speech_decoder_prenet_dimension', 'max_position_encoding', 'speech_postnet_conv_filters',
-                    'speech_postnet_conv_layers', 'speech_postnet_kernel_size', 'dropout_rate', 'debug',
-                    'mel_start_vec_value', 'mel_end_vec_value', 'transformer_kinds', 'tokenizer_alphabet']
-        missing = []
-        for key in key_list:
-            if key not in list(self.config.keys()):
-                missing.append(key)
-        if len(missing) == 0:
-            return True
-        else:
-            print('Config is missing the following keys:')
-            print(missing)
-            return False
-    
-    @staticmethod
-    def random_mel_mask(tensor, mask_prob):
-        tensor_shape = tf.shape(tensor)
-        mask_floats = tf.random.uniform((tensor_shape[0], tensor_shape[1]))
-        mask = tf.cast(mask_floats > mask_prob, tf.float32)
-        mask = tf.expand_dims(mask, -1)
-        mask = tf.broadcast_to(mask, tensor_shape)
-        masked_tensor = tensor * mask
-        return masked_tensor
-    
-    @staticmethod
-    def random_text_mask(tensor, mask_prob):
-        tensor_shape = tf.shape(tensor)
-        mask_floats = tf.random.uniform((tensor_shape[0], tensor_shape[1]))
-        mask = tf.cast(mask_floats > mask_prob, tf.int64)
-        masked_tensor = tensor * mask
-        return masked_tensor
-    
-    def train_step(self, text, mel, stop, speech_decoder_prenet_dropout, mask_prob=0.):
-        masked_text = self.random_text_mask(text, mask_prob)
-        masked_mel = self.random_mel_mask(mel, mask_prob)
-        output = {}
-        if 'mel_to_mel' in self.transformer_kinds:
-            output.update({'mel_to_mel': self.transformers['mel_to_mel'].train_step(masked_mel, mel, stop,
-                                                                                    decoder_prenet_dropout=speech_decoder_prenet_dropout)})
-        if 'text_to_mel' in self.transformer_kinds:
-            output.update({'text_to_mel': self.transformers['text_to_mel'].train_step(text, mel, stop,
-                                                                                      decoder_prenet_dropout=speech_decoder_prenet_dropout)})
-        if 'mel_to_text' in self.transformer_kinds:
-            output.update({'mel_to_text': self.transformers['mel_to_text'].train_step(mel, text)})
-        if 'text_to_text' in self.transformer_kinds:
-            output.update({'text_to_text': self.transformers['text_to_text'].train_step(masked_text, text)})
-        
-        return output
-    
 
 def new_text_transformer(tokenizer,
                          num_layers=1,
@@ -190,8 +18,7 @@ def new_text_transformer(tokenizer,
         num_heads=num_heads,
         dff=dff,
         maximum_position_encoding=max_position_encoding,
-        rate=dropout_rate,
-    )
+        rate=dropout_rate)
     
     decoder = Decoder(
         num_layers=num_layers,
@@ -199,8 +26,7 @@ def new_text_transformer(tokenizer,
         num_heads=num_heads,
         dff=dff,
         maximum_position_encoding=max_position_encoding,
-        rate=dropout_rate,
-    )
+        rate=dropout_rate)
     
     text_transformer = TextTransformer(
         encoder_prenet=tf.keras.layers.Embedding(tokenizer.vocab_size, d_model),
@@ -209,8 +35,7 @@ def new_text_transformer(tokenizer,
         encoder=encoder,
         decoder=decoder,
         tokenizer=tokenizer,
-        debug=debug
-    )
+        debug=debug)
     
     return text_transformer
 
@@ -229,6 +54,7 @@ def new_mel_transformer(num_layers=1,
                         start_vec_value=-3,
                         end_vec_value=1,
                         debug=False):
+
     encoder = Encoder(num_layers=num_layers,
                       d_model=d_model,
                       num_heads=num_heads,
@@ -278,8 +104,7 @@ def new_mel_text_transformer(tokenizer,
         num_heads=num_heads,
         dff=dff,
         maximum_position_encoding=max_position_encoding,
-        rate=dropout_rate,
-    )
+        rate=dropout_rate)
     
     decoder = Decoder(
         num_layers=num_layers,
@@ -287,8 +112,7 @@ def new_mel_text_transformer(tokenizer,
         num_heads=num_heads,
         dff=dff,
         maximum_position_encoding=max_position_encoding,
-        rate=dropout_rate,
-    )
+        rate=dropout_rate)
     
     mel_text_transformer = MelTextTransformer(
         encoder_prenet=PointWiseFFN(d_model=d_model, dff=dff_prenet),

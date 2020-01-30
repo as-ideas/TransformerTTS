@@ -5,6 +5,7 @@ import tensorflow as tf
 
 from losses import masked_crossentropy
 from model.transformer_factory import new_mel_text_transformer
+from preprocessing.utils import preprocess_mel
 
 
 class TestTokenizer:
@@ -32,7 +33,7 @@ class TestMelTextTransformer(unittest.TestCase):
     def setUp(self) -> None:
         tf.random.set_seed(42)
         np.random.seed(42)
-    
+
     def test_training(self):
         tokenizer = TestTokenizer(alphabet=sorted(list('sample out text.')))
         mel_text_transformer = new_mel_text_transformer(tokenizer=tokenizer,
@@ -51,7 +52,10 @@ class TestMelTextTransformer(unittest.TestCase):
         test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
         train_samples = []
         for i, mel in enumerate(test_mels):
-            mel = mel_text_transformer.preprocess_mel(mel, clip_min=0.)
+            mel = preprocess_mel(mel,
+                                 mel_text_transformer.start_vec,
+                                 mel_text_transformer.end_vec,
+                                 clip_min=0.)
             train_samples.append((mel, 'sample out text.'))
         
         start_tok, end_tok = mel_text_transformer.tokenizer.start_token_index, mel_text_transformer.tokenizer.end_token_index
@@ -71,7 +75,7 @@ class TestMelTextTransformer(unittest.TestCase):
                 output = mel_text_transformer.train_step(inp, tar)
                 losses.append(float(output['loss']))
         
-        self.assertAlmostEqual(2.936908721923828, losses[-1], places=6)
+        self.assertAlmostEqual(2.936908721923828, losses[-1], places=5)
         pred = mel_text_transformer.predict(tokenized_train_samples[0][0], max_length=10)
         self.assertEqual((1, 1, 19), pred['logits'].numpy().shape)
-        self.assertAlmostEqual(-7.021634101867676, float(tf.reduce_sum(pred['logits'])))
+        self.assertAlmostEqual(-7.021634101867676, float(tf.reduce_sum(pred['logits'])), places=5)

@@ -5,6 +5,7 @@ import tensorflow as tf
 
 from losses import masked_mean_squared_error, masked_crossentropy
 from model.transformer_factory import new_mel_transformer
+from preprocessing.utils import preprocess_mel
 
 
 class TestMelTransformer(unittest.TestCase):
@@ -31,7 +32,10 @@ class TestMelTransformer(unittest.TestCase):
         test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
         train_samples = []
         for mel in test_mels:
-            mel = mel_transformer.preprocess_mel(mel, clip_min=0.)
+            mel = preprocess_mel(mel,
+                                 mel_transformer.start_vec,
+                                 mel_transformer.end_vec,
+                                 clip_min=0.)
             stop_probs = np.ones((mel.shape[0]))
             stop_probs[-1] = 2
             train_samples.append((mel, stop_probs))
@@ -61,6 +65,6 @@ class TestMelTransformer(unittest.TestCase):
                 batch_num += 1
         
         pred = mel_transformer.predict(tf.cast(test_mels[0], tf.float32), max_length=50)
-        self.assertAlmostEqual(3.914466381072998, losses[-1], places=6)
+        self.assertAlmostEqual(3.914466381072998, losses[-1], places=5)
         self.assertEqual((50, 80), pred['mel'].numpy().shape)
-        self.assertAlmostEqual(-2109.190673828125, float(tf.reduce_sum(pred['mel'])), places=6)
+        self.assertAlmostEqual(-2109.190673828125, float(tf.reduce_sum(pred['mel'])), places=5)
