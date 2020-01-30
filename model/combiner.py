@@ -133,6 +133,10 @@ class Combiner:
             self.text_text.compile(loss=masked_crossentropy,
                                    optimizer=self.new_adam(learning_rate))
 
+    @property
+    def step(self):
+        return getattr(self, self.transformer_kinds[0]).optimizer.iterations
+
     def new_adam(self, learning_rate):
         return tf.keras.optimizers.Adam(learning_rate,
                                         beta_1=0.9,
@@ -153,17 +157,17 @@ class Combiner:
         missing = [key for key in key_list if key not in config_keys]
         assert len(missing) == 0, 'Config is missing the following keys: {}'.format(missing)
 
-    def train_step(self, text, mel, stop, speech_decoder_prenet_dropout, mask_prob=0.):
+    def train_step(self, text, mel, stop, pre_dropout, mask_prob=0.):
         masked_text = random_text_mask(text, mask_prob)
         masked_mel = random_mel_mask(mel, mask_prob)
         output = {}
         if 'mel_mel' in self.transformer_kinds:
             train_out = self.mel_mel.train_step(masked_mel, mel, stop,
-                                                decoder_prenet_dropout=speech_decoder_prenet_dropout)
+                                                decoder_prenet_dropout=pre_dropout)
             output.update({'mel_mel': train_out})
         if 'text_mel' in self.transformer_kinds:
             train_out = self.text_mel.train_step(text, mel, stop,
-                                                 decoder_prenet_dropout=speech_decoder_prenet_dropout)
+                                                 decoder_prenet_dropout=pre_dropout)
             output.update({'text_mel': train_out})
         if 'mel_text' in self.transformer_kinds:
             train_out = self.mel_text.train_step(mel, text)
@@ -171,4 +175,33 @@ class Combiner:
         if 'text_text' in self.transformer_kinds:
             train_out = self.text_text.train_step(masked_text, text)
             output.update({'text_text': train_out})
+        return output
+
+    def predict(self,
+                mel,
+                text_seq,
+                pre_dropout,
+                max_len_mel=1000,
+                max_len_text=10):
+        output = {}
+        if 'mel_mel' in self.transformer_kinds and mel is not None:
+            pred = self.mel_mel.predict(mel,
+                                        decoder_prenet_dropout=pre_dropout,
+                                        max_length=max_len_mel)
+            output.update({'mel_mel': pred})
+        if 'text_mel' in self.transformer_kinds and text_seq is not None:
+            pred = self.text_mel.predict(text_seq,
+                                         decoder_prenet_dropout=pre_dropout,
+                                         max_length=max_len_mel)
+            output.update({'text_mel': pred})
+        if 'text_text' in self.transformer_kinds and text_seq is not None:
+            pred = self.text_text.predict(text_seq,
+                                          max_length=max_len_text)
+            pred['output_decoded'] = self.tokenizer.decode(pred['output'].numpy())
+            output.update({'text_text': pred})
+        if 'mel_text' in self.transformer_kinds and mel is not None:
+            pred = self.mel_text.predict(mel,
+                                         max_length=max_len_text)
+            pred['output_decoded'] = self.tokenizer.decode(pred['output'].numpy())
+            output.update({'mel_text': pred})
         return output
