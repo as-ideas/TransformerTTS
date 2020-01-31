@@ -4,8 +4,6 @@ import argparse
 import ruamel.yaml
 import tensorflow as tf
 import numpy as np
-from sklearn.model_selection import train_test_split
-
 from model.combiner import Combiner
 from preprocessing.utils import load_files
 from preprocessing.preprocessor import Preprocessor
@@ -106,10 +104,9 @@ class SummaryManager:
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--meldir', dest='meldir', type=str)
-parser.add_argument('--metafile', dest='metafile', type=str)
-parser.add_argument('--logdir', dest='log_dir', type=str)
-parser.add_argument('--config', dest='config', type=str)
+parser.add_argument('--datadir', dest='datadir', type=str)
+parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
+parser.add_argument('--config', dest='config', default='config/standard_config_0.yaml', type=str)
 args = parser.parse_args()
 yaml = ruamel.yaml.YAML()
 config = yaml.load(open(args.config, 'r'))
@@ -120,10 +117,17 @@ print('creating model')
 combiner = Combiner(config=config)
 
 print('preprocessing data')
-samples, alphabet = load_files(metafile=args.metafile,
-                               meldir=args.meldir,
-                               num_samples=config['n_samples'])
-train_samples, test_samples = train_test_split(samples, test_size=100, random_state=42)
+meldir = os.path.join(args.datadir, 'train_mels')
+train_meta = os.path.join(args.datadir, 'train_metafile.txt')
+test_meta = os.path.join(args.datadir, 'test_metafile.txt')
+
+train_samples, _ = load_files(metafile=train_meta,
+                              meldir=meldir,
+                              num_samples=config['n_samples'])
+test_samples, _ = load_files(metafile=test_meta,
+                             meldir=meldir,
+                             num_samples=config['n_samples'])
+
 preprocessor = Preprocessor(mel_channels=config['mel_channels'],
                             start_vec_val=config['mel_start_vec_value'],
                             end_vec_val=config['mel_end_vec_value'],
