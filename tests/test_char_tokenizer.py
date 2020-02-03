@@ -20,4 +20,4 @@ class TestCharTokenizer(unittest.TestCase):
         seq = np.array([5, 1, 3, 2, 8, 6])
         seq = tf.convert_to_tensor(seq)
         text = tokenizer.decode(seq)
-        self.assertEqual('<a b>', text)
+        self.assertEqual('>a b<', text)
