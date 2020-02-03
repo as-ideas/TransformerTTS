@@ -6,7 +6,7 @@ import librosa.display
 import matplotlib.pyplot as plt
 import numpy as np
 
-from utils.preprocessing.utils import norm_tensor
+from preprocessing.utils import norm_tensor
 
 
 def buffer_mel(ms, sr):

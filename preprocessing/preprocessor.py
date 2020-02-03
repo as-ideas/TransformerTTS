@@ -1,6 +1,6 @@
 import numpy as np
 
-from utils.preprocessing.tokenizer import CharTokenizer
+from preprocessing.tokenizer import CharTokenizer
 
 
 class Preprocessor:

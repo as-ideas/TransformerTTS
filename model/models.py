@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from model.transformer_utils import create_text_padding_mask, create_mel_padding_mask, create_look_ahead_mask
-from utils.train.losses import weighted_sum_losses
+from utils.losses import weighted_sum_losses
 
 
 class Transformer(tf.keras.Model):

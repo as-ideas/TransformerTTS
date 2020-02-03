@@ -6,9 +6,9 @@ import tensorflow as tf
 import numpy as np
 
 from model.combiner import Combiner
-from utils.preprocessing.data_handling import load_files
-from utils.preprocessing.preprocessor import Preprocessor
-from utils.train.logging import SummaryManager
+from preprocessing.data_handling import load_files
+from preprocessing import Preprocessor
+from utils.logging import SummaryManager
 
 np.random.seed(42)
 tf.random.set_seed(42)

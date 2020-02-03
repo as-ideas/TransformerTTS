@@ -1,10 +1,10 @@
 import tensorflow as tf
 
-from utils.train.losses import masked_crossentropy, masked_mean_squared_error
+from utils.losses import masked_crossentropy, masked_mean_squared_error
 from model.layers import Encoder, Decoder, SpeechPostnet, PointWiseFFN, SpeechDecoderPrenet, TextPostnet
 from model.models import TextTransformer, MelTransformer, MelTextTransformer, TextMelTransformer
-from utils.preprocessing.tokenizer import CharTokenizer
-from utils.preprocessing.utils import random_text_mask, random_mel_mask
+from preprocessing.tokenizer import CharTokenizer
+from preprocessing.utils import random_text_mask, random_mel_mask
 
 
 class Combiner:

@@ -2,7 +2,7 @@ import os
 
 import tensorflow as tf
 
-from utils.utils import plot_attention, display_mel
+from utils.display import plot_attention, display_mel
 
 
 class SummaryManager:
