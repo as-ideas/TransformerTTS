@@ -1,54 +1,54 @@
 # ARCHITECTURE
-transformer_kinds :
-    - 'text_text'
-    - 'mel_text'
-    - 'text_mel'
-    - 'mel_mel'
-speech_encoder_num_layers : 1
-speech_decoder_num_layers : 1
-text_encoder_num_layers : 1
-text_decoder_num_layers : 1
-speech_model_dimension : 128
-text_model_dimension : 128
-speech_encoder_num_heads : 1
-speech_decoder_num_heads : 1
-text_encoder_num_heads : 1
-text_decoder_num_heads : 1
-text_encoder_feed_forward_dimension : 128
-text_decoder_feed_forward_dimension : 128
-speech_encoder_feed_forward_dimension : 128
-speech_decoder_feed_forward_dimension : 128
-speech_encoder_prenet_dimension : 128
-speech_decoder_prenet_dimension : 128
-max_position_encoding : 10000
-speech_postnet_conv_filters : 64
-speech_postnet_conv_layers : 1
-speech_postnet_kernel_size : 5
-dropout_rate : 0.1
+transformer_kinds:
+  - 'text_text'
+  - 'mel_text'
+  - 'text_mel'
+  - 'mel_mel'
+speech_encoder_num_layers: 1
+speech_decoder_num_layers: 1
+text_encoder_num_layers: 1
+text_decoder_num_layers: 1
+speech_model_dimension: 128
+text_model_dimension: 128
+speech_encoder_num_heads: 1
+speech_decoder_num_heads: 1
+text_encoder_num_heads: 1
+text_decoder_num_heads: 1
+text_encoder_feed_forward_dimension: 128
+text_decoder_feed_forward_dimension: 128
+speech_encoder_feed_forward_dimension: 128
+speech_decoder_feed_forward_dimension: 128
+speech_encoder_prenet_dimension: 128
+speech_decoder_prenet_dimension: 128
+max_position_encoding: 10000
+speech_postnet_conv_filters: 64
+speech_postnet_conv_layers: 1
+speech_postnet_kernel_size: 5
+dropout_rate: 0.1
 # DATA
-n_samples : 600
-mel_channels : 80
-sr : 22050
-mel_start_vec_value : -3
-mel_end_vec_value : 1
+n_samples: 600
+mel_channels: 80
+sr: 22050
+mel_start_vec_value: -3
+mel_end_vec_value: 1
 # TRAINING
-use_decoder_prenet_dropout_schedule : True
-decoder_prenet_dropout_schedule_max : 0.9
-decoder_prenet_dropout_schedule_min : 0.6
-decoder_prenet_dropout_schedule_max_steps : 30_000
-fixed_decoder_prenet_dropout : 0.6
-epochs : 10
-batch_size : 2
-learning_rate : 1e-3
-mask_prob : 0.3
-use_block_attention : False
+use_decoder_prenet_dropout_schedule: True
+decoder_prenet_dropout_schedule_max: 0.9
+decoder_prenet_dropout_schedule_min: 0.6
+decoder_prenet_dropout_schedule_max_steps: 30_000
+fixed_decoder_prenet_dropout: 0.6
+epochs: 10
+batch_size: 2
+learning_rate: 1e-3
+mask_prob: 0.3
+use_block_attention: False
 block_attention_schedule:
-    - [7, 30_000]
-    - [2, 40_000]
-debug : True
+  - [7, 30_000]
+  - [2, 40_000]
+debug: True
 # LOGGING
-text_freq : 5000
-image_freq : 1000
+text_freq: 5000
+image_freq: 1000
 weights_save_freq: 10
 plot_attention_freq: 500
 keep_n_weights: 5

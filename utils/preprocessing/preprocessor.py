@@ -1,10 +1,10 @@
 import numpy as np
 
-from model.transformer_utils import CharTokenizer
+from utils.preprocessing.tokenizer import CharTokenizer
 
 
 class Preprocessor:
-
+    
     def __init__(self,
                  mel_channels: int,
                  start_vec_val: float,
@@ -17,12 +17,12 @@ class Preprocessor:
         self.tokenizer = tokenizer
         self.lowercase = lowercase
         self.clip_val = clip_val
-
+    
     def __call__(self, sample):
         text, mel_path = sample[0], sample[1]
         mel = np.load(mel_path)
         return self.encode(text, mel)
-
+    
     def encode(self, text, mel):
         if self.lowercase:
             text = text.lower()

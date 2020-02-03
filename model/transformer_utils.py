@@ -2,26 +2,6 @@ import numpy as np
 import tensorflow as tf
 
 
-class CharTokenizer:
-    
-    def __init__(self, alphabet, start_token='>', end_token='<'):
-        self.alphabet = alphabet
-        self.idx_to_token = {i: s for i, s in enumerate(self.alphabet, start=1)}
-        self.idx_to_token[0] = '/'
-        self.token_to_idx = {s: i for i, s in self.idx_to_token.items()}
-        self.start_token_index = len(self.alphabet) + 1
-        self.end_token_index = len(self.alphabet) + 2
-        self.vocab_size = len(self.alphabet) + 3
-        self.idx_to_token[self.start_token_index] = start_token
-        self.idx_to_token[self.end_token_index] = end_token
-    
-    def encode(self, sentence):
-        return [self.token_to_idx[c] for c in sentence if c in self.token_to_idx]
-
-    def decode(self, sequence):
-        return ''.join([self.idx_to_token[int(t)] for t in sequence if int(t) in self.idx_to_token])
-
-
 def get_angles(pos, i, d_model):
     angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
     return pos * angle_rates
@@ -78,34 +58,6 @@ def scaled_dot_product_attention(q, k, v, mask):
     return output, attention_weights
 
 
-def point_wise_feed_forward_network(d_model, dff):
-    return tf.keras.Sequential(
-        [
-            tf.keras.layers.Dense(dff, activation='relu'),  # (batch_size, seq_len, dff)
-            tf.keras.layers.Dense(d_model),  # (batch_size, seq_len, d_model)
-        ]
-    )
-
-
-def weighted_sum_losses(targets, pred, loss_functions, coeffs):
-    total_loss = 0
-    loss_vals = []
-    for i in range(len(loss_functions)):
-        loss = loss_functions[i](targets[i], pred[i])
-        loss_vals.append(loss)
-        total_loss += coeffs[i] * loss
-    return total_loss, loss_vals
-
-
-# def weighted_sum_losses(tar_real, loss_functions, predictions, coeffs=[1.], tar_stop_prob=None, mel_linear_target=None):
-#     total_loss = 0
-#     targets = [x for x in [tar_real, tar_stop_prob, mel_linear_target] if x is not None]
-#     loss_pairs = zip(targets, predictions)
-#     for i, (tar, pred) in enumerate(loss_pairs):
-#         loss = loss_functions[i](tar, pred)
-#         total_loss += coeffs[i] * loss
-#     return loss
-
 def create_text_padding_mask(seq):
     seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
     return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
@@ -115,6 +67,7 @@ def create_mel_padding_mask(seq):
     seq = tf.reduce_sum(seq, axis=-1)
     seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
     return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
+
 
 def create_look_ahead_mask(size):
     mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)

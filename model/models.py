@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from model.transformer_utils import weighted_sum_losses, create_text_padding_mask, create_mel_padding_mask, \
-    create_look_ahead_mask
+from model.transformer_utils import create_text_padding_mask, create_mel_padding_mask, create_look_ahead_mask
+from utils.train.losses import weighted_sum_losses
 
 
 class Transformer(tf.keras.Model):
@@ -62,8 +62,8 @@ class TextTransformer(Transformer):
         self._check_tokenizer()
         if not debug:
             self.train_step = tf.function(input_signature=[
-                tf.TensorSpec(shape=(None, None), dtype=tf.int64),
-                tf.TensorSpec(shape=(None, None), dtype=tf.int64)]
+                tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+                tf.TensorSpec(shape=(None, None), dtype=tf.int32)]
             )(self._train_step)
         else:
             self.train_step = self._train_step
@@ -168,7 +168,7 @@ class MelTransformer(Transformer):
                 input_signature=[
                     tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
                     tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
-                    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
                     tf.TensorSpec(shape=(None), dtype=tf.float32)
                 ]
             )(self._train_step)
@@ -277,7 +277,7 @@ class MelTextTransformer(Transformer):
             self.train_step = tf.function(
                 input_signature=[
                     tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
-                    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
                 ]
             )(self._train_step)
         else:
@@ -286,7 +286,7 @@ class MelTextTransformer(Transformer):
     def _check_tokenizer(self):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
             assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
-
+    
     def predict(self, inputs, max_length=100):
         encoder_input = tf.expand_dims(inputs, 0)
         decoder_input = [self.tokenizer.start_token_index]
@@ -383,9 +383,9 @@ class TextMelTransformer(Transformer):
         if not debug:
             self.train_step = tf.function(
                 input_signature=[
-                    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
                     tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
-                    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
                     tf.TensorSpec(shape=(None), dtype=tf.float32)
                 ]
             )(self._train_step)
@@ -395,7 +395,7 @@ class TextMelTransformer(Transformer):
     def _check_tokenizer(self):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
             assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
-
+    
     def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, encode=False):
         if encode:
             inp = self.tokenizer.encode(inp)
