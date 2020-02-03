@@ -7,7 +7,7 @@ import numpy as np
 
 from model.combiner import Combiner
 from preprocessing.data_handling import load_files
-from preprocessing import Preprocessor
+from preprocessing.preprocessor import Preprocessor
 from utils.logging import SummaryManager
 
 np.random.seed(42)
@@ -37,7 +37,7 @@ def create_dirs(args, config):
 parser = argparse.ArgumentParser()
 parser.add_argument('--datadir', dest='datadir', type=str)
 parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
-parser.add_argument('--config', dest='config', default='config/standard_config_0.yaml', type=str)
+parser.add_argument('--config', dest='config', type=str)
 args = parser.parse_args()
 yaml = ruamel.yaml.YAML()
 config = yaml.load(open(args.config, 'r'))
