@@ -44,7 +44,12 @@ class SummaryManager:
                     for k in output[kind]['losses'].keys():
                         loss = output[kind]['losses'][k]
                         tf.summary.scalar(kind + '_' + k, loss, step=step)
-    
+                        
+    # TODO: this is horrible, to individually double check lr, dropout, etc...
+    def write_meta_for_kind(self, name, value, step, kind):
+        with self.summary_writers[kind].as_default():
+            tf.summary.scalar(name, tf.Variable(value), step=step)
+            
     def write_meta(self, name, value, step):
         with self.summary_writers['meta'].as_default():
             tf.summary.scalar(name, tf.Variable(value), step=step)

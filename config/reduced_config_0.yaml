@@ -33,23 +33,20 @@ sr: 22050
 mel_start_vec_value: -3
 mel_end_vec_value: 1
 # TRAINING
-use_decoder_prenet_dropout_schedule: True
-decoder_prenet_dropout_schedule_max: 0.9
-decoder_prenet_dropout_schedule_min: 0.5
-decoder_prenet_dropout_schedule_max_steps: 30_000
-fixed_decoder_prenet_dropout: 0.5
-epochs: 100000
-batch_size: 4
-learning_rate: 1.0e-4
+dropout_schedule:
+  - [0, 0.9]
+  - [10, 0.5]
+learning_rate_schedule:
+  - [0, 1.0e-4]
+  - [25, 1.0e-3]
+learning_rate: 1.0e-4 # for initialization
+epochs: 1
+batch_size: 6
 mask_prob: 0.3
-use_block_attention: False
-block_attention_schedule:
-  - [7, 30_000]
-  - [2, 40_000]
 debug: False
 # LOGGING
-text_freq: 20
-image_freq: 10
+text_freq: 40
+image_freq: 40
 weights_save_freq: 10
 plot_attention_freq: 20
 keep_n_weights: 5

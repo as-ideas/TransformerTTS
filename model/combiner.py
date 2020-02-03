@@ -137,7 +137,12 @@ class Combiner:
     def step(self):
         return int(getattr(self, self.transformer_kinds[0]).optimizer.iterations)
     
-    def new_adam(self, learning_rate):
+    def set_learning_rates(self, new_lr):
+        for kind in self.transformer_kinds:
+            getattr(self, kind).optimizer.lr.assign(new_lr)
+            
+    @staticmethod
+    def new_adam(learning_rate):
         return tf.keras.optimizers.Adam(learning_rate,
                                         beta_1=0.9,
                                         beta_2=0.98,

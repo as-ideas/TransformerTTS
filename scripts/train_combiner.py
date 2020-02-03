@@ -8,18 +8,30 @@ import numpy as np
 from model.combiner import Combiner
 from preprocessing.data_handling import load_files
 from preprocessing.preprocessor import Preprocessor
+from utils.scheduling import piecewise_linear
 from utils.logging import SummaryManager
 
 np.random.seed(42)
 tf.random.set_seed(42)
 
 
-def linear_dropout_schedule(step):
-    mx = config['decoder_prenet_dropout_schedule_max']
-    mn = config['decoder_prenet_dropout_schedule_min']
-    max_steps = config['decoder_prenet_dropout_schedule_max_steps']
-    dout = max(((-mx + mn) / max_steps) * step + mx, mn)
+def piecewise_linear_schedule(step, schedule):
+    x_schedule = schedule[:, 0]
+    y_schedule = schedule[:, 1]
+    value = piecewise_linear(step, x_schedule, y_schedule)
+    return tf.cast(value, tf.float32)
+
+
+def dropout_schedule(step):
+    schedule = np.array(config['dropout_schedule'])
+    dout = piecewise_linear_schedule(step, schedule)
     return tf.cast(dout, tf.float32)
+
+
+def learning_rate_schedule(step):
+    schedule = np.array(config['learning_rate_schedule'])
+    lr = piecewise_linear_schedule(step, schedule)
+    return tf.cast(lr, tf.float32)
 
 
 def create_dirs(args, config):
@@ -94,12 +106,13 @@ for kind in transformer_kinds:
         print(f'Initializing {kind} from scratch.')
 
 print('starting training')
-decoder_prenet_dropout = config['fixed_decoder_prenet_dropout']
 for epoch in range(config['epochs']):
     print(f'Epoch {epoch}')
     for (batch, (mel, text, stop)) in enumerate(train_dataset):
-        if config['use_decoder_prenet_dropout_schedule']:
-            decoder_prenet_dropout = linear_dropout_schedule(combiner.step)
+        decoder_prenet_dropout = dropout_schedule(combiner.step)
+        learning_rate = learning_rate_schedule(combiner.step)
+        combiner.set_learning_rates(learning_rate)
+        
         output = combiner.train_step(text=text,
                                      mel=mel,
                                      stop=stop,
@@ -111,23 +124,26 @@ for epoch in range(config['epochs']):
         summary_manager.write_meta(name='dropout',
                                    value=decoder_prenet_dropout,
                                    step=combiner.step)
-        summary_manager.write_meta(name='learning_rate',
-                                   value=config['learning_rate'],
-                                   step=combiner.step)
+        # summary_manager.write_meta(name='learning_rate',
+        #                            value=config['learning_rate'],
+        #                            step=combiner.step)
         
         for kind in transformer_kinds:
             losses[kind].append(float(output[kind]['loss']))
+            summary_manager.write_meta_for_kind(name='learning_rate',
+                                                value=getattr(combiner, kind).optimizer.lr,
+                                                step=combiner.step,
+                                                kind=kind)
             
-            if (combiner.step+1) % config['plot_attention_freq'] == 0:
+            if (combiner.step + 1) % config['plot_attention_freq'] == 0:
                 summary_manager.write_attention(output, combiner.step)
             print(f'{kind} mean loss: {sum(losses[kind]) / len(losses[kind])}')
             
-            if (combiner.step+1) % config['weights_save_freq'] == 0:
+            if (combiner.step + 1) % config['weights_save_freq'] == 0:
                 save_path = managers[kind].save()
                 print(f'Saved checkpoint for step {combiner.step}: {save_path}')
-                print(f'Saved checkpoint for step {combiner.step +1}: {save_path}')
         
-        if (combiner.step +1) % config['image_freq'] == 0:
+        if (combiner.step + 1) % config['image_freq'] == 0:
             for i in range(2):
                 mel, text_seq, stop = test_list[i]
                 text = combiner.tokenizer.decode(text_seq)
