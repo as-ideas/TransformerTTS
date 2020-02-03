@@ -37,7 +37,7 @@ dropout_schedule:
   - [30_000. 0.5]
 learning_rate_schedule:
   - [0, 1.0e-4]
-epochs: 10000
+max_steps: 300_000
 batch_size: 64
 mask_prob: 0.3
 debug: False

@@ -34,19 +34,21 @@ mel_end_vec_value: 1
 # TRAINING
 dropout_schedule:
   - [0, 0.9]
-  - [30_000. 0.5]
+  - [80_000, 0.05]
 learning_rate_schedule:
-  - [0, 1.0e-4]
+  - [0, 5.0e-5]
+  - [10_000, 1.0e-3]
+  - [200_000, 1.0e-5]
 max_steps: 300_000
 batch_size: 64
 mask_prob: 0.3
 debug: False
 learning_rate: 1.0e-4 # for initialization
 # LOGGING
-text_freq: 50_000
-image_freq: 50_000
-weights_save_freq: 10_000
-plot_attention_freq: 1_000
+text_freq: 20_000
+image_freq: 20_000
+weights_save_freq: 5_000
+plot_attention_freq: 5000
 keep_n_weights: 5
 # TOKENIZER
 tokenizer_alphabet:

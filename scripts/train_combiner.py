@@ -106,9 +106,9 @@ for kind in transformer_kinds:
         print(f'Initializing {kind} from scratch.')
 
 print('starting training')
-for epoch in range(config['epochs']):
-    print(f'Epoch {epoch}')
-    for (batch, (mel, text, stop)) in enumerate(train_dataset):
+
+for (batch, (mel, text, stop)) in enumerate(train_dataset):
+    if combiner.step < config['max_steps']:
         decoder_prenet_dropout = dropout_schedule(combiner.step)
         learning_rate = learning_rate_schedule(combiner.step)
         combiner.set_learning_rates(learning_rate)
@@ -154,3 +154,6 @@ for epoch in range(config['epochs']):
                                         max_len_text=len(text_seq) + 5)
                 summary_manager.write_images(mel=mel, pred=pred, step=combiner.step, id=i)
                 summary_manager.write_text(text=text, pred=pred, step=combiner.step)
+    else:
+        print('Stopping training.')
+        break
