@@ -34,12 +34,12 @@ mel_end_vec_value: 1
 # TRAINING
 use_decoder_prenet_dropout_schedule: True
 decoder_prenet_dropout_schedule_max: 0.9
-decoder_prenet_dropout_schedule_min: 0.5
-decoder_prenet_dropout_schedule_max_steps: 30_000
+decoder_prenet_dropout_schedule_min: 0.05
+decoder_prenet_dropout_schedule_max_steps: 100_000
 fixed_decoder_prenet_dropout: 0.5
 epochs: 10000
-batch_size: 16
-learning_rate: 5.0e-5
+batch_size: 64
+learning_rate: 1.0e-4
 mask_prob: 0.3
 use_block_attention: False
 block_attention_schedule:
@@ -47,10 +47,59 @@ block_attention_schedule:
   - [2, 40_000]
 debug: False
 # LOGGING
-text_freq: 20_000
-image_freq: 10_000
+text_freq: 50_000
+image_freq: 50_000
 weights_save_freq: 10_000
-plot_attention_freq: 2_000
+plot_attention_freq: 1_000
 keep_n_weights: 5
 # TOKENIZER
-tokenizer_alphabet: "\"!,.:;?'-() abcdefghijklmnopqrstuvwxyzäüöß"
+tokenizer_alphabet:
+  - ' '
+  - '!'
+  - '"'
+  - "'"
+  - (
+  - )
+  - ','
+  - '-'
+  - .
+  - ':'
+  - ;
+  - '?'
+  - '['
+  - ']'
+  - a
+  - b
+  - c
+  - d
+  - e
+  - f
+  - g
+  - h
+  - i
+  - j
+  - k
+  - l
+  - m
+  - n
+  - o
+  - p
+  - q
+  - r
+  - s
+  - t
+  - u
+  - v
+  - w
+  - x
+  - y
+  - z
+  - à
+  - â
+  - è
+  - é
+  - ê
+  - ü
+  - ’
+  - “
+  - ”
