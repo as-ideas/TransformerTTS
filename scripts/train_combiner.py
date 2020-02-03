@@ -23,14 +23,15 @@ def linear_dropout_schedule(step):
 
 
 def create_dirs(args, config):
-    args.log_dir = os.path.join(args.log_dir, config_name)
-    weights_paths = os.path.join(args.log_dir, f'weights/')
-    os.makedirs(args.log_dir, exist_ok=True)
-    os.makedirs(weights_paths, exist_ok=True)
+    base_dir = os.path.join(args.log_dir, config_name)
+    log_dir = os.path.join(base_dir, f'logs/')
+    weights_dir = os.path.join(base_dir, f'weights/')
+    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(weights_dir, exist_ok=True)
     weights_paths = {}
     for kind in config['transformer_kinds']:
-        weights_paths[kind] = os.path.join(args.log_dir, f'weights/{kind}/')
-    return weights_paths
+        weights_paths[kind] = os.path.join(weights_dir, kind)
+    return weights_paths, log_dir, base_dir
 
 
 parser = argparse.ArgumentParser()
@@ -41,13 +42,13 @@ args = parser.parse_args()
 yaml = ruamel.yaml.YAML()
 config = yaml.load(open(args.config, 'r'))
 config_name = os.path.splitext(os.path.basename(args.config))[0]
-weights_paths = create_dirs(args, config)
+weights_paths, log_dir, base_dir = create_dirs(args, config)
 
 print('creating model')
 combiner = Combiner(config=config)
 
 print('preprocessing data')
-meldir = os.path.join(args.datadir, 'train_mels')
+meldir = os.path.join(args.datadir, 'mels')
 train_meta = os.path.join(args.datadir, 'train_metafile.txt')
 test_meta = os.path.join(args.datadir, 'test_metafile.txt')
 
@@ -62,10 +63,10 @@ preprocessor = Preprocessor(mel_channels=config['mel_channels'],
                             start_vec_val=config['mel_start_vec_value'],
                             end_vec_val=config['mel_end_vec_value'],
                             tokenizer=combiner.tokenizer)
-yaml.dump(config, open(os.path.join(args.log_dir, os.path.basename(args.config)), 'w'))
+yaml.dump(config, open(os.path.join(base_dir, os.path.basename(args.config)), 'w'))
 train_gen = lambda: (preprocessor(s) for s in train_samples)
 test_list = [preprocessor(s) for s in test_samples]
-train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float32, tf.int64, tf.int64))
+train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float32, tf.int32, tf.int32))
 train_dataset = train_dataset.shuffle(1000).padded_batch(config['batch_size'],
                                                          padded_shapes=([-1, 80], [-1], [-1]),
                                                          drop_remainder=True)
@@ -75,10 +76,10 @@ summary_writers = {}
 checkpoints = {}
 managers = {}
 transformer_kinds = config['transformer_kinds']
-summary_manager = SummaryManager(args.log_dir, transformer_kinds)
+summary_manager = SummaryManager(log_dir, transformer_kinds)
 
 for kind in transformer_kinds:
-    path = os.path.join(args.log_dir, kind)
+    path = os.path.join(log_dir, kind)
     losses[kind] = []
     checkpoints[kind] = tf.train.Checkpoint(step=tf.Variable(1),
                                             optimizer=getattr(combiner, kind).optimizer,
@@ -98,13 +99,13 @@ for epoch in range(config['epochs']):
     print(f'Epoch {epoch}')
     for (batch, (mel, text, stop)) in enumerate(train_dataset):
         if config['use_decoder_prenet_dropout_schedule']:
-            decoder_prenet_dropout = linear_dropout_schedule(int(checkpoints[transformer_kinds[0]].step))
+            decoder_prenet_dropout = linear_dropout_schedule(combiner.step)
         output = combiner.train_step(text=text,
                                      mel=mel,
                                      stop=stop,
                                      pre_dropout=decoder_prenet_dropout,
                                      mask_prob=config['mask_prob'])
-        print(f'\nbatch {int(combiner.step)}')
+        print(f'\nbatch {combiner.step}')
         
         summary_manager.write_loss(output, combiner.step)
         summary_manager.write_meta(name='dropout',
@@ -115,18 +116,18 @@ for epoch in range(config['epochs']):
                                    step=combiner.step)
         
         for kind in transformer_kinds:
-            checkpoints[kind].step.assign_add(1)
             losses[kind].append(float(output[kind]['loss']))
             
-            if int(checkpoints[kind].step) % config['plot_attention_freq'] == 0:
+            if (combiner.step+1) % config['plot_attention_freq'] == 0:
                 summary_manager.write_attention(output, combiner.step)
             print(f'{kind} mean loss: {sum(losses[kind]) / len(losses[kind])}')
             
-            if int(checkpoints[kind].step) % config['weights_save_freq'] == 0:
+            if (combiner.step+1) % config['weights_save_freq'] == 0:
                 save_path = managers[kind].save()
-                print(f'Saved checkpoint for step {int(checkpoints[kind].step)}: {save_path}')
+                print(f'Saved checkpoint for step {combiner.step}: {save_path}')
+                print(f'Saved checkpoint for step {combiner.step +1}: {save_path}')
         
-        if int(checkpoints[transformer_kinds[0]].step) % config['image_freq'] == 0:
+        if (combiner.step +1) % config['image_freq'] == 0:
             for i in range(2):
                 mel, text_seq, stop = test_list[i]
                 text = combiner.tokenizer.decode(text_seq)
@@ -135,5 +136,5 @@ for epoch in range(config['epochs']):
                                         pre_dropout=0.5,
                                         max_len_mel=mel.shape[0] + 50,
                                         max_len_text=len(text_seq) + 5)
-                summary_manager.write_images(mel=mel, pred=pred, step=combiner.step)
+                summary_manager.write_images(mel=mel, pred=pred, step=combiner.step, id=i)
                 summary_manager.write_text(text=text, pred=pred, step=combiner.step)

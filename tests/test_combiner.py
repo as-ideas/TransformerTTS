@@ -30,7 +30,7 @@ class TestCombiner(unittest.TestCase):
         train_samples = [preprocessor.encode('repeated text', mel) for mel in test_mels]
         train_set_gen = lambda: (item for item in train_samples)
         train_dataset = tf.data.Dataset.from_generator(train_set_gen,
-                                                       output_types=(tf.float32, tf.int64, tf.int64))
+                                                       output_types=(tf.float32, tf.int32, tf.int32))
         train_dataset = train_dataset.shuffle(10).padded_batch(
             self.config['batch_size'], padded_shapes=([-1, 80], [-1], [-1]), drop_remainder=True)
         

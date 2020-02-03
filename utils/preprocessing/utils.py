@@ -27,6 +27,6 @@ def random_mel_mask(tensor, mask_prob):
 def random_text_mask(tensor, mask_prob):
     tensor_shape = tf.shape(tensor)
     mask_floats = tf.random.uniform((tensor_shape[0], tensor_shape[1]))
-    mask = tf.cast(mask_floats > mask_prob, tf.int64)
+    mask = tf.cast(mask_floats > mask_prob, tf.int32)
     masked_tensor = tensor * mask
     return masked_tensor

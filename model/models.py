@@ -62,8 +62,8 @@ class TextTransformer(Transformer):
         self._check_tokenizer()
         if not debug:
             self.train_step = tf.function(input_signature=[
-                tf.TensorSpec(shape=(None, None), dtype=tf.int64),
-                tf.TensorSpec(shape=(None, None), dtype=tf.int64)]
+                tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+                tf.TensorSpec(shape=(None, None), dtype=tf.int32)]
             )(self._train_step)
         else:
             self.train_step = self._train_step
@@ -168,7 +168,7 @@ class MelTransformer(Transformer):
                 input_signature=[
                     tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
                     tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
-                    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
                     tf.TensorSpec(shape=(None), dtype=tf.float32)
                 ]
             )(self._train_step)
@@ -277,7 +277,7 @@ class MelTextTransformer(Transformer):
             self.train_step = tf.function(
                 input_signature=[
                     tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
-                    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
                 ]
             )(self._train_step)
         else:
@@ -383,9 +383,9 @@ class TextMelTransformer(Transformer):
         if not debug:
             self.train_step = tf.function(
                 input_signature=[
-                    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
                     tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
-                    tf.TensorSpec(shape=(None, None), dtype=tf.int64),
+                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
                     tf.TensorSpec(shape=(None), dtype=tf.float32)
                 ]
             )(self._train_step)

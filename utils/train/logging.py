@@ -22,12 +22,13 @@ class SummaryManager:
         meta_path = os.path.join(log_dir, 'meta')
         self.summary_writers['meta'] = tf.summary.create_file_writer(meta_path)
     
-    def write_images(self, mel, pred, step):
+    def write_images(self, mel, pred, step, id):
         for kind in self.mel_kinds:
             self._write_image(kind,
                               mel=mel,
                               pred=pred[kind],
-                              step=step)
+                              step=step,
+                              id=id)
     
     def write_text(self, text, pred, step):
         for kind in self.text_kinds:
@@ -55,17 +56,17 @@ class SummaryManager:
                                step=step,
                                info_string='train attention ')
     
-    def _write_image(self, kind, mel, pred, step):
+    def _write_image(self, kind, mel, pred, step, id):
         with self.summary_writers[kind].as_default():
             plot_attention(outputs=pred,
                            step=step,
                            info_string='test attention ')
             display_mel(mel=pred['mel'],
                         step=step,
-                        info_string='test mel {}'.format(i))
+                        info_string=f'test mel {id}')
             display_mel(mel=mel,
                         step=step,
-                        info_string='target mel {}'.format(i))
+                        info_string=f'target mel {id}')
     
     def _write_text(self, kind, text, pred_decoded, step):
         with self.summary_writers[kind].as_default():

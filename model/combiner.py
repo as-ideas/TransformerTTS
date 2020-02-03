@@ -135,7 +135,7 @@ class Combiner:
     
     @property
     def step(self):
-        return getattr(self, self.transformer_kinds[0]).optimizer.iterations
+        return int(getattr(self, self.transformer_kinds[0]).optimizer.iterations)
     
     def new_adam(self, learning_rate):
         return tf.keras.optimizers.Adam(learning_rate,
