@@ -40,7 +40,7 @@ class TestCombiner(unittest.TestCase):
                 output = combiner.train_step(text=text,
                                              mel=mel,
                                              stop=stop,
-                                             speech_decoder_prenet_dropout=0.5,
+                                             pre_dropout=0.5,
                                              mask_prob=self.config['mask_prob'])
                 outputs.append(output)
 

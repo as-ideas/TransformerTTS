@@ -40,8 +40,8 @@ def plot_attention(outputs, step, info_string=''):
             tf.summary.image(info_string + k + f' head{i}', image_batch, step=step)
 
 
-def display_mel(pred, step, info_string='', sr=22050):
-    img = tf.transpose(tf.exp(pred))
+def display_mel(mel, step, info_string='', sr=22050):
+    img = tf.transpose(tf.exp(mel))
     buf = buffer_mel(img, sr=sr)
     img_tf = tf.image.decode_png(buf.getvalue(), channels=3)
     img_tf = tf.expand_dims(img_tf, 0)

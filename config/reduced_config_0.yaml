@@ -48,10 +48,10 @@ block_attention_schedule:
     - [2, 40_000]
 debug : False
 # LOGGING
-text_freq : 2000
-image_freq : 1000
-weights_save_freq: 1000
-plot_attention_freq: 2000
+text_freq : 20
+image_freq : 10
+weights_save_freq: 10
+plot_attention_freq: 20
 keep_n_weights: 5
 # TOKENIZER
 tokenizer_alphabet: "\"!,.:;?'-() abcdefghijklmnopqrstuvwxyzäüöß"
