@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-from model.transformer_utils import weighted_sum_losses, create_text_padding_mask, create_mel_padding_mask, \
-    create_look_ahead_mask
+from model.transformer_utils import create_text_padding_mask, create_mel_padding_mask, create_look_ahead_mask
+from utils.train.losses import weighted_sum_losses
 
 
 class Transformer(tf.keras.Model):
@@ -286,7 +286,7 @@ class MelTextTransformer(Transformer):
     def _check_tokenizer(self):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
             assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
-
+    
     def predict(self, inputs, max_length=100):
         encoder_input = tf.expand_dims(inputs, 0)
         decoder_input = [self.tokenizer.start_token_index]
@@ -395,7 +395,7 @@ class TextMelTransformer(Transformer):
     def _check_tokenizer(self):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
             assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
-
+    
     def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, encode=False):
         if encode:
             inp = self.tokenizer.encode(inp)

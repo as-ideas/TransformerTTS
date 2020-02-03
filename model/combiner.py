@@ -1,14 +1,14 @@
 import tensorflow as tf
 
-from losses import masked_crossentropy, masked_mean_squared_error
+from utils.train.losses import masked_crossentropy, masked_mean_squared_error
 from model.layers import Encoder, Decoder, SpeechPostnet, PointWiseFFN, SpeechDecoderPrenet, TextPostnet
 from model.models import TextTransformer, MelTransformer, MelTextTransformer, TextMelTransformer
-from model.transformer_utils import CharTokenizer
-from preprocessing.utils import random_text_mask, random_mel_mask
+from utils.preprocessing.tokenizer import CharTokenizer
+from utils.preprocessing.utils import random_text_mask, random_mel_mask
 
 
 class Combiner:
-
+    
     def __init__(self, config: dict):
         self.config = config
         self._check_config()
@@ -40,7 +40,7 @@ class Combiner:
         transformer_kinds = self.config['transformer_kinds']
         alphabet = config['tokenizer_alphabet']
         self.tokenizer = CharTokenizer(list(alphabet))
-
+        
         speech_encoder_prenet = PointWiseFFN(d_model=speech_model_dimension, dff=speech_encoder_prenet_dimension)
         speech_decoder_prenet = SpeechDecoderPrenet(d_model=speech_model_dimension, dff=speech_decoder_prenet_dimension)
         speech_decoder_postnet = SpeechPostnet(mel_channels=mel_channels,
@@ -92,7 +92,7 @@ class Combiner:
                                         masked_mean_squared_error],
                                   loss_weights=[1., 1., 1.],
                                   optimizer=self.new_adam(learning_rate))
-
+        
         if 'mel_text' in transformer_kinds:
             self.mel_text = MelTextTransformer(encoder_prenet=speech_encoder_prenet,
                                                decoder_prenet=text_decoder_prenet,
@@ -106,7 +106,7 @@ class Combiner:
                                                debug=debug)
             self.mel_text.compile(loss=masked_crossentropy,
                                   optimizer=self.new_adam(learning_rate))
-
+        
         if 'mel_mel' in transformer_kinds:
             self.mel_mel = MelTransformer(encoder_prenet=speech_encoder_prenet,
                                           decoder_prenet=speech_decoder_prenet,
@@ -121,7 +121,7 @@ class Combiner:
                                        masked_mean_squared_error],
                                  loss_weights=[1, 1, 1],
                                  optimizer=self.new_adam(learning_rate))
-
+        
         if 'text_text' in transformer_kinds:
             self.text_text = TextTransformer(encoder_prenet=text_encoder_prenet,
                                              decoder_prenet=text_decoder_prenet,
@@ -132,17 +132,17 @@ class Combiner:
                                              debug=debug)
             self.text_text.compile(loss=masked_crossentropy,
                                    optimizer=self.new_adam(learning_rate))
-
+    
     @property
     def step(self):
         return getattr(self, self.transformer_kinds[0]).optimizer.iterations
-
+    
     def new_adam(self, learning_rate):
         return tf.keras.optimizers.Adam(learning_rate,
                                         beta_1=0.9,
                                         beta_2=0.98,
                                         epsilon=1e-9)
-
+    
     def _check_config(self):
         key_list = ['mel_channels', 'speech_encoder_num_layers', 'speech_decoder_num_layers',
                     'text_encoder_num_layers', 'text_decoder_num_layers', 'speech_model_dimension',
@@ -156,7 +156,7 @@ class Combiner:
         config_keys = set(self.config.keys())
         missing = [key for key in key_list if key not in config_keys]
         assert len(missing) == 0, 'Config is missing the following keys: {}'.format(missing)
-
+    
     def train_step(self, text, mel, stop, pre_dropout, mask_prob=0.):
         masked_text = random_text_mask(text, mask_prob)
         masked_mel = random_mel_mask(mel, mask_prob)
@@ -176,7 +176,7 @@ class Combiner:
             train_out = self.text_text.train_step(masked_text, text)
             output.update({'text_text': train_out})
         return output
-
+    
     def predict(self,
                 mel,
                 text_seq,
