@@ -189,24 +189,26 @@ class Combiner:
                 max_len_mel=1000,
                 max_len_text=10):
         output = {}
-        if 'mel_mel' in self.transformer_kinds and mel is not None:
-            pred = self.mel_mel.predict(mel,
-                                        decoder_prenet_dropout=pre_dropout,
-                                        max_length=max_len_mel)
-            output.update({'mel_mel': pred})
-        if 'text_mel' in self.transformer_kinds and text_seq is not None:
-            pred = self.text_mel.predict(text_seq,
-                                         decoder_prenet_dropout=pre_dropout,
-                                         max_length=max_len_mel)
-            output.update({'text_mel': pred})
-        if 'text_text' in self.transformer_kinds and text_seq is not None:
-            pred = self.text_text.predict(text_seq,
-                                          max_length=max_len_text)
-            pred['output_decoded'] = self.tokenizer.decode(pred['output'].numpy())
-            output.update({'text_text': pred})
-        if 'mel_text' in self.transformer_kinds and mel is not None:
-            pred = self.mel_text.predict(mel,
-                                         max_length=max_len_text)
-            pred['output_decoded'] = self.tokenizer.decode(pred['output'].numpy())
-            output.update({'mel_text': pred})
+        if max_len_mel:
+            if 'mel_mel' in self.transformer_kinds and mel is not None:
+                pred = self.mel_mel.predict(mel,
+                                            decoder_prenet_dropout=pre_dropout,
+                                            max_length=max_len_mel)
+                output.update({'mel_mel': pred})
+            if 'text_mel' in self.transformer_kinds and text_seq is not None:
+                pred = self.text_mel.predict(text_seq,
+                                             decoder_prenet_dropout=pre_dropout,
+                                             max_length=max_len_mel)
+                output.update({'text_mel': pred})
+        if max_len_text:
+            if 'text_text' in self.transformer_kinds and text_seq is not None:
+                pred = self.text_text.predict(text_seq,
+                                              max_length=max_len_text)
+                pred['output_decoded'] = self.tokenizer.decode(pred['output'].numpy())
+                output.update({'text_text': pred})
+            if 'mel_text' in self.transformer_kinds and mel is not None:
+                pred = self.mel_text.predict(mel,
+                                             max_length=max_len_text)
+                pred['output_decoded'] = self.tokenizer.decode(pred['output'].numpy())
+                output.update({'mel_text': pred})
         return output

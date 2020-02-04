@@ -143,17 +143,27 @@ for (batch, (mel, text, stop)) in enumerate(train_dataset):
                 save_path = managers[kind].save()
                 print(f'Saved checkpoint for step {combiner.step}: {save_path}')
         
+        if (combiner.step + 1) % config['text_freq'] == 0:
+            for i in range(2):
+                mel, text_seq, stop = test_list[i]
+                text = combiner.tokenizer.decode(text_seq)
+                pred = combiner.predict(mel,
+                                        text_seq,
+                                        pre_dropout=decoder_prenet_dropout,
+                                        max_len_text=len(text_seq) + 5,
+                                        max_len_mel=False)
+                summary_manager.write_text(text=text, pred=pred, step=combiner.step)
+        
         if (combiner.step + 1) % config['image_freq'] == 0:
             for i in range(2):
                 mel, text_seq, stop = test_list[i]
                 text = combiner.tokenizer.decode(text_seq)
                 pred = combiner.predict(mel,
                                         text_seq,
-                                        pre_dropout=0.5,
+                                        pre_dropout=decoder_prenet_dropout,
                                         max_len_mel=mel.shape[0] + 50,
-                                        max_len_text=len(text_seq) + 5)
+                                        max_len_text=False)
                 summary_manager.write_images(mel=mel, pred=pred, step=combiner.step, id=i)
-                summary_manager.write_text(text=text, pred=pred, step=combiner.step)
     else:
         print('Stopping training.')
         break
