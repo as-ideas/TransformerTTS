@@ -107,63 +107,66 @@ for kind in transformer_kinds:
 
 print('starting training')
 
-for (batch, (mel, text, stop)) in enumerate(train_dataset):
-    decoder_prenet_dropout = dropout_schedule(combiner.step)
-    learning_rate = learning_rate_schedule(combiner.step)
-    combiner.set_learning_rates(learning_rate)
+while combiner.step < config['max_steps']:
+    for (batch, (mel, text, stop)) in enumerate(train_dataset):
+        decoder_prenet_dropout = dropout_schedule(combiner.step)
+        learning_rate = learning_rate_schedule(combiner.step)
+        combiner.set_learning_rates(learning_rate)
 
-    output = combiner.train_step(text=text,
-                                 mel=mel,
-                                 stop=stop,
-                                 pre_dropout=decoder_prenet_dropout,
-                                 mask_prob=config['mask_prob'])
-    print(f'\nbatch {combiner.step}')
+        output = combiner.train_step(text=text,
+                                     mel=mel,
+                                     stop=stop,
+                                     pre_dropout=decoder_prenet_dropout,
+                                     mask_prob=config['mask_prob'])
+        print(f'\nbatch {combiner.step}')
 
-    summary_manager.write_loss(output, combiner.step)
-    summary_manager.write_meta(name='dropout',
-                               value=decoder_prenet_dropout,
-                               step=combiner.step)
-    # summary_manager.write_meta(name='learning_rate',
-    #                            value=config['learning_rate'],
-    #                            step=combiner.step)
+        summary_manager.write_loss(output, combiner.step)
+        summary_manager.write_meta(name='dropout',
+                                   value=decoder_prenet_dropout,
+                                   step=combiner.step)
+        # summary_manager.write_meta(name='learning_rate',
+        #                            value=config['learning_rate'],
+        #                            step=combiner.step)
 
-    for kind in transformer_kinds:
-        losses[kind].append(float(output[kind]['loss']))
-        summary_manager.write_meta_for_kind(name='learning_rate',
-                                            value=getattr(combiner, kind).optimizer.lr,
-                                            step=combiner.step,
-                                            kind=kind)
+        for kind in transformer_kinds:
+            losses[kind].append(float(output[kind]['loss']))
+            summary_manager.write_meta_for_kind(name='learning_rate',
+                                                value=getattr(combiner, kind).optimizer.lr,
+                                                step=combiner.step,
+                                                kind=kind)
 
-        if (combiner.step + 1) % config['plot_attention_freq'] == 0:
-            summary_manager.write_attention(output, combiner.step)
-        print(f'{kind} mean loss: {sum(losses[kind]) / len(losses[kind])}')
+            if (combiner.step + 1) % config['plot_attention_freq'] == 0:
+                summary_manager.write_attention(output, combiner.step)
+            print(f'{kind} mean loss: {sum(losses[kind]) / len(losses[kind])}')
 
-        if (combiner.step + 1) % config['weights_save_freq'] == 0:
-            save_path = managers[kind].save()
-            print(f'Saved checkpoint for step {combiner.step}: {save_path}')
+            if (combiner.step + 1) % config['weights_save_freq'] == 0:
+                save_path = managers[kind].save()
+                print(f'Saved checkpoint for step {combiner.step}: {save_path}')
 
-    if (combiner.step + 1) % config['text_freq'] == 0:
-        for i in range(2):
-            mel, text_seq, stop = test_list[i]
-            text = combiner.tokenizer.decode(text_seq)
-            pred = combiner.predict(mel,
-                                    text_seq,
-                                    pre_dropout=decoder_prenet_dropout,
-                                    max_len_text=len(text_seq) + 5,
-                                    max_len_mel=False)
-            summary_manager.write_text(text=text, pred=pred, step=combiner.step)
+        if (combiner.step + 1) % config['text_freq'] == 0:
+            for i in range(2):
+                mel, text_seq, stop = test_list[i]
+                text = combiner.tokenizer.decode(text_seq)
+                pred = combiner.predict(mel,
+                                        text_seq,
+                                        pre_dropout=decoder_prenet_dropout,
+                                        max_len_text=len(text_seq) + 5,
+                                        max_len_mel=False)
+                summary_manager.write_text(text=text, pred=pred, step=combiner.step)
 
-    if (combiner.step + 1) % config['image_freq'] == 0:
-        for i in range(2):
-            mel, text_seq, stop = test_list[i]
-            text = combiner.tokenizer.decode(text_seq)
-            pred = combiner.predict(mel,
-                                    text_seq,
-                                    pre_dropout=decoder_prenet_dropout,
-                                    max_len_mel=mel.shape[0] + 50,
-                                    max_len_text=False)
-            summary_manager.write_images(mel=mel, pred=pred, step=combiner.step, id=i)
+        if (combiner.step + 1) % config['image_freq'] == 0:
+            for i in range(2):
+                mel, text_seq, stop = test_list[i]
+                text = combiner.tokenizer.decode(text_seq)
+                pred = combiner.predict(mel,
+                                        text_seq,
+                                        pre_dropout=decoder_prenet_dropout,
+                                        max_len_mel=mel.shape[0] + 50,
+                                        max_len_text=False)
+                summary_manager.write_images(mel=mel, pred=pred, step=combiner.step, id=i)
 
-    if combiner.step >= config['max_steps']:
-        print(f'Stopping training at step {combiner.step}.')
-        break
+        if combiner.step >= config['max_steps']:
+            print(f'Stopping training at step {combiner.step}.')
+            break
+
+print('done fucker.')
