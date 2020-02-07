@@ -2,6 +2,7 @@ import os
 
 import tensorflow as tf
 
+from utils.decorators import ignore_exception
 from utils.display import plot_attention, display_mel
 
 
@@ -21,7 +22,8 @@ class SummaryManager:
             self.summary_writers[kind] = tf.summary.create_file_writer(path)
         meta_path = os.path.join(log_dir, 'meta')
         self.summary_writers['meta'] = tf.summary.create_file_writer(meta_path)
-    
+
+    @ignore_exception
     def write_images(self, mel, pred, step, id):
         for kind in self.mel_kinds:
             self._write_image(kind,
@@ -29,12 +31,14 @@ class SummaryManager:
                               pred=pred[kind],
                               step=step,
                               id=id)
-    
+
+    @ignore_exception
     def write_text(self, text, pred, step):
         for kind in self.text_kinds:
             pred_decoded = pred[kind]['output_decoded']
             self._write_text(kind, text, pred_decoded, step)
-    
+
+    @ignore_exception
     def write_loss(self, output, step):
         for kind in self.all_kinds:
             with self.summary_writers[kind].as_default():
@@ -46,14 +50,17 @@ class SummaryManager:
                         tf.summary.scalar(kind + '_' + k, loss, step=step)
                         
     # TODO: this is horrible, to individually double check lr, dropout, etc...
+    @ignore_exception
     def write_meta_for_kind(self, name, value, step, kind):
         with self.summary_writers[kind].as_default():
             tf.summary.scalar(name, tf.Variable(value), step=step)
             
+    @ignore_exception
     def write_meta(self, name, value, step):
         with self.summary_writers['meta'].as_default():
             tf.summary.scalar(name, tf.Variable(value), step=step)
     
+    @ignore_exception
     def write_attention(self, output, step):
         for kind in self.all_kinds:
             with self.summary_writers[kind].as_default():
