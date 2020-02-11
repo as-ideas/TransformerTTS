@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+from utils.decorators import time_it
 from utils.losses import masked_crossentropy, masked_mean_squared_error
 from model.layers import Encoder, Decoder, SpeechPostnet, PointWiseFFN, SpeechDecoderPrenet, TextPostnet
 from model.models import TextTransformer, MelTransformer, MelTextTransformer, TextMelTransformer
@@ -161,7 +162,8 @@ class Combiner:
         config_keys = set(self.config.keys())
         missing = [key for key in key_list if key not in config_keys]
         assert len(missing) == 0, 'Config is missing the following keys: {}'.format(missing)
-    
+
+    @time_it
     def train_step(self, text, mel, stop, pre_dropout, mask_prob=0.):
         masked_text = random_text_mask(text, mask_prob)
         masked_mel = random_mel_mask(mel, mask_prob)
@@ -181,7 +183,8 @@ class Combiner:
             train_out = self.text_text.train_step(masked_text, text)
             output.update({'text_text': train_out})
         return output
-    
+
+    @time_it
     def predict(self,
                 mel,
                 text_seq,
