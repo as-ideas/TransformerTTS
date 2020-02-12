@@ -176,7 +176,10 @@ while combiner.step < config['max_steps']:
                 print(f'Saved checkpoint for step {combiner.step}: {save_path}')
 
         if (combiner.step + 1) % config['val_freq'] == 0:
-            validate(combiner, val_dataset, summary_manager, decoder_prenet_dropout)
+            validate(combiner=combiner,
+                     val_dataset=val_dataset,
+                     summary_manager=summary_manager,
+                     decoder_prenet_dropout=decoder_prenet_dropout)
 
         if (combiner.step + 1) % config['text_freq'] == 0:
             for i in range(2):
