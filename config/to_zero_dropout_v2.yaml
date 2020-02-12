@@ -50,6 +50,7 @@ image_freq: 20_000
 weights_save_freq: 5_000
 plot_attention_freq: 5000
 keep_n_weights: 5
+keep_checkpoint_every_n_hours: 1
 # TOKENIZER
 tokenizer_alphabet:
   - ' '

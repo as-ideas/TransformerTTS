@@ -97,7 +97,8 @@ for kind in transformer_kinds:
                                             optimizer=getattr(combiner, kind).optimizer,
                                             net=getattr(combiner, kind))
     managers[kind] = tf.train.CheckpointManager(checkpoints[kind], weights_paths[kind],
-                                                max_to_keep=config['keep_n_weights'])
+                                                max_to_keep=config['keep_n_weights'],
+                                                keep_checkpoint_every_n_hours=config['keep_checkpoint_every_n_hours'])
     # RESTORE LATEST MODEL
     checkpoints[kind].restore(managers[kind].latest_checkpoint)
     if managers[kind].latest_checkpoint:
