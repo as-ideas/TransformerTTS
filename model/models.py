@@ -379,23 +379,42 @@ class TextMelTransformer(Transformer):
         self.tokenizer = tokenizer
         self._check_tokenizer()
         self.stop_prob_index = 2
-        self.train_step = self._train_step
-        if not debug:
-            self.train_step = tf.function(
-                input_signature=[
+        self.train_step = self._forward_pass
+        input_signature = [
                     tf.TensorSpec(shape=(None, None), dtype=tf.int32),
                     tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
                     tf.TensorSpec(shape=(None, None), dtype=tf.int32),
                     tf.TensorSpec(shape=(None), dtype=tf.float32)
                 ]
-            )(self._train_step)
+        if not debug:
+            self.train_step = tf.function(input_signature=input_signature)(self._train_step)
+            self.val_step = tf.function(input_signature=input_signature)(self._val_step)
         else:
             self.train_step = self._train_step
-    
-    def _check_tokenizer(self):
-        for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
-            assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
-    
+            self.val_step = self._val_step
+
+    def call(self,
+             inputs,
+             targets,
+             training,
+             enc_padding_mask,
+             look_ahead_mask,
+             dec_padding_mask,
+             decoder_prenet_dropout):
+        enc_input = self.encoder_prenet(inputs)
+        enc_output = self.encoder(inputs=enc_input,
+                                  training=training,
+                                  mask=enc_padding_mask)
+        dec_input = self.decoder_prenet(targets, training=training, dropout_rate=decoder_prenet_dropout)
+        dec_output, attention_weights = self.decoder(inputs=dec_input,
+                                                     enc_output=enc_output,
+                                                     training=training,
+                                                     look_ahead_mask=look_ahead_mask,
+                                                     padding_mask=dec_padding_mask)
+        model_output = self.decoder_postnet(inputs=dec_output, training=training)
+        model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
+        return model_output
+
     def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, encode=False):
         if encode:
             inp = self.tokenizer.encode(inp)
@@ -426,8 +445,8 @@ class TextMelTransformer(Transformer):
         look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         return enc_padding_mask, combined_mask, dec_padding_mask
-    
-    def _train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
+
+    def _forward_pass(self, inp, tar, stop_prob, decoder_prenet_dropout):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
         tar_stop_prob = stop_prob[:, 1:]
@@ -446,30 +465,20 @@ class TextMelTransformer(Transformer):
                                                    model_out['mel_linear']),
                                                   self.loss,
                                                   self.loss_weights)
-        gradients = tape.gradient(loss, self.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         model_out.update({'loss': loss})
         model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})
+        return model_out, tape
+
+    def _train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
+        model_out, tape = self._forward_pass(inp, tar, stop_prob, decoder_prenet_dropout)
+        gradients = tape.gradient(model_out['loss'], self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
-    
-    def call(self,
-             inputs,
-             targets,
-             training,
-             enc_padding_mask,
-             look_ahead_mask,
-             dec_padding_mask,
-             decoder_prenet_dropout):
-        enc_input = self.encoder_prenet(inputs)
-        enc_output = self.encoder(inputs=enc_input,
-                                  training=training,
-                                  mask=enc_padding_mask)
-        dec_input = self.decoder_prenet(targets, training=training, dropout_rate=decoder_prenet_dropout)
-        dec_output, attention_weights = self.decoder(inputs=dec_input,
-                                                     enc_output=enc_output,
-                                                     training=training,
-                                                     look_ahead_mask=look_ahead_mask,
-                                                     padding_mask=dec_padding_mask)
-        model_output = self.decoder_postnet(inputs=dec_output, training=training)
-        model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
-        return model_output
+
+    def _val_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
+        model_out, _ = self._forward_pass(inp, tar, stop_prob, decoder_prenet_dropout)
+        return model_out
+
+    def _check_tokenizer(self):
+        for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
+            assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
