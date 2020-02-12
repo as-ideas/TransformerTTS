@@ -8,6 +8,7 @@ import numpy as np
 from model.combiner import Combiner
 from preprocessing.data_handling import load_files
 from preprocessing.preprocessor import Preprocessor
+from utils.decorators import ignore_exception
 from utils.scheduling import piecewise_linear
 from utils.logging import SummaryManager
 
@@ -44,6 +45,26 @@ def create_dirs(args, config):
     for kind in config['transformer_kinds']:
         weights_paths[kind] = os.path.join(weights_dir, kind)
     return weights_paths, log_dir, base_dir
+
+
+@ignore_exception
+def validate(combiner,
+             val_dataset,
+             summary_manager):
+    val_loss = {kind: {'loss': 0.} for kind in combiner.transformer_kinds}
+    norm = 0.
+    for (val_batch, (val_mel, val_text, val_stop)) in enumerate(val_dataset):
+        model_out = combiner.val_step(val_text,
+                                      val_mel,
+                                      val_stop,
+                                      pre_dropout=decoder_prenet_dropout,
+                                      mask_prob=0.)
+        norm += val_mel.shape[0]
+        for kind in model_out.keys():
+            val_loss[kind]['loss'] += model_out[kind]['loss']
+    for kind in val_loss.keys():
+        val_loss[kind]['loss'] /= norm
+    summary_manager.write_loss(val_loss, combiner.step, name='val_loss')
 
 
 parser = argparse.ArgumentParser()
@@ -112,6 +133,7 @@ for kind in transformer_kinds:
 
 print('starting training')
 
+
 while combiner.step < config['max_steps']:
     for (batch, (mel, text, stop)) in enumerate(train_dataset):
         decoder_prenet_dropout = dropout_schedule(combiner.step)
@@ -132,7 +154,7 @@ while combiner.step < config['max_steps']:
         # summary_manager.write_meta(name='learning_rate',
         #                            value=config['learning_rate'],
         #                            step=combiner.step)
-        
+
         for kind in transformer_kinds:
             losses[kind].append(float(output[kind]['loss']))
             summary_manager.write_meta_for_kind(name='learning_rate',
@@ -149,20 +171,7 @@ while combiner.step < config['max_steps']:
                 print(f'Saved checkpoint for step {combiner.step}: {save_path}')
 
         if (combiner.step + 1) % config['val_freq'] == 0:
-            val_loss = {kind: {'loss': 0.} for kind in combiner.transformer_kinds}
-            norm = 0.
-            for (val_batch, (val_mel, val_text, val_stop)) in enumerate(val_dataset):
-                model_out = combiner.val_step(val_text,
-                                              val_mel,
-                                              val_stop,
-                                              pre_dropout=decoder_prenet_dropout,
-                                              mask_prob=0.)
-                norm += val_mel.shape[0]
-                for kind in model_out.keys():
-                    val_loss[kind]['loss'] += model_out[kind]['loss']
-            for kind in val_loss.keys():
-                val_loss[kind]['loss'] /= norm
-            summary_manager.write_loss(val_loss, combiner.step, name='val_loss')
+            validate(combiner, val_dataset, summary_manager)
 
         if (combiner.step + 1) % config['text_freq'] == 0:
             for i in range(2):
