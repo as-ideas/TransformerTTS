@@ -72,4 +72,4 @@ class TestCombiner(unittest.TestCase):
         self.assertAlmostEqual(1.8850715160369873, float(val_outputs[-1]['text_mel']['loss']), places=6)
         self.assertAlmostEqual(1.8828983306884766, float(val_outputs[-1]['mel_mel']['loss']), places=6)
         self.assertAlmostEqual(0.00035656357067637146, float(val_outputs[-1]['mel_text']['loss']), places=6)
-        self.assertAlmostEqual(0.00035656357067637146, float(val_outputs[-1]['text_text']['loss']), places=6)
+        self.assertAlmostEqual(0.0003596764581743628, float(val_outputs[-1]['text_text']['loss']), places=6)
