@@ -46,10 +46,10 @@ mask_prob: 0.3
 debug: False
 # LOGGING
 val_freq: 5
-text_freq: 40
-image_freq: 40
+text_freq: 400
+image_freq: 400
 weights_save_freq: 100
-plot_attention_freq: 10
+plot_attention_freq: 1000
 keep_n_weights: 5
 # TOKENIZER
 tokenizer_alphabet: "\"!,.:;?'-() abcdefghijklmnopqrstuvwxyzäüöß"

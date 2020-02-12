@@ -184,7 +184,6 @@ class Combiner:
             output.update({'text_text': train_out})
         return output
 
-    @time_it
     def val_step(self, text, mel, stop, pre_dropout, mask_prob=0.):
         masked_text = random_text_mask(text, mask_prob)
         masked_mel = random_mel_mask(mel, mask_prob)

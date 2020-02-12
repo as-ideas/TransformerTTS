@@ -247,7 +247,7 @@ class MelTransformer(Transformer):
         return model_out
 
     def _val_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
-        model_out, tape = self._forward_pass(inp,
+        model_out, _ = self._forward_pass(inp,
                                              tar,
                                              stop_prob,
                                              decoder_prenet_dropout,
@@ -387,7 +387,6 @@ class MelTextTransformer(Transformer):
     def _val_step(self, inp, tar):
         model_out, _ = self._forward_pass(inp, tar, training=False)
         return model_out
-
 
     def _check_tokenizer(self):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
