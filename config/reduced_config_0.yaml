@@ -47,8 +47,8 @@ debug: False
 # LOGGING
 text_freq: 40
 image_freq: 40
-weights_save_freq: 10
-plot_attention_freq: 20
+weights_save_freq: 100
+plot_attention_freq: 10
 keep_n_weights: 5
 keep_checkpoint_every_n_hours: 1
 # TOKENIZER

@@ -153,12 +153,8 @@ while combiner.step < config['max_steps']:
                                         pre_dropout=decoder_prenet_dropout,
                                         max_len_text=len(text_seq) + 5,
                                         max_len_mel=False)
-                try:
-                    summary_manager.write_text(text=text, pred=pred, step=combiner.step)
-                except Exception as e:
-                    print('Failed to display text prediction.')
-                    print(e)
-        
+                summary_manager.write_text(text=text, pred=pred, step=combiner.step)
+
         if (combiner.step + 1) % config['image_freq'] == 0:
             for i in range(2):
                 mel, text_seq, stop = test_list[i]
@@ -168,12 +164,8 @@ while combiner.step < config['max_steps']:
                                         pre_dropout=decoder_prenet_dropout,
                                         max_len_mel=mel.shape[0] + 50,
                                         max_len_text=False)
-                try:
-                    summary_manager.write_images(mel=mel, pred=pred, step=combiner.step, id=i)
-                except Exception as e:
-                    print('Failed to display mel prediction.')
-                    print(e)
-        
+                summary_manager.write_images(mel=mel, pred=pred, step=combiner.step, id=i)
+
         if combiner.step >= config['max_steps']:
             print(f'Stopping training at step {combiner.step}.')
             break
