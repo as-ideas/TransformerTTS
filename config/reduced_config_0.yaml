@@ -45,6 +45,7 @@ batch_size: 6
 mask_prob: 0.3
 debug: False
 # LOGGING
+val_freq: 5
 text_freq: 40
 image_freq: 40
 weights_save_freq: 100

@@ -125,23 +125,23 @@ class TextTransformer(Transformer):
         return enc_padding_mask, combined_mask, dec_padding_mask
     
     def _train_step(self, inp, tar):
-        model_out, tape = self._forward_pass(inp, tar)
+        model_out, tape = self._forward_pass(inp, tar, training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
 
     def _val_step(self, inp, tar):
-        model_out, _ = self._forward_pass(inp, tar)
+        model_out, _ = self._forward_pass(inp, tar, training=False)
         return model_out
 
-    def _forward_pass(self, inp, tar):
+    def _forward_pass(self, inp, tar, training):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_inp)
         with tf.GradientTape() as tape:
             model_out = self.__call__(inputs=inp,
                                       targets=tar_inp,
-                                      training=True,
+                                      training=training,
                                       enc_padding_mask=enc_padding_mask,
                                       look_ahead_mask=combined_mask,
                                       dec_padding_mask=dec_padding_mask)
@@ -237,16 +237,24 @@ class MelTransformer(Transformer):
         return enc_padding_mask, combined_mask, dec_padding_mask
     
     def _train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
-        model_out, tape = self._forward_pass(inp, tar, stop_prob, decoder_prenet_dropout)
+        model_out, tape = self._forward_pass(inp,
+                                             tar,
+                                             stop_prob,
+                                             decoder_prenet_dropout,
+                                             training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
 
     def _val_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
-        model_out, tape = self._forward_pass(inp, tar, stop_prob, decoder_prenet_dropout)
+        model_out, tape = self._forward_pass(inp,
+                                             tar,
+                                             stop_prob,
+                                             decoder_prenet_dropout,
+                                             training=False)
         return model_out
 
-    def _forward_pass(self, inp, tar, stop_prob, decoder_prenet_dropout):
+    def _forward_pass(self, inp, tar, stop_prob, decoder_prenet_dropout, training):
         tar_inp = tar[:, :-1, :]
         tar_real = tar[:, 1:, :]
         tar_stop_prob = stop_prob[:, 1:]
@@ -254,7 +262,7 @@ class MelTransformer(Transformer):
         with tf.GradientTape() as tape:
             model_out = self.__call__(inputs=inp,
                                       targets=tar_inp,
-                                      training=True,
+                                      training=training,
                                       enc_padding_mask=enc_padding_mask,
                                       look_ahead_mask=combined_mask,
                                       dec_padding_mask=dec_padding_mask,
@@ -355,14 +363,14 @@ class MelTextTransformer(Transformer):
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         return enc_padding_mask, combined_mask, dec_padding_mask
 
-    def _forward_pass(self, inp, tar):
+    def _forward_pass(self, inp, tar, training):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_inp)
         with tf.GradientTape() as tape:
             model_out = self.__call__(inputs=inp,
                                       targets=tar_inp,
-                                      training=True,
+                                      training=training,
                                       enc_padding_mask=enc_padding_mask,
                                       look_ahead_mask=combined_mask,
                                       dec_padding_mask=dec_padding_mask)
@@ -371,13 +379,13 @@ class MelTextTransformer(Transformer):
         return model_out, tape
 
     def _train_step(self, inp, tar):
-        model_out, tape = self._forward_pass(inp, tar)
+        model_out, tape = self._forward_pass(inp, tar, training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
 
     def _val_step(self, inp, tar):
-        model_out, _ = self._forward_pass(inp, tar)
+        model_out, _ = self._forward_pass(inp, tar, training=False)
         return model_out
 
 
@@ -475,7 +483,7 @@ class TextMelTransformer(Transformer):
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         return enc_padding_mask, combined_mask, dec_padding_mask
 
-    def _forward_pass(self, inp, tar, stop_prob, decoder_prenet_dropout):
+    def _forward_pass(self, inp, tar, stop_prob, decoder_prenet_dropout, training):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
         tar_stop_prob = stop_prob[:, 1:]
@@ -483,7 +491,7 @@ class TextMelTransformer(Transformer):
         with tf.GradientTape() as tape:
             model_out = self.__call__(inputs=inp,
                                       targets=tar_inp,
-                                      training=True,
+                                      training=training,
                                       enc_padding_mask=enc_padding_mask,
                                       look_ahead_mask=combined_mask,
                                       dec_padding_mask=dec_padding_mask,
@@ -499,13 +507,13 @@ class TextMelTransformer(Transformer):
         return model_out, tape
 
     def _train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
-        model_out, tape = self._forward_pass(inp, tar, stop_prob, decoder_prenet_dropout)
+        model_out, tape = self._forward_pass(inp, tar, stop_prob, decoder_prenet_dropout, training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
 
     def _val_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
-        model_out, _ = self._forward_pass(inp, tar, stop_prob, decoder_prenet_dropout)
+        model_out, _ = self._forward_pass(inp, tar, stop_prob, decoder_prenet_dropout, training=False)
         return model_out
 
     def _check_tokenizer(self):
