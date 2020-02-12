@@ -62,7 +62,7 @@ def validate(combiner,
                                       val_stop,
                                       pre_dropout=decoder_prenet_dropout,
                                       mask_prob=0.)
-        norm += val_mel.shape[0]
+        norm += 1
         for kind in model_out.keys():
             val_loss[kind]['loss'] += model_out[kind]['loss']
     for kind in val_loss.keys():
