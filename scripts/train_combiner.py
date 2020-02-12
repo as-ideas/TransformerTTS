@@ -8,7 +8,7 @@ import numpy as np
 from model.combiner import Combiner
 from preprocessing.data_handling import load_files
 from preprocessing.preprocessor import Preprocessor
-from utils.decorators import ignore_exception
+from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear
 from utils.logging import SummaryManager
 
@@ -48,9 +48,12 @@ def create_dirs(args, config):
 
 
 @ignore_exception
+@time_it
 def validate(combiner,
              val_dataset,
-             summary_manager):
+             summary_manager,
+             decoder_prenet_dropout):
+    print(f'\nvalidating at step {combiner.step}')
     val_loss = {kind: {'loss': 0.} for kind in combiner.transformer_kinds}
     norm = 0.
     for (val_batch, (val_mel, val_text, val_stop)) in enumerate(val_dataset):
@@ -64,6 +67,8 @@ def validate(combiner,
             val_loss[kind]['loss'] += model_out[kind]['loss']
     for kind in val_loss.keys():
         val_loss[kind]['loss'] /= norm
+        val_loss_kind = val_loss[kind]['loss']
+        print(f'{kind} val loss: {val_loss_kind}')
     summary_manager.write_loss(val_loss, combiner.step, name='val_loss')
 
 
@@ -171,7 +176,7 @@ while combiner.step < config['max_steps']:
                 print(f'Saved checkpoint for step {combiner.step}: {save_path}')
 
         if (combiner.step + 1) % config['val_freq'] == 0:
-            validate(combiner, val_dataset, summary_manager)
+            validate(combiner, val_dataset, summary_manager, decoder_prenet_dropout)
 
         if (combiner.step + 1) % config['text_freq'] == 0:
             for i in range(2):

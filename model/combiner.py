@@ -163,7 +163,6 @@ class Combiner:
         missing = [key for key in key_list if key not in config_keys]
         assert len(missing) == 0, 'Config is missing the following keys: {}'.format(missing)
 
-    @time_it
     def train_step(self, text, mel, stop, pre_dropout, mask_prob=0.):
         masked_text = random_text_mask(text, mask_prob)
         masked_mel = random_mel_mask(mel, mask_prob)
