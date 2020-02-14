@@ -4,7 +4,8 @@ from utils.decorators import time_it
 from utils.losses import masked_crossentropy, masked_mean_squared_error
 from model.layers import Encoder, Decoder, SpeechPostnet, PointWiseFFN, SpeechDecoderPrenet, TextPostnet
 from model.models import TextTransformer, MelTransformer, MelTextTransformer, TextMelTransformer
-from preprocessing.tokenizer import Tokenizer, PhonemeTokenizer
+from preprocessing.tokenizer import Tokenizer
+from preprocessing.text_processing import _phonemes
 from preprocessing.utils import random_text_mask, random_mel_mask
 
 
@@ -40,7 +41,7 @@ class Combiner:
         mel_end_vec_value = self.config['mel_end_vec_value']
         transformer_kinds = self.config['transformer_kinds']
         if config['use_phonemes']:
-            self.tokenizer = PhonemeTokenizer(config['phoneme_language'])
+            self.tokenizer = Tokenizer(list(_phonemes))
         else:
             alphabet = config['tokenizer_alphabet']
             self.tokenizer = Tokenizer(list(alphabet))

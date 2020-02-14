@@ -67,11 +67,11 @@ test_metafile = os.path.join(args.TARGET_DIR, 'test_metafile.txt')
 train_metafile = os.path.join(args.TARGET_DIR, 'train_metafile.txt')
 
 if args.PHONEMIZE:
-    test_lines = [''.join([filename, '|', text, '|', phon]) for filename, text, phon in audio_data[:args.TEST_SIZE]]
-    train_lines = [''.join([filename, '|', text, '|', phon]) for filename, text, phon in audio_data[args.TEST_SIZE:-1]]
+    test_lines = [''.join([filename, '|', text, '|', phon, '\n']) for filename, text, phon in audio_data[:args.TEST_SIZE]]
+    train_lines = [''.join([filename, '|', text, '|', phon, '\n']) for filename, text, phon in audio_data[args.TEST_SIZE:-1]]
 else:
-    test_lines = [''.join([filename, '|', text]) for filename, text in audio_data[:args.TEST_SIZE]]
-    train_lines = [''.join([filename, '|', text]) for filename, text in audio_data[args.TEST_SIZE:-1]]
+    test_lines = [''.join([filename, '|', text, '\n']) for filename, text in audio_data[:args.TEST_SIZE]]
+    train_lines = [''.join([filename, '|', text, '\n']) for filename, text in audio_data[args.TEST_SIZE:-1]]
     
 with open(test_metafile, 'w+', encoding='utf-8') as test_f:
     test_f.writelines(test_lines)

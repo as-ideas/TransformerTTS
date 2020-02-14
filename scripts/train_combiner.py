@@ -50,7 +50,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--datadir', dest='datadir', type=str)
 parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
 parser.add_argument('--config', dest='config', type=str)
-parser.add_argument('--phonemes', dest='has_phonemes', action='store_true')
 args = parser.parse_args()
 yaml = ruamel.yaml.YAML()
 config = yaml.load(open(args.config, 'r'))
@@ -117,7 +116,6 @@ while combiner.step < config['max_steps']:
         decoder_prenet_dropout = dropout_schedule(combiner.step)
         learning_rate = learning_rate_schedule(combiner.step)
         combiner.set_learning_rates(learning_rate)
-        print(mel, phonemes, stop)
         output = combiner.train_step(text=phonemes,
                                      mel=mel,
                                      stop=stop,
@@ -151,13 +149,13 @@ while combiner.step < config['max_steps']:
         if (combiner.step + 1) % config['text_freq'] == 0:
             for i in range(2):
                 mel, phonemes, stop, text_seq = test_list[i]
-                text = combiner.tokenizer.decode(text_seq)
+                # text = combiner.tokenizer.decode(text_seq)
                 pred = combiner.predict(mel,
                                         phonemes,
                                         pre_dropout=decoder_prenet_dropout,
                                         max_len_text=len(phonemes) + 5,
                                         max_len_mel=False)
-                summary_manager.write_text(text=text, pred=pred, step=combiner.step)
+                summary_manager.write_text(text=text_seq, pred=pred, step=combiner.step)
         
         if (combiner.step + 1) % config['image_freq'] == 0:
             for i in range(2):

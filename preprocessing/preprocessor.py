@@ -2,7 +2,7 @@ from typing import Union
 
 import numpy as np
 
-from preprocessing.tokenizer import Tokenizer, PhonemeTokenizer
+from preprocessing.tokenizer import Tokenizer#, PhonemeTokenizer
 
 
 class Preprocessor:
@@ -11,7 +11,7 @@ class Preprocessor:
                  mel_channels: int,
                  start_vec_val: float,
                  end_vec_val: float,
-                 tokenizer: Union[Tokenizer, PhonemeTokenizer],
+                 tokenizer: Union[Tokenizer],
                  lowercase=True,
                  clip_val=1e-5):
         self.start_vec = np.ones((1, mel_channels)) * start_vec_val

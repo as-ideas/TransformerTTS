@@ -45,8 +45,8 @@ batch_size: 6
 mask_prob: 0.3
 debug: True
 # LOGGING
-text_freq: 40
-image_freq: 40
+text_freq: 1
+image_freq: 1
 weights_save_freq: 100
 plot_attention_freq: 10
 keep_n_weights: 5
