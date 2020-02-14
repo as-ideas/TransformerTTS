@@ -10,9 +10,10 @@ def load_files(metafile,
     with open(metafile, 'r', encoding='utf-8') as f:
         for l in f.readlines():
             l_split = l.split('|')
-            text = l_split[-1].strip().lower()
             mel_file = os.path.join(str(meldir), l_split[0] + '.npy')
-            samples.append((text, mel_file))
+            text = l_split[1].strip().lower()
+            phonemes = l_split[-1].strip()
+            samples.append((phonemes, text, mel_file))
             alphabet.update(list(text))
             count += 1
             if num_samples is not None and count > num_samples:

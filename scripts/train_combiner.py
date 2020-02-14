@@ -50,6 +50,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--datadir', dest='datadir', type=str)
 parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
 parser.add_argument('--config', dest='config', type=str)
+parser.add_argument('--phonemes', dest='has_phonemes', action='store_true')
 args = parser.parse_args()
 yaml = ruamel.yaml.YAML()
 config = yaml.load(open(args.config, 'r'))
@@ -57,6 +58,9 @@ config_name = os.path.splitext(os.path.basename(args.config))[0]
 weights_paths, log_dir, base_dir = create_dirs(args, config)
 
 print('creating model')
+if not config['use_phonemes'] == True:
+    print('Set use_phonemes: True in config')
+    exit()
 combiner = Combiner(config=config)
 
 print('preprocessing data')
@@ -66,17 +70,17 @@ test_meta = os.path.join(args.datadir, 'test_metafile.txt')
 
 train_samples, _ = load_files(metafile=train_meta,
                               meldir=meldir,
-                              num_samples=config['n_samples'])
+                              num_samples=config['n_samples'])  # OUT = (phonemes, text, mel)
 test_samples, _ = load_files(metafile=test_meta,
                              meldir=meldir,
-                             num_samples=config['n_samples'])
+                             num_samples=config['n_samples'])  # OUT = (phonemes, text, mel)
 
 preprocessor = Preprocessor(mel_channels=config['mel_channels'],
                             start_vec_val=config['mel_start_vec_value'],
                             end_vec_val=config['mel_end_vec_value'],
                             tokenizer=combiner.tokenizer)
 yaml.dump(config, open(os.path.join(base_dir, os.path.basename(args.config)), 'w'))
-train_gen = lambda: (preprocessor(s) for s in train_samples)
+train_gen = lambda: (preprocessor(s)[0:3] for s in train_samples)
 test_list = [preprocessor(s) for s in test_samples]
 train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float32, tf.int32, tf.int32))
 train_dataset = train_dataset.shuffle(1000).padded_batch(config['batch_size'],
@@ -109,12 +113,12 @@ for kind in transformer_kinds:
 print('starting training')
 
 while combiner.step < config['max_steps']:
-    for (batch, (mel, text, stop)) in enumerate(train_dataset):
+    for (batch, (mel, phonemes, stop)) in enumerate(train_dataset):
         decoder_prenet_dropout = dropout_schedule(combiner.step)
         learning_rate = learning_rate_schedule(combiner.step)
         combiner.set_learning_rates(learning_rate)
-        
-        output = combiner.train_step(text=text,
+        print(mel, phonemes, stop)
+        output = combiner.train_step(text=phonemes,
                                      mel=mel,
                                      stop=stop,
                                      pre_dropout=decoder_prenet_dropout,
@@ -146,26 +150,26 @@ while combiner.step < config['max_steps']:
         
         if (combiner.step + 1) % config['text_freq'] == 0:
             for i in range(2):
-                mel, text_seq, stop = test_list[i]
+                mel, phonemes, stop, text_seq = test_list[i]
                 text = combiner.tokenizer.decode(text_seq)
                 pred = combiner.predict(mel,
-                                        text_seq,
+                                        phonemes,
                                         pre_dropout=decoder_prenet_dropout,
-                                        max_len_text=len(text_seq) + 5,
+                                        max_len_text=len(phonemes) + 5,
                                         max_len_mel=False)
                 summary_manager.write_text(text=text, pred=pred, step=combiner.step)
-
+        
         if (combiner.step + 1) % config['image_freq'] == 0:
             for i in range(2):
-                mel, text_seq, stop = test_list[i]
-                text = combiner.tokenizer.decode(text_seq)
+                mel, phonemes, stop, text_seq = test_list[i]
+                # text = combiner.tokenizer.decode(phonemes)
                 pred = combiner.predict(mel,
-                                        text_seq,
+                                        phonemes,
                                         pre_dropout=decoder_prenet_dropout,
                                         max_len_mel=mel.shape[0] + 50,
                                         max_len_text=False)
                 summary_manager.write_images(mel=mel, pred=pred, step=combiner.step, id=i)
-
+        
         if combiner.step >= config['max_steps']:
             print(f'Stopping training at step {combiner.step}.')
             break

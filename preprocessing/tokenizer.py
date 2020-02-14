@@ -1,9 +1,12 @@
-class CharTokenizer:
-    
-    def __init__(self, alphabet, start_token='>', end_token='<'):
+from phonemizer.phonemize import phonemize
+from preprocessing.text_processing import _phonemes, _punctuations, Phonemizer
+
+
+class Tokenizer:
+    def __init__(self, alphabet, start_token='>', end_token='<', pad_token='/'):
         self.alphabet = alphabet
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet, start=1)}
-        self.idx_to_token[0] = '/'
+        self.idx_to_token[0] = pad_token
         self.token_to_idx = {s: i for i, s in self.idx_to_token.items()}
         self.start_token_index = len(self.alphabet) + 1
         self.end_token_index = len(self.alphabet) + 2
@@ -16,3 +19,17 @@ class CharTokenizer:
     
     def decode(self, sequence):
         return ''.join([self.idx_to_token[int(t)] for t in sequence if int(t) in self.idx_to_token])
+
+
+class PhonemeTokenizer(Tokenizer):
+    def __init__(self, language, start_token='>', end_token='<', pad_token='/'):
+        self.phonemes = list(_phonemes) + list(_punctuations)
+        super(PhonemeTokenizer, self).__init__(alphabet=self.phonemes,
+                                               start_token=start_token,
+                                               end_token=end_token,
+                                               pad_token=pad_token)
+        self.phonemizer = Phonemizer(language)
+
+    def encode(self, text):
+        phonemes = self.phonemizer.encode(text)
+        return super(PhonemeTokenizer, self).encode(phonemes)

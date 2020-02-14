@@ -3,13 +3,13 @@ import unittest
 import tensorflow as tf
 import numpy as np
 
-from preprocessing.tokenizer import CharTokenizer
+from preprocessing.tokenizer import Tokenizer
 
 
-class TestCharTokenizer(unittest.TestCase):
+class TestTokenizer(unittest.TestCase):
     
     def test_tokenizer(self):
-        tokenizer = CharTokenizer(alphabet=list('ab c'))
+        tokenizer = Tokenizer(alphabet=list('ab c'))
         self.assertEqual(5, tokenizer.start_token_index)
         self.assertEqual(6, tokenizer.end_token_index)
         self.assertEqual(7, tokenizer.vocab_size)

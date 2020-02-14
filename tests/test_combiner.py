@@ -27,7 +27,7 @@ class TestCombiner(unittest.TestCase):
                                     start_vec_val=self.config['mel_start_vec_value'],
                                     end_vec_val=self.config['mel_end_vec_value'],
                                     tokenizer=combiner.tokenizer)
-        train_samples = [preprocessor.encode('repeated text', mel) for mel in test_mels]
+        train_samples = [preprocessor.encode('repeated text', 'repeated text', mel)[0:3] for mel in test_mels]
         train_set_gen = lambda: (item for item in train_samples)
         train_dataset = tf.data.Dataset.from_generator(train_set_gen,
                                                        output_types=(tf.float32, tf.int32, tf.int32))

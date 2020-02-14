@@ -54,4 +54,7 @@ plot_attention_freq: 500
 keep_n_weights: 5
 warmup_steps: 1_000
 warmup_lr: 1.0e-6
+#TOKENIZER
+use_phonemes: True
+phoneme_language: 'en'
 tokenizer_alphabet: "!,.:;?'- abcdefghijklmnopqrstuvwxyzäüöß"

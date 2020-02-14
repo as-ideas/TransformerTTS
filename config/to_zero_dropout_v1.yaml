@@ -50,6 +50,8 @@ plot_attention_freq: 1_000
 keep_n_weights: 5
 keep_checkpoint_every_n_hours: 1
 # TOKENIZER
+use_phonemes: True
+phoneme_language: 'en'
 tokenizer_alphabet:
   - ' '
   - '!'

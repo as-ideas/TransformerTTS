@@ -43,7 +43,7 @@ learning_rate: 1.0e-4 # for initialization
 max_steps: 70
 batch_size: 6
 mask_prob: 0.3
-debug: False
+debug: True
 # LOGGING
 text_freq: 40
 image_freq: 40
@@ -52,4 +52,6 @@ plot_attention_freq: 10
 keep_n_weights: 5
 keep_checkpoint_every_n_hours: 1
 # TOKENIZER
+use_phonemes: True
+phoneme_language: 'en'
 tokenizer_alphabet: "\"!,.:;?'-() abcdefghijklmnopqrstuvwxyzäüöß"
