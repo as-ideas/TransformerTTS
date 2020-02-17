@@ -107,10 +107,8 @@ for kind in transformer_kinds:
         print(f'Initializing {kind} from scratch.')
 
 print('starting training')
-
-
-
 while combiner.step < config['max_steps']:
+
     for (batch, (mel, text, stop)) in enumerate(train_dataset):
         decoder_prenet_dropout = dropout_schedule(combiner.step)
         learning_rate = learning_rate_schedule(combiner.step)
@@ -127,10 +125,7 @@ while combiner.step < config['max_steps']:
         summary_manager.write_meta_scalar(name='dropout',
                                           value=decoder_prenet_dropout,
                                           step=combiner.step)
-        # summary_manager.write_meta(name='learning_rate',
-        #                            value=config['learning_rate'],
-        #                            step=combiner.step)
-        
+
         for kind in transformer_kinds:
             losses[kind].append(float(output[kind]['loss']))
             summary_manager.write_meta_for_kind(name='learning_rate',
