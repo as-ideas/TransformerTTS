@@ -1,6 +1,26 @@
 import tensorflow as tf
 
 
+def new_scaled_crossentropy(index=2, scaling=1.0):
+    """
+    Returns masked crossentropy with extra scaling:
+    Scales the loss for given stop_index by stop_scaling
+    """
+
+    def masked_crossentropy(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tensor:
+        crossentropy = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
+        padding_mask = tf.math.equal(targets, 0)
+        padding_mask = tf.math.logical_not(padding_mask)
+        padding_mask = tf.cast(padding_mask, dtype=tf.float32)
+        stop_mask = tf.math.equal(targets, index)
+        stop_mask = tf.cast(stop_mask, dtype=tf.float32) * (scaling - 1.)
+        combined_mask = padding_mask + stop_mask
+        loss = crossentropy(targets, logits, sample_weight=combined_mask)
+        return loss
+
+    return masked_crossentropy
+
+
 def masked_crossentropy(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tensor:
     crossentropy = tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
     mask = tf.math.logical_not(tf.math.equal(targets, 0))

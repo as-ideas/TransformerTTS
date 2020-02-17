@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from utils.decorators import time_it
-from utils.losses import masked_crossentropy, masked_mean_squared_error
+from utils.losses import masked_crossentropy, masked_mean_squared_error, new_scaled_crossentropy
 from model.layers import Encoder, Decoder, SpeechPostnet, PointWiseFFN, SpeechDecoderPrenet, TextPostnet
 from model.models import TextTransformer, MelTransformer, MelTextTransformer, TextMelTransformer
 from preprocessing.tokenizer import CharTokenizer
@@ -78,6 +78,7 @@ class Combiner:
         self.transformer_kinds = transformer_kinds
         self.mel_text, self.text_text, self.text_mel, self.mel_mel = None, None, None, None
         learning_rate = self.config['learning_rate']
+        stop_scaling = config.get('stop_loss_scaling', 1.)
         if 'text_mel' in transformer_kinds:
             self.text_mel = TextMelTransformer(encoder_prenet=text_encoder_prenet,
                                                decoder_prenet=speech_decoder_prenet,
@@ -89,7 +90,8 @@ class Combiner:
                                                end_vec_value=mel_end_vec_value,
                                                debug=debug)
             self.text_mel.compile(loss=[masked_mean_squared_error,
-                                        masked_crossentropy,
+                                        new_scaled_crossentropy(index=2,
+                                                                scaling=stop_scaling),
                                         masked_mean_squared_error],
                                   loss_weights=[1., 1., 1.],
                                   optimizer=self.new_adam(learning_rate))
@@ -118,7 +120,8 @@ class Combiner:
                                           end_vec_value=mel_end_vec_value,
                                           debug=debug)
             self.mel_mel.compile(loss=[masked_mean_squared_error,
-                                       masked_crossentropy,
+                                       new_scaled_crossentropy(index=2,
+                                                               scaling=stop_scaling),
                                        masked_mean_squared_error],
                                  loss_weights=[1, 1, 1],
                                  optimizer=self.new_adam(learning_rate))
