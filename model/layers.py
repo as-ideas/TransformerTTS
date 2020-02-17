@@ -232,7 +232,7 @@ class SpeechConvLayers(tf.keras.layers.Layer):
                                                     padding='causal',
                                                     activation='tanh')
                              for _ in range(n_layers - 1)]
-        self.dropouts = [tf.keras.Dropout(dropout_prob) for _ in range(n_layers - 1)]
+        self.dropouts = [tf.keras.layers.Dropout(dropout_prob) for _ in range(n_layers - 1)]
         self.last_conv = tf.keras.layers.Conv1D(filters=out_size,
                                                 kernel_size=kernel_size,
                                                 padding='causal',
