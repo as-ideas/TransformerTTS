@@ -224,21 +224,26 @@ class SpeechPostnet(tf.keras.layers.Layer):
 
 
 class SpeechConvLayers(tf.keras.layers.Layer):
-    
-    def __init__(self, out_size, n_filters=256, n_layers=5, kernel_size=5):
+
+    def __init__(self, out_size, n_filters=256, n_layers=5, kernel_size=5, dropout_prob=0.5):
         super(SpeechConvLayers, self).__init__()
-        self.convolutions = [
-            tf.keras.layers.Conv1D(filters=n_filters, kernel_size=kernel_size, padding='causal', activation='relu')
-            for _ in range(n_layers - 1)
-        ]
-        self.last_conv = tf.keras.layers.Conv1D(filters=out_size, kernel_size=kernel_size, padding='causal',
-                                                activation='relu')
+        self.convolutions = [tf.keras.layers.Conv1D(filters=n_filters,
+                                                    kernel_size=kernel_size,
+                                                    padding='causal',
+                                                    activation='tanh')
+                             for _ in range(n_layers - 1)]
+        self.dropouts = [tf.keras.Dropout(dropout_prob) for _ in range(n_layers - 1)]
+        self.last_conv = tf.keras.layers.Conv1D(filters=out_size,
+                                                kernel_size=kernel_size,
+                                                padding='causal',
+                                                activation='linear')
         self.batch_norms = [tf.keras.layers.BatchNormalization() for _ in range(n_layers)]
     
     def call(self, x, training):
         for i in range(0, len(self.convolutions)):
             x = self.convolutions[i](x)
             x = self.batch_norms[i](x, training=training)
+            x = self.dropouts[i](x, training=training)
         x = self.last_conv(x)
         x = self.batch_norms[-1](x, training=training)
         return x
