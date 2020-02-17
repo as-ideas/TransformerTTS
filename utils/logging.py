@@ -57,15 +57,15 @@ class SummaryManager:
             tf.summary.scalar(name, tf.Variable(value), step=step)
 
     @ignore_exception
-    def write_audios(self, mel, pred, config, step):
+    def write_audios(self, mel, pred, config, step, id):
         for kind in self.mel_kinds:
             self._write_audio(kind=kind,
-                              name='target',
+                              name=f'target {id}',
                               mel=mel,
                               config=config,
                               step=step)
             self._write_audio(kind=kind,
-                              name='pred',
+                              name=f'pred {id}',
                               mel=pred[kind]['mel'],
                               config=config,
                               step=step)

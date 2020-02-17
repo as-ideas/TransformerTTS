@@ -205,7 +205,8 @@ while combiner.step < config['max_steps']:
                 summary_manager.write_audios(mel=mel,
                                              pred=pred,
                                              config=config,
-                                             step=combiner.step)
+                                             step=combiner.step,
+                                             id=i)
                 mel_mel_len = pred['mel_mel']['mel'].shape[0]
                 text_mel_len = pred['text_mel']['mel'].shape[0]
                 print(f'{i}: len target: {mel.shape[0]}, mel_mel: {mel_mel_len}, text_mel: {text_mel_len}')
