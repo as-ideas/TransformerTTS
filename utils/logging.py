@@ -2,6 +2,7 @@ import os
 
 import tensorflow as tf
 
+from utils.audio import invert_griffin_lim
 from utils.decorators import ignore_exception
 from utils.display import plot_attention, display_mel
 
@@ -54,12 +55,26 @@ class SummaryManager:
     def write_meta_for_kind(self, name, value, step, kind):
         with self.summary_writers[kind].as_default():
             tf.summary.scalar(name, tf.Variable(value), step=step)
-            
+
     @ignore_exception
-    def write_meta(self, name, value, step):
+    def write_audios(self, mel, pred, config, step):
+        for kind in self.mel_kinds:
+            self._write_audio(kind=kind,
+                              name='target',
+                              mel=mel,
+                              config=config,
+                              step=step)
+            self._write_audio(kind=kind,
+                              name='pred',
+                              mel=pred[kind]['mel'],
+                              config=config,
+                              step=step)
+
+    @ignore_exception
+    def write_meta_scalar(self, name, value, step):
         with self.summary_writers['meta'].as_default():
             tf.summary.scalar(name, tf.Variable(value), step=step)
-    
+
     @ignore_exception
     def write_attention(self, output, step):
         for kind in self.all_kinds:
@@ -86,3 +101,13 @@ class SummaryManager:
             data_pred = f'(pred) {pred_decoded}'
             data_target = f'(target) {text}'
             tf.summary.text(name=name, data=f'{data_pred}\n{data_target}', step=step)
+
+    def _write_audio(self, kind, name, mel, config, step):
+        wav = invert_griffin_lim(mel, config)
+        wav = tf.expand_dims(wav, 0)
+        wav = tf.expand_dims(wav, -1)
+        with self.summary_writers[kind].as_default():
+            tf.summary.audio(name,
+                             wav,
+                             sample_rate=config['sampling_rate'],
+                             step=step)

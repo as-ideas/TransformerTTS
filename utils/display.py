@@ -48,3 +48,4 @@ def display_mel(mel, step, info_string='', sr=22050):
     img_tf = tf.image.decode_png(buf.getvalue(), channels=3)
     img_tf = tf.expand_dims(img_tf, 0)
     tf.summary.image(info_string, img_tf, step=step)
+

@@ -4,14 +4,14 @@ transformer_kinds:
   - 'mel_text'
   - 'text_mel'
   - 'mel_mel'
-speech_encoder_num_layers: 1
-speech_decoder_num_layers: 1
-text_encoder_num_layers: 1
-text_decoder_num_layers: 1
+speech_encoder_num_layers: 4
+speech_decoder_num_layers: 4
+text_encoder_num_layers: 4
+text_decoder_num_layers: 4
 speech_model_dimension: 256
 text_model_dimension: 256
-speech_encoder_num_heads: 1
-speech_decoder_num_heads: 1
+speech_encoder_num_heads: 4
+speech_decoder_num_heads: 4
 text_encoder_num_heads: 4
 text_decoder_num_heads: 4
 text_encoder_feed_forward_dimension: 512
@@ -20,18 +20,18 @@ speech_encoder_feed_forward_dimension: 512
 speech_decoder_feed_forward_dimension: 512
 speech_encoder_prenet_dimension: 256
 speech_decoder_prenet_dimension: 256
-max_position_encoding: 10000
+max_position_encoding: 100000
 speech_postnet_conv_filters: 256
 speech_postnet_conv_layers: 5
 speech_postnet_kernel_size: 5
 dropout_rate: 0.1
 
 # DATA
-n_samples: 1000
+n_samples: 100000
 mel_channels: 80
 sr: 22050
 mel_start_vec_value: -3
-mel_end_vec_value: 1
+mel_end_vec_value: -4
 
 # AUDIO
 n_fft: 1024
@@ -44,21 +44,20 @@ sampling_rate: 22050
 # TRAINING
 dropout_schedule:
   - [0, 0.9]
-  - [10, 0.5]
+  - [30_000, 0.5]
 learning_rate_schedule:
   - [0, 1.0e-4]
-  - [25, 1.0e-3]
-learning_rate: 1.0e-4 # for initialization
-max_steps: 70
-batch_size: 6
+max_steps: 300_000
+batch_size: 64
 mask_prob: 0.3
 debug: False
+learning_rate: 1.0e-4 # for initialization
 
 # LOGGING
-text_freq: 40
-image_freq: 10
-weights_save_freq: 10000
-plot_attention_freq: 1000
+text_freq: 20_000
+image_freq: 10_000
+weights_save_freq: 10_000
+plot_attention_freq: 2_000
 keep_n_weights: 5
 keep_checkpoint_every_n_hours: 1
 

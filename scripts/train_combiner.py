@@ -108,6 +108,8 @@ for kind in transformer_kinds:
 
 print('starting training')
 
+
+
 while combiner.step < config['max_steps']:
     for (batch, (mel, text, stop)) in enumerate(train_dataset):
         decoder_prenet_dropout = dropout_schedule(combiner.step)
@@ -122,9 +124,9 @@ while combiner.step < config['max_steps']:
         print(f'\nbatch {combiner.step}')
         
         summary_manager.write_loss(output, combiner.step)
-        summary_manager.write_meta(name='dropout',
-                                   value=decoder_prenet_dropout,
-                                   step=combiner.step)
+        summary_manager.write_meta_scalar(name='dropout',
+                                          value=decoder_prenet_dropout,
+                                          step=combiner.step)
         # summary_manager.write_meta(name='learning_rate',
         #                            value=config['learning_rate'],
         #                            step=combiner.step)
@@ -164,7 +166,17 @@ while combiner.step < config['max_steps']:
                                         pre_dropout=decoder_prenet_dropout,
                                         max_len_mel=mel.shape[0] + 50,
                                         max_len_text=False)
-                summary_manager.write_images(mel=mel, pred=pred, step=combiner.step, id=i)
+                summary_manager.write_images(mel=mel,
+                                             pred=pred,
+                                             step=combiner.step,
+                                             id=i)
+                summary_manager.write_audios(mel=mel,
+                                             pred=pred,
+                                             config=config,
+                                             step=combiner.step)
+                mel_mel_len = pred['mel_mel']['mel'].shape[0]
+                text_mel_len = pred['text_mel']['mel'].shape[0]
+                print(f'{i}: len target: {mel.shape[0]}, mel_mel: {mel_mel_len}, text_mel: {text_mel_len}')
 
         if combiner.step >= config['max_steps']:
             print(f'Stopping training at step {combiner.step}.')
