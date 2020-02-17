@@ -43,7 +43,7 @@ mask_prob: 0.3
 debug: False
 learning_rate: 1.0e-4 # for initialization
 # LOGGING
-val_freq: 5_000
+val_freq: 500
 text_freq: 20_000
 image_freq: 10_000
 weights_save_freq: 10_000

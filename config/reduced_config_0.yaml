@@ -58,7 +58,7 @@ mask_prob: 0.3
 debug: False
 
 # LOGGING
-val_freq: 10
+val_freq: 40
 text_freq: 40
 image_freq: 10
 weights_save_freq: 10000
