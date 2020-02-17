@@ -8,6 +8,7 @@ import numpy as np
 from model.combiner import Combiner
 from preprocessing.data_handling import load_files
 from preprocessing.preprocessor import Preprocessor
+from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear
 from utils.logging import SummaryManager
 
@@ -46,6 +47,31 @@ def create_dirs(args, config):
     return weights_paths, log_dir, base_dir
 
 
+@ignore_exception
+@time_it
+def validate(combiner,
+             val_dataset,
+             summary_manager,
+             decoder_prenet_dropout):
+    print(f'\nvalidating at step {combiner.step}')
+    val_loss = {kind: {'loss': 0.} for kind in combiner.transformer_kinds}
+    norm = 0.
+    for (val_batch, (val_mel, val_text, val_stop)) in enumerate(val_dataset):
+        model_out = combiner.val_step(val_text,
+                                      val_mel,
+                                      val_stop,
+                                      pre_dropout=decoder_prenet_dropout,
+                                      mask_prob=0.)
+        norm += 1
+        for kind in model_out.keys():
+            val_loss[kind]['loss'] += model_out[kind]['loss']
+    for kind in val_loss.keys():
+        val_loss[kind]['loss'] /= norm
+        val_loss_kind = val_loss[kind]['loss']
+        print(f'{kind} val loss: {val_loss_kind}')
+    summary_manager.write_loss(val_loss, combiner.step, name='val_loss')
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--datadir', dest='datadir', type=str)
 parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
@@ -76,12 +102,17 @@ preprocessor = Preprocessor(mel_channels=config['mel_channels'],
                             end_vec_val=config['mel_end_vec_value'],
                             tokenizer=combiner.tokenizer)
 yaml.dump(config, open(os.path.join(base_dir, os.path.basename(args.config)), 'w'))
-train_gen = lambda: (preprocessor(s) for s in train_samples)
 test_list = [preprocessor(s) for s in test_samples]
+train_gen = lambda: (preprocessor(s) for s in train_samples)
 train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float32, tf.int32, tf.int32))
 train_dataset = train_dataset.shuffle(1000).padded_batch(config['batch_size'],
                                                          padded_shapes=([-1, 80], [-1], [-1]),
                                                          drop_remainder=True)
+val_gen = lambda: (s for s in test_list)
+val_dataset = tf.data.Dataset.from_generator(val_gen, output_types=(tf.float32, tf.int32, tf.int32))
+val_dataset = val_dataset.padded_batch(config['batch_size'],
+                                       padded_shapes=([-1, 80], [-1], [-1]),
+                                       drop_remainder=False)
 
 losses = {}
 summary_writers = {}
@@ -140,7 +171,13 @@ while combiner.step < config['max_steps']:
             if (combiner.step + 1) % config['weights_save_freq'] == 0:
                 save_path = managers[kind].save()
                 print(f'Saved checkpoint for step {combiner.step}: {save_path}')
-        
+
+        if (combiner.step + 1) % config['val_freq'] == 0:
+            validate(combiner=combiner,
+                     val_dataset=val_dataset,
+                     summary_manager=summary_manager,
+                     decoder_prenet_dropout=decoder_prenet_dropout)
+
         if (combiner.step + 1) % config['text_freq'] == 0:
             for i in range(2):
                 mel, text_seq, stop = test_list[i]

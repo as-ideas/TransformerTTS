@@ -40,12 +40,12 @@ class SummaryManager:
             self._write_text(kind, text, pred_decoded, step)
 
     @ignore_exception
-    def write_loss(self, output, step):
+    def write_loss(self, output, step, name='loss'):
         for kind in self.all_kinds:
             with self.summary_writers[kind].as_default():
                 loss = output[kind]['loss']
-                tf.summary.scalar('loss', loss, step=step)
-                if kind in self.mel_kinds:
+                tf.summary.scalar(name, loss, step=step)
+                if kind in self.mel_kinds and 'losses' in output[kind]:
                     for k in output[kind]['losses'].keys():
                         loss = output[kind]['losses'][k]
                         tf.summary.scalar(kind + '_' + k, loss, step=step)

@@ -33,28 +33,43 @@ class TestCombiner(unittest.TestCase):
                                                        output_types=(tf.float32, tf.int32, tf.int32))
         train_dataset = train_dataset.shuffle(10).padded_batch(
             self.config['batch_size'], padded_shapes=([-1, 80], [-1], [-1]), drop_remainder=True)
-        
-        outputs = []
+
+        train_outputs = []
         for epoch in range(self.config['epochs']):
             for (batch, (mel, text, stop)) in enumerate(train_dataset):
-                output = combiner.train_step(text=text,
-                                             mel=mel,
-                                             stop=stop,
-                                             pre_dropout=0.5,
-                                             mask_prob=self.config['mask_prob'])
-                outputs.append(output)
-        
-        self.assertAlmostEqual(2.2329392433166504, float(outputs[-1]['text_mel']['loss']), places=6)
-        self.assertAlmostEqual(2.265047550201416, float(outputs[-1]['mel_mel']['loss']), places=6)
-        self.assertAlmostEqual(0.0014063421403989196, float(outputs[-1]['mel_text']['loss']), places=6)
-        self.assertAlmostEqual(0.0011274153366684914, float(outputs[-1]['text_text']['loss']), places=6)
-        
+                train_output = combiner.train_step(text=text,
+                                                   mel=mel,
+                                                   stop=stop,
+                                                   pre_dropout=0.5,
+                                                   mask_prob=self.config['mask_prob'])
+                train_outputs.append(train_output)
+
+        self.assertAlmostEqual(2.2329392433166504, float(train_outputs[-1]['text_mel']['loss']), places=6)
+        self.assertAlmostEqual(2.265047550201416, float(train_outputs[-1]['mel_mel']['loss']), places=6)
+        self.assertAlmostEqual(0.0014063421403989196, float(train_outputs[-1]['mel_text']['loss']), places=6)
+        self.assertAlmostEqual(0.0011274153366684914, float(train_outputs[-1]['text_text']['loss']), places=6)
+
         mel_input, text_input = train_samples[0][0], train_samples[0][1]
         pred_mel_text = combiner.mel_text.predict(mel_input, max_length=10)
         pred_text_text = combiner.text_text.predict(text_input, max_length=10)
         pred_text_mel = combiner.text_mel.predict(text_input, max_length=10)
         pred_mel_mel = combiner.mel_mel.predict(mel_input, max_length=10)
+
         self.assertAlmostEqual(-20.154104232788086, float(tf.reduce_sum(pred_mel_text['logits'])))
         self.assertAlmostEqual(-19.69157600402832, float(tf.reduce_sum(pred_text_text['logits'])))
         self.assertAlmostEqual(-786.9090576171875, float(tf.reduce_sum(pred_text_mel['mel'])))
         self.assertAlmostEqual(-787.0718383789062, float(tf.reduce_sum(pred_mel_mel['mel'])))
+
+        val_outputs = []
+        for (batch, (mel, text, stop)) in enumerate(train_dataset):
+            val_output = combiner.val_step(text=text,
+                                           mel=mel,
+                                           stop=stop,
+                                           pre_dropout=0.5,
+                                           mask_prob=self.config['mask_prob'])
+            val_outputs.append(val_output)
+
+        self.assertAlmostEqual(1.8850715160369873, float(val_outputs[-1]['text_mel']['loss']), places=6)
+        self.assertAlmostEqual(1.8828983306884766, float(val_outputs[-1]['mel_mel']['loss']), places=6)
+        self.assertAlmostEqual(0.00035656357067637146, float(val_outputs[-1]['mel_text']['loss']), places=6)
+        self.assertAlmostEqual(0.0003596764581743628, float(val_outputs[-1]['text_text']['loss']), places=6)
