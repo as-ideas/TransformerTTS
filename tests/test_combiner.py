@@ -44,10 +44,10 @@ class TestCombiner(unittest.TestCase):
                                                    mask_prob=self.config['mask_prob'])
                 train_outputs.append(train_output)
 
-        self.assertAlmostEqual(2.2329392433166504, float(train_outputs[-1]['text_mel']['loss']), places=6)
-        self.assertAlmostEqual(2.265047550201416, float(train_outputs[-1]['mel_mel']['loss']), places=6)
-        self.assertAlmostEqual(0.0014063421403989196, float(train_outputs[-1]['mel_text']['loss']), places=6)
-        self.assertAlmostEqual(0.0011274153366684914, float(train_outputs[-1]['text_text']['loss']), places=6)
+        self.assertAlmostEqual(2.6889209747314453, float(train_outputs[-1]['text_mel']['loss']), places=6)
+        self.assertAlmostEqual(2.6947453022003174, float(train_outputs[-1]['mel_mel']['loss']), places=6)
+        self.assertAlmostEqual(0.0014022162649780512, float(train_outputs[-1]['mel_text']['loss']), places=6)
+        self.assertAlmostEqual(0.0011513512581586838, float(train_outputs[-1]['text_text']['loss']), places=6)
 
         mel_input, text_input = train_samples[0][0], train_samples[0][1]
         pred_mel_text = combiner.mel_text.predict(mel_input, max_length=10)
@@ -55,10 +55,10 @@ class TestCombiner(unittest.TestCase):
         pred_text_mel = combiner.text_mel.predict(text_input, max_length=10)
         pred_mel_mel = combiner.mel_mel.predict(mel_input, max_length=10)
 
-        self.assertAlmostEqual(-20.154104232788086, float(tf.reduce_sum(pred_mel_text['logits'])))
-        self.assertAlmostEqual(-19.69157600402832, float(tf.reduce_sum(pred_text_text['logits'])))
-        self.assertAlmostEqual(-786.9090576171875, float(tf.reduce_sum(pred_text_mel['mel'])))
-        self.assertAlmostEqual(-787.0718383789062, float(tf.reduce_sum(pred_mel_mel['mel'])))
+        self.assertAlmostEqual(-19.984098434448242, float(tf.reduce_sum(pred_mel_text['logits'])))
+        self.assertAlmostEqual(-19.67447280883789, float(tf.reduce_sum(pred_text_text['logits'])))
+        self.assertAlmostEqual(-807.0588989257812, float(tf.reduce_sum(pred_text_mel['mel'])))
+        self.assertAlmostEqual(-807.8634033203125, float(tf.reduce_sum(pred_mel_mel['mel'])))
 
         val_outputs = []
         for (batch, (mel, text, stop)) in enumerate(train_dataset):
@@ -69,7 +69,7 @@ class TestCombiner(unittest.TestCase):
                                            mask_prob=self.config['mask_prob'])
             val_outputs.append(val_output)
 
-        self.assertAlmostEqual(1.8850715160369873, float(val_outputs[-1]['text_mel']['loss']), places=6)
-        self.assertAlmostEqual(1.8828983306884766, float(val_outputs[-1]['mel_mel']['loss']), places=6)
-        self.assertAlmostEqual(0.00035656357067637146, float(val_outputs[-1]['mel_text']['loss']), places=6)
-        self.assertAlmostEqual(0.0003596764581743628, float(val_outputs[-1]['text_text']['loss']), places=6)
+        self.assertAlmostEqual(2.0211267471313477, float(val_outputs[-1]['text_mel']['loss']), places=6)
+        self.assertAlmostEqual(2.0158276557922363, float(val_outputs[-1]['mel_mel']['loss']), places=6)
+        self.assertAlmostEqual(0.0003641040821094066, float(val_outputs[-1]['mel_text']['loss']), places=6)
+        self.assertAlmostEqual(0.00036166838253848255, float(val_outputs[-1]['text_text']['loss']), places=6)
