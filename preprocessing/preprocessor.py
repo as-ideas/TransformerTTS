@@ -16,6 +16,7 @@ class Preprocessor:
         self.end_vec = np.ones((1, mel_channels)) * end_vec_val
         self.tokenizer = tokenizer
         self.lowercase = lowercase
+        self.mel_channels = mel_channels
         self.clip_val = clip_val
     
     def __call__(self, sample):

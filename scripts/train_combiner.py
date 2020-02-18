@@ -6,33 +6,14 @@ import tensorflow as tf
 import numpy as np
 
 from model.combiner import Combiner
-from preprocessing.data_handling import load_files
+from preprocessing.data_handling import load_files, Dataset
 from preprocessing.preprocessor import Preprocessor
 from utils.decorators import ignore_exception, time_it
-from utils.scheduling import piecewise_linear
+from utils.scheduling import dropout_schedule, learning_rate_schedule
 from utils.logging import SummaryManager
 
 np.random.seed(42)
 tf.random.set_seed(42)
-
-
-def piecewise_linear_schedule(step, schedule):
-    x_schedule = schedule[:, 0]
-    y_schedule = schedule[:, 1]
-    value = piecewise_linear(step, x_schedule, y_schedule)
-    return tf.cast(value, tf.float32)
-
-
-def dropout_schedule(step):
-    schedule = np.array(config['dropout_schedule'])
-    dout = piecewise_linear_schedule(step, schedule)
-    return tf.cast(dout, tf.float32)
-
-
-def learning_rate_schedule(step):
-    schedule = np.array(config['learning_rate_schedule'])
-    lr = piecewise_linear_schedule(step, schedule)
-    return tf.cast(lr, tf.float32)
 
 
 def create_dirs(args, config):
@@ -56,7 +37,7 @@ def validate(combiner,
     print(f'\nvalidating at step {combiner.step}')
     val_loss = {kind: {'loss': 0.} for kind in combiner.transformer_kinds}
     norm = 0.
-    for (val_batch, (val_mel, val_text, val_stop)) in enumerate(val_dataset):
+    for val_mel, val_text, val_stop in val_dataset.all_batches():
         model_out = combiner.val_step(val_text,
                                       val_mel,
                                       val_stop,
@@ -82,10 +63,7 @@ config = yaml.load(open(args.config, 'r'))
 config_name = os.path.splitext(os.path.basename(args.config))[0]
 weights_paths, log_dir, base_dir = create_dirs(args, config)
 
-print('creating model')
 combiner = Combiner(config=config)
-
-print('preprocessing data')
 meldir = os.path.join(args.datadir, 'mels')
 train_meta = os.path.join(args.datadir, 'train_metafile.txt')
 test_meta = os.path.join(args.datadir, 'test_metafile.txt')
@@ -93,26 +71,28 @@ test_meta = os.path.join(args.datadir, 'test_metafile.txt')
 train_samples, _ = load_files(metafile=train_meta,
                               meldir=meldir,
                               num_samples=config['n_samples'])
-test_samples, _ = load_files(metafile=test_meta,
-                             meldir=meldir,
-                             num_samples=config['n_samples'])
+val_samples, _ = load_files(metafile=test_meta,
+                            meldir=meldir,
+                            num_samples=config['n_samples'])
 
 preprocessor = Preprocessor(mel_channels=config['mel_channels'],
                             start_vec_val=config['mel_start_vec_value'],
                             end_vec_val=config['mel_end_vec_value'],
                             tokenizer=combiner.tokenizer)
+
 yaml.dump(config, open(os.path.join(base_dir, os.path.basename(args.config)), 'w'))
-test_list = [preprocessor(s) for s in test_samples]
-train_gen = lambda: (preprocessor(s) for s in train_samples)
-train_dataset = tf.data.Dataset.from_generator(train_gen, output_types=(tf.float32, tf.int32, tf.int32))
-train_dataset = train_dataset.shuffle(1000).padded_batch(config['batch_size'],
-                                                         padded_shapes=([-1, 80], [-1], [-1]),
-                                                         drop_remainder=True)
-val_gen = lambda: (s for s in test_list)
-val_dataset = tf.data.Dataset.from_generator(val_gen, output_types=(tf.float32, tf.int32, tf.int32))
-val_dataset = val_dataset.padded_batch(config['batch_size'],
-                                       padded_shapes=([-1, 80], [-1], [-1]),
-                                       drop_remainder=False)
+test_list = [preprocessor(s) for s in val_samples]
+
+train_dataset = Dataset(samples=train_samples,
+                        preprocessor=preprocessor,
+                        batch_size=config['batch_size'],
+                        shuffle=True)
+val_dataset = Dataset(samples=val_samples,
+                      preprocessor=preprocessor,
+                      batch_size=config['batch_size'],
+                      shuffle=False)
+
+val_list = [preprocessor(s) for s in val_samples]
 
 losses = {}
 summary_writers = {}
@@ -130,89 +110,88 @@ for kind in transformer_kinds:
     managers[kind] = tf.train.CheckpointManager(checkpoints[kind], weights_paths[kind],
                                                 max_to_keep=config['keep_n_weights'],
                                                 keep_checkpoint_every_n_hours=config['keep_checkpoint_every_n_hours'])
-    # RESTORE LATEST MODEL
+    # restore latest model
     checkpoints[kind].restore(managers[kind].latest_checkpoint)
     if managers[kind].latest_checkpoint:
-        print(f'Restored {kind} from {managers[kind].latest_checkpoint}')
+        print(f'restored {kind} from {managers[kind].latest_checkpoint}')
     else:
-        print(f'Initializing {kind} from scratch.')
+        print(f'initializing {kind} from scratch')
 
 print('starting training')
 while combiner.step < config['max_steps']:
+    mel, text, stop = train_dataset.next_batch()
+    decoder_prenet_dropout = dropout_schedule(combiner.step, config['dropout_schedule'])
+    learning_rate = learning_rate_schedule(combiner.step, config['learning_rate_schedule'])
+    combiner.set_learning_rates(learning_rate)
 
-    for (batch, (mel, text, stop)) in enumerate(train_dataset):
-        decoder_prenet_dropout = dropout_schedule(combiner.step)
-        learning_rate = learning_rate_schedule(combiner.step)
-        combiner.set_learning_rates(learning_rate)
-        
-        output = combiner.train_step(text=text,
-                                     mel=mel,
-                                     stop=stop,
-                                     pre_dropout=decoder_prenet_dropout,
-                                     mask_prob=config['mask_prob'])
-        print(f'\nbatch {combiner.step}')
-        
-        summary_manager.write_loss(output, combiner.step)
-        summary_manager.write_meta_scalar(name='dropout',
-                                          value=decoder_prenet_dropout,
-                                          step=combiner.step)
+    output = combiner.train_step(text=text,
+                                 mel=mel,
+                                 stop=stop,
+                                 pre_dropout=decoder_prenet_dropout,
+                                 mask_prob=config['mask_prob'])
+    print(f'\nbatch {combiner.step}')
 
-        for kind in transformer_kinds:
-            losses[kind].append(float(output[kind]['loss']))
-            summary_manager.write_meta_for_kind(name='learning_rate',
-                                                value=getattr(combiner, kind).optimizer.lr,
-                                                step=combiner.step,
-                                                kind=kind)
-            
-            if (combiner.step + 1) % config['plot_attention_freq'] == 0:
-                summary_manager.write_attention(output, combiner.step)
-            print(f'{kind} mean loss: {sum(losses[kind]) / len(losses[kind])}')
-            
-            if (combiner.step + 1) % config['weights_save_freq'] == 0:
-                save_path = managers[kind].save()
-                print(f'Saved checkpoint for step {combiner.step}: {save_path}')
+    summary_manager.write_loss(output, combiner.step)
+    summary_manager.write_meta_scalar(name='dropout',
+                                      value=decoder_prenet_dropout,
+                                      step=combiner.step)
 
-        if (combiner.step + 1) % config['val_freq'] == 0:
-            validate(combiner=combiner,
-                     val_dataset=val_dataset,
-                     summary_manager=summary_manager,
-                     decoder_prenet_dropout=decoder_prenet_dropout)
+    for kind in transformer_kinds:
+        losses[kind].append(float(output[kind]['loss']))
+        summary_manager.write_meta_for_kind(name='learning_rate',
+                                            value=getattr(combiner, kind).optimizer.lr,
+                                            step=combiner.step,
+                                            kind=kind)
 
-        if (combiner.step + 1) % config['text_freq'] == 0:
-            for i in range(2):
-                mel, text_seq, stop = test_list[i]
-                text = combiner.tokenizer.decode(text_seq)
-                pred = combiner.predict(mel,
-                                        text_seq,
-                                        pre_dropout=decoder_prenet_dropout,
-                                        max_len_text=len(text_seq) + 5,
-                                        max_len_mel=False)
-                summary_manager.write_text(text=text, pred=pred, step=combiner.step)
+        if (combiner.step + 1) % config['plot_attention_freq'] == 0:
+            summary_manager.write_attention(output, combiner.step)
+        print(f'{kind} mean loss: {sum(losses[kind]) / len(losses[kind])}')
 
-        if (combiner.step + 1) % config['image_freq'] == 0:
-            for i in range(2):
-                mel, text_seq, stop = test_list[i]
-                text = combiner.tokenizer.decode(text_seq)
-                pred = combiner.predict(mel,
-                                        text_seq,
-                                        pre_dropout=decoder_prenet_dropout,
-                                        max_len_mel=mel.shape[0] + 50,
-                                        max_len_text=False)
-                summary_manager.write_images(mel=mel,
-                                             pred=pred,
-                                             step=combiner.step,
-                                             id=i)
-                summary_manager.write_audios(mel=mel,
-                                             pred=pred,
-                                             config=config,
-                                             step=combiner.step,
-                                             id=i)
-                mel_mel_len = pred['mel_mel']['mel'].shape[0]
-                text_mel_len = pred['text_mel']['mel'].shape[0]
-                print(f'{i}: len target: {mel.shape[0]}, mel_mel: {mel_mel_len}, text_mel: {text_mel_len}')
+        if (combiner.step + 1) % config['weights_save_freq'] == 0:
+            save_path = managers[kind].save()
+            print(f'Saved checkpoint for step {combiner.step}: {save_path}')
 
-        if combiner.step >= config['max_steps']:
-            print(f'Stopping training at step {combiner.step}.')
-            break
+    if (combiner.step + 1) % config['val_freq'] == 0:
+        validate(combiner=combiner,
+                 val_dataset=val_dataset,
+                 summary_manager=summary_manager,
+                 decoder_prenet_dropout=decoder_prenet_dropout)
+
+    if (combiner.step + 1) % config['text_freq'] == 0:
+        for i in range(2):
+            mel, text_seq, stop = test_list[i]
+            text = combiner.tokenizer.decode(text_seq)
+            pred = combiner.predict(mel,
+                                    text_seq,
+                                    pre_dropout=decoder_prenet_dropout,
+                                    max_len_text=len(text_seq) + 5,
+                                    max_len_mel=False)
+            summary_manager.write_text(text=text, pred=pred, step=combiner.step)
+
+    if (combiner.step + 1) % config['image_freq'] == 0:
+        for i in range(2):
+            mel, text_seq, stop = test_list[i]
+            text = combiner.tokenizer.decode(text_seq)
+            pred = combiner.predict(mel,
+                                    text_seq,
+                                    pre_dropout=decoder_prenet_dropout,
+                                    max_len_mel=mel.shape[0] + 50,
+                                    max_len_text=False)
+            summary_manager.write_images(mel=mel,
+                                         pred=pred,
+                                         step=combiner.step,
+                                         id=i)
+            summary_manager.write_audios(mel=mel,
+                                         pred=pred,
+                                         config=config,
+                                         step=combiner.step,
+                                         id=i)
+            mel_mel_len = pred['mel_mel']['mel'].shape[0]
+            text_mel_len = pred['text_mel']['mel'].shape[0]
+            print(f'{i}: len target: {mel.shape[0]}, mel_mel: {mel_mel_len}, text_mel: {text_mel_len}')
+
+    if combiner.step >= config['max_steps']:
+        print(f'Stopping training at step {combiner.step}.')
+        break
 
 print('done fucker.')

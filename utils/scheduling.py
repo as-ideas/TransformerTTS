@@ -1,3 +1,4 @@
+import tensorflow as tf
 import numpy as np
 
 
@@ -25,3 +26,22 @@ def piecewise_linear(step, X, Y):
         return Y[-1]
     else:
         return linear_function(step, X[idx], X[idx + 1], Y[idx], Y[idx + 1])
+
+
+def piecewise_linear_schedule(step, schedule):
+    x_schedule = schedule[:, 0]
+    y_schedule = schedule[:, 1]
+    value = piecewise_linear(step, x_schedule, y_schedule)
+    return tf.cast(value, tf.float32)
+
+
+def dropout_schedule(step, schedule):
+    schedule = np.array(schedule)
+    dout = piecewise_linear_schedule(step, schedule)
+    return tf.cast(dout, tf.float32)
+
+
+def learning_rate_schedule(step, schedule):
+    schedule = np.array(schedule)
+    lr = piecewise_linear_schedule(step, schedule)
+    return tf.cast(lr, tf.float32)
