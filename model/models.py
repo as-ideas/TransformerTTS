@@ -451,9 +451,7 @@ class TextMelTransformer(Transformer):
         model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
         return model_output
 
-    def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, encode=False):
-        if encode:
-            inp = self.tokenizer.encode(inp)
+    def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5):
         inp = tf.expand_dims(inp, 0)
         output = tf.expand_dims(self.start_vec, 0)
         out_dict = {}
