@@ -1,4 +1,5 @@
 import tensorflow as tf
+import sys
 
 from model.transformer_utils import create_text_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses
@@ -66,9 +67,11 @@ class TextTransformer(Transformer):
         if not debug:
             self.train_step = tf.function(input_signature=input_signature)(self._train_step)
             self.val_step = tf.function(input_signature=input_signature)(self._val_step)
+            self.forward = tf.function(input_signature=input_signature)(self._forward)
         else:
             self.train_step = self._train_step
             self.val_step = self._val_step
+            self.forward = self._forward
 
     def call(self,
              inputs,
@@ -91,27 +94,23 @@ class TextTransformer(Transformer):
         model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
         return model_output
 
-    def predict(self, inputs, max_length=40, encode=False):
-        if encode:
-            inputs = self.tokenizer.encode(inputs)
+    def predict(self, inputs, max_length=40):
         encoder_input = tf.expand_dims(inputs, 0)
+        encoder_input = tf.cast(encoder_input, tf.int32)
         decoder_input = [self.tokenizer.start_token_index]
         output = tf.expand_dims(decoder_input, 0)
+        output = tf.cast(output, tf.int32)
         out_dict = {}
         for i in range(max_length):
-            enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(encoder_input, output)
-            model_out = self.__call__(inputs=encoder_input,
-                                      targets=output,
-                                      training=False,
-                                      enc_padding_mask=enc_padding_mask,
-                                      look_ahead_mask=combined_mask,
-                                      dec_padding_mask=dec_padding_mask)
+            model_out = self.forward(inp=encoder_input,
+                                     output=output)
             predictions = model_out['final_output'][:, -1:, :]
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
             output = tf.concat([output, predicted_id], axis=-1)
             out_dict = {'output': tf.squeeze(output, axis=0),
                         'attention_weights': model_out['attention_weights'],
                         'logits': predictions}
+            sys.stdout.write(f'\rpred text text: {i}')
             if predicted_id == self.tokenizer.end_token_index:
                 break
         return out_dict
@@ -123,18 +122,18 @@ class TextTransformer(Transformer):
         look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         return enc_padding_mask, combined_mask, dec_padding_mask
-    
-    def _train_step(self, inp, tar):
-        model_out, tape = self._forward_pass(inp, tar, training=True)
-        gradients = tape.gradient(model_out['loss'], self.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+
+    def _forward(self, inp, output):
+        enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, output)
+        model_out = self.__call__(inputs=inp,
+                                  targets=output,
+                                  training=False,
+                                  enc_padding_mask=enc_padding_mask,
+                                  look_ahead_mask=combined_mask,
+                                  dec_padding_mask=dec_padding_mask)
         return model_out
 
-    def _val_step(self, inp, tar):
-        model_out, _ = self._forward_pass(inp, tar, training=False)
-        return model_out
-
-    def _forward_pass(self, inp, tar, training):
+    def _train_forward(self, inp, tar, training):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_inp)
@@ -148,6 +147,16 @@ class TextTransformer(Transformer):
             loss = self.loss(tar_real, model_out['final_output'])
         model_out.update({'loss': loss})
         return model_out, tape
+
+    def _train_step(self, inp, tar):
+        model_out, tape = self._train_forward(inp, tar, training=True)
+        gradients = tape.gradient(model_out['loss'], self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+        return model_out
+
+    def _val_step(self, inp, tar):
+        model_out, _ = self._train_forward(inp, tar, training=False)
+        return model_out
 
     def _check_tokenizer(self):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
@@ -182,9 +191,11 @@ class MelTransformer(Transformer):
         if not debug:
             self.train_step = tf.function(input_signature=input_signature)(self._train_step)
             self.val_step = tf.function(input_signature=input_signature)(self._val_step)
+            self.forward = tf.function(input_signature=input_signature)(self._forward)
         else:
             self.train_step = self._train_step
             self.val_step = self._val_step
+            self.forward = self._forward
 
     def call(self,
              inputs,
@@ -210,20 +221,19 @@ class MelTransformer(Transformer):
 
     def predict(self, inputs, max_length=50, decoder_prenet_dropout=0.5):
         inputs = tf.expand_dims(inputs, 0)
+        inputs = tf.cast(inputs, tf.float32)
         output = tf.expand_dims(self.start_vec, 0)
+        output = tf.cast(output, tf.float32)
         out_dict = {}
         for i in range(max_length):
-            enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inputs, output)
-            model_out = self.__call__(inputs=inputs,
-                                      targets=output,
-                                      training=False,
-                                      enc_padding_mask=enc_padding_mask,
-                                      look_ahead_mask=combined_mask,
-                                      dec_padding_mask=dec_padding_mask,
-                                      decoder_prenet_dropout=decoder_prenet_dropout)
+            model_out = self.forward(inp=inputs,
+                                     output=output,
+                                     stop_prob=tf.zeros((1, 1), dtype=tf.int32),
+                                     decoder_prenet_dropout=decoder_prenet_dropout)
             output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
             stop_pred = model_out['stop_prob'][:, -1]
             out_dict = {'mel': output[0, 1:, :], 'attention_weights': model_out['attention_weights']}
+            sys.stdout.write(f'\rpred mel mel: {i} stop out: {float(stop_pred[0, 2])}')
             if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
                 break
         return out_dict
@@ -235,26 +245,19 @@ class MelTransformer(Transformer):
         look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         return enc_padding_mask, combined_mask, dec_padding_mask
-    
-    def _train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
-        model_out, tape = self._forward_pass(inp,
-                                             tar,
-                                             stop_prob,
-                                             decoder_prenet_dropout,
-                                             training=True)
-        gradients = tape.gradient(model_out['loss'], self.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+
+    def _forward(self, inp, output, stop_prob, decoder_prenet_dropout):
+        enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, output)
+        model_out = self.__call__(inputs=inp,
+                                  targets=output,
+                                  training=False,
+                                  enc_padding_mask=enc_padding_mask,
+                                  look_ahead_mask=combined_mask,
+                                  dec_padding_mask=dec_padding_mask,
+                                  decoder_prenet_dropout=decoder_prenet_dropout)
         return model_out
 
-    def _val_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
-        model_out, _ = self._forward_pass(inp,
-                                             tar,
-                                             stop_prob,
-                                             decoder_prenet_dropout,
-                                             training=False)
-        return model_out
-
-    def _forward_pass(self, inp, tar, stop_prob, decoder_prenet_dropout, training):
+    def _train_forward(self, inp, tar, stop_prob, decoder_prenet_dropout, training):
         tar_inp = tar[:, :-1, :]
         tar_real = tar[:, 1:, :]
         tar_stop_prob = stop_prob[:, 1:]
@@ -276,6 +279,24 @@ class MelTransformer(Transformer):
         model_out.update({'loss': loss})
         model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})
         return model_out, tape
+
+    def _train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
+        model_out, tape = self._train_forward(inp,
+                                              tar,
+                                              stop_prob,
+                                              decoder_prenet_dropout,
+                                              training=True)
+        gradients = tape.gradient(model_out['loss'], self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+        return model_out
+
+    def _val_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
+        model_out, _ = self._train_forward(inp,
+                                           tar,
+                                           stop_prob,
+                                           decoder_prenet_dropout,
+                                           training=False)
+        return model_out
 
 
 class MelTextTransformer(Transformer):
@@ -307,9 +328,11 @@ class MelTextTransformer(Transformer):
         if not debug:
             self.train_step = tf.function(input_signature=input_signature)(self._train_step)
             self.val_step = tf.function(input_signature=input_signature)(self._val_step)
+            self.forward = tf.function(input_signature=input_signature)(self._forward)
         else:
             self.train_step = self._train_step
             self.val_step = self._val_step
+            self.forward = self._forward
 
     def call(self,
              inputs,
@@ -334,23 +357,21 @@ class MelTextTransformer(Transformer):
 
     def predict(self, inputs, max_length=100):
         encoder_input = tf.expand_dims(inputs, 0)
+        encoder_input = tf.cast(encoder_input, tf.float32)
         decoder_input = [self.tokenizer.start_token_index]
         output = tf.expand_dims(decoder_input, 0)
+        output = tf.cast(output, tf.int32)
         out_dict = {}
         for i in range(max_length):
-            enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(encoder_input, output)
-            model_out = self.__call__(inputs=encoder_input,
-                                      targets=output,
-                                      training=False,
-                                      enc_padding_mask=enc_padding_mask,
-                                      look_ahead_mask=combined_mask,
-                                      dec_padding_mask=dec_padding_mask)
+            model_out = self.forward(inp=encoder_input,
+                                     output=output)
             predictions = model_out['final_output'][:, -1:, :]
             predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
             output = tf.concat([output, predicted_id], axis=-1)
             out_dict = {'output': tf.squeeze(output, axis=0),
                         'attention_weights': model_out['attention_weights'],
                         'logits': predictions}
+            sys.stdout.write(f'\rpred mel text: {i}')
             if predicted_id == self.tokenizer.end_token_index:
                 break
         return out_dict
@@ -363,7 +384,17 @@ class MelTextTransformer(Transformer):
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         return enc_padding_mask, combined_mask, dec_padding_mask
 
-    def _forward_pass(self, inp, tar, training):
+    def _forward(self, inp, output):
+        enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, output)
+        model_out = self.__call__(inputs=inp,
+                                  targets=output,
+                                  training=False,
+                                  enc_padding_mask=enc_padding_mask,
+                                  look_ahead_mask=combined_mask,
+                                  dec_padding_mask=dec_padding_mask)
+        return model_out
+
+    def _train_forward(self, inp, tar, training):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_inp)
@@ -379,13 +410,13 @@ class MelTextTransformer(Transformer):
         return model_out, tape
 
     def _train_step(self, inp, tar):
-        model_out, tape = self._forward_pass(inp, tar, training=True)
+        model_out, tape = self._train_forward(inp, tar, training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
 
     def _val_step(self, inp, tar):
-        model_out, _ = self._forward_pass(inp, tar, training=False)
+        model_out, _ = self._train_forward(inp, tar, training=False)
         return model_out
 
     def _check_tokenizer(self):
@@ -415,7 +446,7 @@ class TextMelTransformer(Transformer):
         self.tokenizer = tokenizer
         self._check_tokenizer()
         self.stop_prob_index = 2
-        self.train_step = self._forward_pass
+        self.train_step = self._train_forward
         input_signature = [
                     tf.TensorSpec(shape=(None, None), dtype=tf.int32),
                     tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
@@ -425,9 +456,11 @@ class TextMelTransformer(Transformer):
         if not debug:
             self.train_step = tf.function(input_signature=input_signature)(self._train_step)
             self.val_step = tf.function(input_signature=input_signature)(self._val_step)
+            self.forward = tf.function(input_signature=input_signature)(self._forward)
         else:
             self.train_step = self._train_step
             self.val_step = self._val_step
+            self.forward = self._forward
 
     def call(self,
              inputs,
@@ -453,20 +486,19 @@ class TextMelTransformer(Transformer):
 
     def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5):
         inp = tf.expand_dims(inp, 0)
+        inp = tf.cast(inp, tf.int32)
         output = tf.expand_dims(self.start_vec, 0)
+        output = tf.cast(output, tf.float32)
         out_dict = {}
         for i in range(max_length):
-            enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, output)
-            model_out = self.__call__(inputs=inp,
-                                      targets=output,
-                                      training=False,
-                                      enc_padding_mask=enc_padding_mask,
-                                      look_ahead_mask=combined_mask,
-                                      dec_padding_mask=dec_padding_mask,
-                                      decoder_prenet_dropout=decoder_prenet_dropout)
+            model_out = self.forward(inp=inp,
+                                     output=output,
+                                     stop_prob=tf.zeros((1, 1), dtype=tf.int32),
+                                     decoder_prenet_dropout=decoder_prenet_dropout)
             output = tf.concat([tf.cast(output, tf.float32), model_out['final_output'][:1, -1:, :]], axis=-2)
             stop_pred = model_out['stop_prob'][:, -1]
             out_dict = {'mel': output[0, 1:, :], 'attention_weights': model_out['attention_weights']}
+            sys.stdout.write(f'\rpred text mel: {i} stop out: {float(stop_pred[0, 2])}')
             if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
                 print('Stopping')
                 break
@@ -480,7 +512,18 @@ class TextMelTransformer(Transformer):
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         return enc_padding_mask, combined_mask, dec_padding_mask
 
-    def _forward_pass(self, inp, tar, stop_prob, decoder_prenet_dropout, training):
+    def _forward(self, inp, output, stop_prob, decoder_prenet_dropout):
+        enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, output)
+        model_out = self.__call__(inputs=inp,
+                                  targets=output,
+                                  training=False,
+                                  enc_padding_mask=enc_padding_mask,
+                                  look_ahead_mask=combined_mask,
+                                  dec_padding_mask=dec_padding_mask,
+                                  decoder_prenet_dropout=decoder_prenet_dropout)
+        return model_out
+
+    def _train_forward(self, inp, tar, stop_prob, decoder_prenet_dropout, training):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
         tar_stop_prob = stop_prob[:, 1:]
@@ -504,13 +547,13 @@ class TextMelTransformer(Transformer):
         return model_out, tape
 
     def _train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
-        model_out, tape = self._forward_pass(inp, tar, stop_prob, decoder_prenet_dropout, training=True)
+        model_out, tape = self._train_forward(inp, tar, stop_prob, decoder_prenet_dropout, training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
 
     def _val_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
-        model_out, _ = self._forward_pass(inp, tar, stop_prob, decoder_prenet_dropout, training=False)
+        model_out, _ = self._train_forward(inp, tar, stop_prob, decoder_prenet_dropout, training=False)
         return model_out
 
     def _check_tokenizer(self):
