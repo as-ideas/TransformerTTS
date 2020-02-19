@@ -526,7 +526,7 @@ class TextMelTransformer(Transformer):
             output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.reduction_factor:, :]],axis=-2)
             stop_pred = model_out['stop_prob'][:, -1]
             out_dict = {'mel': output_concat[0, 1:, :], 'attention_weights': model_out['attention_weights']}
-            sys.stdout.write(f'\rpred mel mel: {i} stop out: {float(stop_pred[0, 2])}')
+            sys.stdout.write(f'\rpred text mel: {i} stop out: {float(stop_pred[0, 2])}')
             if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
                 break
         return out_dict
