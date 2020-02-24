@@ -171,6 +171,7 @@ class MelTransformer(Transformer):
                  encoder,
                  decoder,
                  decoder_postnet,
+                 r=10,
                  start_vec_value=-3,
                  end_vec_value=1,
                  debug=False):
@@ -188,9 +189,10 @@ class MelTransformer(Transformer):
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(None), dtype=tf.float32)
         ]
-        self.reduction_factor = 10
+        self.max_r = 10
+        self.r = 10
         self.mel_channels = 80
-        self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.reduction_factor)
+        self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r)
         if not debug:
             self.train_step = tf.function(input_signature=input_signature)(self._train_step)
             self.val_step = tf.function(input_signature=input_signature)(self._val_step)
@@ -219,10 +221,10 @@ class MelTransformer(Transformer):
                                                      look_ahead_mask=look_ahead_mask,
                                                      padding_mask=dec_padding_mask)
 
-        out_proj = self.final_proj_mel(dec_output)[:, :, :self.reduction_factor * self.mel_channels]
+        out_proj = self.final_proj_mel(dec_output)[:, :, :self.r * self.mel_channels]
         b = int(tf.shape(out_proj)[0])
         t = int(tf.shape(out_proj)[1])
-        mel = tf.reshape(out_proj, (b, t*self.reduction_factor, self.mel_channels))
+        mel = tf.reshape(out_proj, (b, t*self.r, self.mel_channels))
 
         model_output = self.decoder_postnet(inputs=mel, training=training)
         model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
@@ -236,13 +238,13 @@ class MelTransformer(Transformer):
         output_concat = tf.expand_dims(self.start_vec, 0)
         output_concat = tf.cast(output_concat, tf.float32)
         out_dict = {}
-        for i in range(int(max_length // self.reduction_factor) + 1):
+        for i in range(int(max_length // self.r) + 1):
             model_out = self.forward(inp=inputs,
                                      output=output,
                                      stop_prob=tf.zeros((1, 1), dtype=tf.int32),
                                      decoder_prenet_dropout=decoder_prenet_dropout)
             output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
-            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.reduction_factor:, :]],axis=-2)
+            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.r:, :]],axis=-2)
             stop_pred = model_out['stop_prob'][:, -1]
             out_dict = {'mel': output_concat[0, 1:, :], 'attention_weights': model_out['attention_weights']}
             sys.stdout.write(f'\rpred mel mel: {i} stop out: {float(stop_pred[0, 2])}')
@@ -275,7 +277,7 @@ class MelTransformer(Transformer):
         tar_stop_prob = stop_prob[:, 1:]
 
         mel_len = int(tf.shape(tar_inp)[1])
-        tar_mel = tar_inp[:, 0::self.reduction_factor, :]
+        tar_mel = tar_inp[:, 0::self.r, :]
 
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_mel)
         with tf.GradientTape() as tape:
@@ -451,6 +453,7 @@ class TextMelTransformer(Transformer):
                  decoder,
                  decoder_postnet,
                  tokenizer,
+                 r=10,
                  start_vec_value=-3,
                  end_vec_value=1,
                  debug=False):
@@ -464,9 +467,10 @@ class TextMelTransformer(Transformer):
         self.tokenizer = tokenizer
         self._check_tokenizer()
         self.stop_prob_index = 2
-        self.reduction_factor = 10
+        self.max_r = 10
+        self.r = r
         self.mel_channels = 80
-        self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.reduction_factor)
+        self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r)
         self.train_step = self._train_forward
         input_signature = [
                     tf.TensorSpec(shape=(None, None), dtype=tf.int32),
@@ -501,10 +505,10 @@ class TextMelTransformer(Transformer):
                                                      training=training,
                                                      look_ahead_mask=look_ahead_mask,
                                                      padding_mask=dec_padding_mask)
-        out_proj = self.final_proj_mel(dec_output)[:, :, :self.reduction_factor * self.mel_channels]
+        out_proj = self.final_proj_mel(dec_output)[:, :, :self.r * self.mel_channels]
         b = int(tf.shape(out_proj)[0])
         t = int(tf.shape(out_proj)[1])
-        mel = tf.reshape(out_proj, (b, t*self.reduction_factor, self.mel_channels))
+        mel = tf.reshape(out_proj, (b, t*self.r, self.mel_channels))
         model_output = self.decoder_postnet(inputs=mel, training=training)
         model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
         return model_output
@@ -517,13 +521,13 @@ class TextMelTransformer(Transformer):
         output_concat = tf.expand_dims(self.start_vec, 0)
         output_concat = tf.cast(output_concat, tf.float32)
         out_dict = {}
-        for i in range(int(max_length // self.reduction_factor) + 1):
+        for i in range(int(max_length // self.r) + 1):
             model_out = self.forward(inp=inp,
                                      output=output,
                                      stop_prob=tf.zeros((1, 1), dtype=tf.int32),
                                      decoder_prenet_dropout=decoder_prenet_dropout)
             output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
-            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.reduction_factor:, :]],axis=-2)
+            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.r:, :]],axis=-2)
             stop_pred = model_out['stop_prob'][:, -1]
             out_dict = {'mel': output_concat[0, 1:, :], 'attention_weights': model_out['attention_weights']}
             sys.stdout.write(f'\rpred text mel: {i} stop out: {float(stop_pred[0, 2])}')
@@ -556,7 +560,7 @@ class TextMelTransformer(Transformer):
         tar_stop_prob = stop_prob[:, 1:]
 
         mel_len = int(tf.shape(tar_inp)[1])
-        tar_mel = tar_inp[:, 0::self.reduction_factor, :]
+        tar_mel = tar_inp[:, 0::self.r, :]
 
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, tar_mel)
         with tf.GradientTape() as tape:
