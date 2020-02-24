@@ -51,6 +51,10 @@ dropout_schedule:
 learning_rate_schedule:
   - [0, 1.0e-4]
   - [25, 1.0e-3]
+reduction_schedule:
+  - [0, 10]
+  - [10, 5]
+  - [20, 1]
 learning_rate: 1.0e-4 # for initialization
 max_steps: 7000
 batch_size: 6

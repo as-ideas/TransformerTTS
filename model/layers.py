@@ -200,7 +200,6 @@ class SpeechPostnet(tf.keras.layers.Layer):
     def __init__(self, mel_channels, conv_filters=256, conv_layers=5, kernel_size=5):
         super(SpeechPostnet, self).__init__()
         self.mel_channels = mel_channels
-        self.mel_linear = tf.keras.layers.Dense(mel_channels)
         self.stop_linear = tf.keras.layers.Dense(3)
         self.speech_conv_layers = SpeechConvLayers(
             out_size=mel_channels, n_filters=conv_filters, n_layers=conv_layers, kernel_size=kernel_size
@@ -209,10 +208,9 @@ class SpeechPostnet(tf.keras.layers.Layer):
     
     def call(self, x, training):
         stop = self.stop_linear(x)
-        mel_linear = self.mel_linear(x)
-        conv_out = self.postnet(mel_linear, training)
+        conv_out = self.postnet(x, training)
         return {
-            'mel_linear': mel_linear,
+            'mel_linear': x,
             'final_output': conv_out,
             'stop_prob': stop,
         }

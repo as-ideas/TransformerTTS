@@ -260,6 +260,26 @@ class MelTransformer(Transformer):
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         return enc_padding_mask, combined_mask, dec_padding_mask
 
+    def set_r(self, r, debug=False):
+        if self.r == r:
+            return
+        print(f'Mel text setting reduction factor from {self.r} to {r}')
+        self.r = r
+        input_signature = [
+            tf.TensorSpec(shape=(None, None, self.decoder_postnet.mel_channels), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None, self.decoder_postnet.mel_channels), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+            tf.TensorSpec(shape=(None), dtype=tf.float32)
+        ]
+        if not debug:
+            self.train_step = tf.function(input_signature=input_signature)(self._train_step)
+            self.val_step = tf.function(input_signature=input_signature)(self._val_step)
+            self.forward = tf.function(input_signature=input_signature)(self._forward)
+        else:
+            self.train_step = self._train_step
+            self.val_step = self._val_step
+            self.forward = self._forward
+
     def _forward(self, inp, output, stop_prob, decoder_prenet_dropout):
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, output)
         model_out = self.__call__(inputs=inp,
@@ -542,6 +562,26 @@ class TextMelTransformer(Transformer):
         look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         return enc_padding_mask, combined_mask, dec_padding_mask
+
+    def set_r(self, r, debug=False):
+        if self.r == r:
+            return
+        print(f'Text mel setting reduction factor from {self.r} to {r}')
+        self.r = r
+        input_signature = [
+                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+                    tf.TensorSpec(shape=(None, None, self.decoder_postnet.mel_channels), dtype=tf.float32),
+                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+                    tf.TensorSpec(shape=(None), dtype=tf.float32)
+                ]
+        if not debug:
+            self.train_step = tf.function(input_signature=input_signature)(self._train_step)
+            self.val_step = tf.function(input_signature=input_signature)(self._val_step)
+            self.forward = tf.function(input_signature=input_signature)(self._forward)
+        else:
+            self.train_step = self._train_step
+            self.val_step = self._val_step
+            self.forward = self._forward
 
     def _forward(self, inp, output, stop_prob, decoder_prenet_dropout):
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, output)

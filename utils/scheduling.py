@@ -41,6 +41,17 @@ def dropout_schedule(step, schedule):
     return tf.cast(dout, tf.float32)
 
 
+def reduction_schedule(step, schedule):
+    schedule = np.array(schedule)
+    r = schedule[0, 0]
+    for i in range(schedule.shape[0]):
+        if schedule[i, 0] <= step:
+            r = schedule[i, 1]
+        else:
+            break
+    return int(r)
+
+
 def learning_rate_schedule(step, schedule):
     schedule = np.array(schedule)
     lr = piecewise_linear_schedule(step, schedule)
