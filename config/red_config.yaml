@@ -1,0 +1,75 @@
+# ARCHITECTURE
+transformer_kinds:
+#  - 'text_text'
+#  - 'mel_text'
+  - 'text_mel'
+#  - 'mel_mel'
+speech_encoder_num_layers: 4
+speech_decoder_num_layers: 4
+text_encoder_num_layers: 4
+text_decoder_num_layers: 4
+speech_model_dimension: 256
+text_model_dimension: 256
+speech_encoder_num_heads: 1
+speech_decoder_num_heads: 1
+text_encoder_num_heads: 4
+text_decoder_num_heads: 4
+text_encoder_feed_forward_dimension: 512
+text_decoder_feed_forward_dimension: 512
+speech_encoder_feed_forward_dimension: 512
+speech_decoder_feed_forward_dimension: 512
+speech_encoder_prenet_dimension: 256
+speech_decoder_prenet_dimension: 256
+max_position_encoding: 10000
+speech_postnet_conv_filters: 256
+speech_postnet_conv_layers: 5
+speech_postnet_kernel_size: 5
+dropout_rate: 0.1
+
+# LOSSES
+stop_loss_scaling: 8
+
+# DATA
+n_samples: 100000
+mel_channels: 80
+sr: 22050
+mel_start_vec_value: -3
+mel_end_vec_value: 1
+
+# AUDIO
+n_fft: 1024
+f_max: 8000
+f_min: 0
+hop_length: 256
+win_length: 1024
+sampling_rate: 22050
+
+# TRAINING
+dropout_schedule:
+  - [0, 0.9]
+  - [10, 0.5]
+learning_rate_schedule:
+  - [0, 1.0e-4]
+  - [25, 1.0e-3]
+reduction_schedule:
+  - [0, 10]
+  - [5000, 5]
+  - [10000, 2]
+  - [15000, 1]
+learning_rate: 1.0e-4 # for initialization
+max_steps: 7000
+batch_size: 6
+mask_prob: 0.3
+debug: False
+
+# LOGGING
+val_freq: 10
+text_freq: 40
+image_freq: 20
+weights_save_freq: 10000
+plot_attention_freq: 1000
+keep_n_weights: 5
+keep_checkpoint_every_n_hours: 1
+
+# TOKENIZER
+tokenizer_alphabet: "\"!,.:;?'-() abcdefghijklmnopqrstuvwxyzäüöß"
