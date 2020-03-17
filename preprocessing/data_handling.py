@@ -37,7 +37,7 @@ class Dataset:
         """
         samples = self._samples[:]
         if shuffle:
-            print(f'dataset id {id(self)}: shuffling files')
+            # print(f'shuffling files')
             self._random.shuffle(samples)
         return (self.preprocessor(s) for s in samples)
 

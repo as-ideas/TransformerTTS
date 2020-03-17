@@ -186,15 +186,6 @@ class Decoder(tf.keras.layers.Layer):
         return x, attention_weights
 
 
-class TextPostnet(tf.keras.layers.Layer):
-    def __init__(self, target_vocab_size):
-        super(TextPostnet, self).__init__()
-        self.dense_out = tf.keras.layers.Dense(target_vocab_size)
-    
-    def call(self, x):
-        return {'final_output': self.dense_out(x)}
-
-
 class SpeechPostnet(tf.keras.layers.Layer):
     
     def __init__(self, mel_channels, conv_filters=256, conv_layers=5, kernel_size=5):

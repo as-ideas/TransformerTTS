@@ -3,7 +3,7 @@ import numpy as np
 from preprocessing.tokenizer import CharTokenizer
 
 
-class Preprocessor:
+class DataPrepper:
     
     def __init__(self,
                  mel_channels: int,
