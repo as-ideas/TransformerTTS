@@ -1,8 +1,29 @@
-import tensorflow as tf
 import sys
+
+import tensorflow as tf
 
 from model.transformer_utils import create_text_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses
+
+
+def train_signature(f):
+    def apply_func(*args, **kwargs):
+        if args[0].debug:
+            return f(*args, **kwargs)
+        else:
+            return tf.function(input_signature=args[0].train_input_signature)(f(*args, **kwargs))
+    
+    return apply_func
+
+
+def forward_signature(f):
+    def apply_func(*args, **kwargs):
+        if args[0].debug:
+            return f(*args, **kwargs)
+        else:
+            return tf.function(input_signature=args[0].forward_input_signature)(f(*args, **kwargs))
+    
+    return apply_func
 
 
 class Transformer(tf.keras.Model):
@@ -66,27 +87,19 @@ class TextMelTransformer(Transformer):
         self.tokenizer = tokenizer
         self._check_tokenizer()
         self.stop_prob_index = 2
-        self.train_step = self._train_forward
-        training_input_signature = [
-                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-                    tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
-                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-                    tf.TensorSpec(shape=(None), dtype=tf.float32)
-                ]
-        forward_input_signature = [
-                    tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-                    tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
-                    tf.TensorSpec(shape=(None), dtype=tf.float32)
-                ]
-        if not debug:
-            self.train_step = tf.function(input_signature=training_input_signature)(self._train_step)
-            self.val_step = tf.function(input_signature=training_input_signature)(self._val_step)
-            self.forward = tf.function(input_signature=forward_input_signature)(self._forward)
-        else:
-            self.train_step = self._train_step
-            self.val_step = self._val_step
-            self.forward = self._forward
-
+        self.training_input_signature = [
+            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+            tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+            tf.TensorSpec(shape=(None), dtype=tf.float32)
+        ]
+        self.forward_input_signature = [
+            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+            tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
+            tf.TensorSpec(shape=(None), dtype=tf.float32)
+        ]
+        self.debug = debug
+    
     def call(self,
              inputs,
              targets,
@@ -108,7 +121,7 @@ class TextMelTransformer(Transformer):
         model_output = self.decoder_postnet(inputs=dec_output, training=training)
         model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
         return model_output
-
+    
     def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, verbose=True):
         inp = tf.expand_dims(inp, 0)
         inp = tf.cast(inp, tf.int32)
@@ -137,8 +150,9 @@ class TextMelTransformer(Transformer):
         look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         return enc_padding_mask, combined_mask, dec_padding_mask
-
-    def _forward(self, inp, output, decoder_prenet_dropout):
+    
+    @forward_signature
+    def forward(self, inp, output, decoder_prenet_dropout):
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, output)
         model_out = self.__call__(inputs=inp,
                                   targets=output,
@@ -148,7 +162,7 @@ class TextMelTransformer(Transformer):
                                   dec_padding_mask=dec_padding_mask,
                                   decoder_prenet_dropout=decoder_prenet_dropout)
         return model_out
-
+    
     def _train_forward(self, inp, tar, stop_prob, decoder_prenet_dropout, training):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
@@ -171,17 +185,19 @@ class TextMelTransformer(Transformer):
         model_out.update({'loss': loss})
         model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})
         return model_out, tape
-
-    def _train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
+    
+    @train_signature
+    def train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
         model_out, tape = self._train_forward(inp, tar, stop_prob, decoder_prenet_dropout, training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
-
-    def _val_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
+    
+    @train_signature
+    def val_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
         model_out, _ = self._train_forward(inp, tar, stop_prob, decoder_prenet_dropout, training=False)
         return model_out
-
+    
     def _check_tokenizer(self):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
             assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'

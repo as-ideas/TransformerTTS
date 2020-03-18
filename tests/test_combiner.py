@@ -45,7 +45,7 @@ class TestCombiner(unittest.TestCase):
 
         self.assertAlmostEqual(2.904730796813965, float(train_outputs[-1]['loss']), places=6)
         mel_input, text_input = train_samples[0][0], train_samples[0][1]
-        pred_text_mel = combiner.text_mel.predict(text_input, max_length=10)
+        pred_text_mel = combiner.text_mel.predict(text_input, max_length=10, verbose=False)
 
         self.assertAlmostEqual(-860.1569213867188, float(tf.reduce_sum(pred_text_mel['mel'])))
 
