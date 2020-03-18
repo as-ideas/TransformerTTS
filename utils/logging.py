@@ -1,97 +1,89 @@
-import os
+from pathlib import Path
 
 import tensorflow as tf
 
 from utils.audio import invert_griffin_lim
+from utils.display import buffer_mel
+from preprocessing.utils import norm_tensor
 from utils.decorators import ignore_exception
-from utils.display import plot_attention, display_mel
+
+
+def control_frequency(f):
+    def apply_func(*args, **kwargs):
+        # args[0] is self
+        plot_all = ('plot_all' in kwargs) and kwargs['plot_all']
+        if (args[0].global_step % args[0].plot_frequency == 0) or plot_all:
+            result = f(*args, **kwargs)
+            return result
+        else:
+            return None
+    
+    return apply_func
 
 
 class SummaryManager:
     
     def __init__(self,
-                 log_dir):
-        meta_path = os.path.join(log_dir, 'meta')
-        self.summary_writers = {'model': tf.summary.create_file_writer(log_dir),
-                                'meta': tf.summary.create_file_writer(meta_path)}
-
-    @ignore_exception
-    def write_images(self, mel, pred, step, id):
-        with self.summary_writers['model'].as_default():
-            plot_attention(outputs=pred,
-                           step=step,
-                           info_string='test attention ')
-            display_mel(mel=pred['mel'],
-                        step=step,
-                        info_string=f'test mel {id}')
-            display_mel(mel=mel,
-                        step=step,
-                        info_string=f'target mel {id}')
-
-    @ignore_exception
-    def write_text(self, text, pred, step):
-        pred_decoded = pred['output_decoded']
-        self._write_text(text, pred_decoded, step)
-
-    @ignore_exception
-    def write_loss(self, output, step, name='loss'):
-        with self.summary_writers['model'].as_default():
-            loss = output['loss']
-            tf.summary.scalar(name, loss, step=step)
-            for k in output['losses'].keys():
-                loss = output['losses'][k]
-                tf.summary.scalar('model_' + k, loss, step=step)
-                
-    @ignore_exception
-    def write_audios(self, mel, pred, config, step, id):
-        self._write_audio(
-                          name=f'target {id}',
-                          mel=mel,
-                          config=config,
-                          step=step)
-        self._write_audio(
-                          name=f'pred {id}',
-                          mel=pred['mel'],
-                          config=config,
-                          step=step)
-
-    @ignore_exception
-    def write_meta_scalar(self, name, value, step):
-        with self.summary_writers['meta'].as_default():
-            tf.summary.scalar(name, tf.Variable(value), step=step)
-
-    @ignore_exception
-    def write_attention(self, output, step):
-        with self.summary_writers['model'].as_default():
-            plot_attention(outputs=output,
-                           step=step,
-                           info_string='train attention ')
+                 combiner,
+                 log_dir,
+                 max_plot_frequency=10):
+        self.combiner = combiner
+        self.log_dir = Path(log_dir)
+        self.plot_frequency = max_plot_frequency
     
-    def _write_image(self, mel, pred, step, id):
-        with self.summary_writers['model'].as_default():
-            plot_attention(outputs=pred,
-                           step=step,
-                           info_string='test attention ')
-            display_mel(mel=pred['mel'],
-                        step=step,
-                        info_string=f'test mel {id}')
-            display_mel(mel=mel,
-                        step=step,
-                        info_string=f'target mel {id}')
+    @property
+    def global_step(self):
+        return self.combiner.step
     
-    def _write_text(self, text, pred_decoded, step):
-        with self.summary_writers['model'].as_default():
-            name = f'TTS from validation'
-            data_pred = f'(pred) {pred_decoded}'
-            data_target = f'(target) {text}'
-            tf.summary.text(name=name, data=f'{data_pred}\n{data_target}', step=step)
-
-    def _write_audio(self, name, mel, config, step):
+    def add_scalars(self, tag, dictionary):
+        for k in dictionary.keys():
+            with tf.summary.create_file_writer(str(self.log_dir / k)).as_default():
+                tf.summary.scalar(name=tag, data=dictionary[k], step=self.global_step)
+    
+    def add_scalar(self, tag, scalar_value):
+        with tf.summary.create_file_writer(str(self.log_dir)).as_default():
+            tf.summary.scalar(name=tag, data=scalar_value, step=self.global_step)
+    
+    def add_image(self, tag, image):
+        with tf.summary.create_file_writer(str(self.log_dir)).as_default():
+            tf.summary.image(name=tag, data=image, step=self.global_step, max_outputs=4)
+    
+    def add_audio(self, tag, wav, sr):
+        with tf.summary.create_file_writer(str(self.log_dir)).as_default():
+            tf.summary.audio(name=tag,
+                             data=wav,
+                             sample_rate=sr,
+                             step=self.global_step)
+    
+    @ignore_exception
+    def display_attention_heads(self, outputs, tag=''):
+        for k in outputs['attention_weights'].keys():
+            image_batch = norm_tensor(tf.expand_dims(outputs['attention_weights'][k][0, :, :, :], -1))
+            # dim 0 is now number of heads
+            batch_plot_path = f'{tag}AttentionHeads/{k}'
+            self.add_image(str(batch_plot_path), image_batch)
+    
+    @ignore_exception
+    def display_mel(self, mel, tag='', sr=22050):
+        img = tf.transpose(tf.exp(mel))
+        buf = buffer_mel(img, sr=sr)
+        img_tf = tf.image.decode_png(buf.getvalue(), channels=3)
+        self.add_image(tag, tf.expand_dims(img_tf, 0))
+    
+    @control_frequency
+    @ignore_exception
+    def display_loss(self, output, tag='', plot_all=False):
+        self.add_scalars(tag=f'{tag}/losses', dictionary=output['losses'])
+        self.add_scalar(tag=f'{tag}/loss', scalar_value=output['loss'])
+    
+    @control_frequency
+    @ignore_exception
+    def display_scalar(self, tag, scalar_value, plot_all=False):
+        self.add_scalar(tag=tag, scalar_value=scalar_value)
+    
+    @ignore_exception
+    def display_audio(self, tag, mel, config):
         wav = invert_griffin_lim(mel, config)
         wav = tf.expand_dims(wav, 0)
         wav = tf.expand_dims(wav, -1)
-        with self.summary_writers['model'].as_default():
-            tf.summary.audio(name,
-                             wav,
-                             sample_rate=config['sampling_rate'],
-                             step=step)
+        self.add_audio(tag, wav.numpy(), sr=config['sampling_rate'])

@@ -44,7 +44,8 @@ def validate(combiner,
         norm += 1
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
-    summary_manager.write_loss(model_out, combiner.step, name='val_loss')
+    summary_manager.display_loss(model_out, tag='Validation', plot_all=True)
+    summary_manager.display_attention_heads(model_out, tag='Validation')
     return val_loss['loss']
 
 
@@ -107,7 +108,7 @@ val_list = [data_prep(s) for s in val_samples]
 
 # create logger and checkpointer and restore latest model
 
-summary_manager = SummaryManager(log_dir)
+summary_manager = SummaryManager(combiner=combiner, log_dir=log_dir)
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
                                  optimizer=combiner.text_mel.optimizer,
                                  net=combiner.text_mel)
@@ -128,7 +129,6 @@ mel, text, stop = train_dataset.next_batch()
 t = trange(combiner.step, config['max_steps'], leave=True)
 for i in t:
     t.set_description(f'step {combiner.step}')
-    
     mel, text, stop = train_dataset.next_batch()
     decoder_prenet_dropout = piecewise_linear_schedule(combiner.step, config['dropout_schedule'])
     learning_rate = piecewise_linear_schedule(combiner.step, config['learning_rate_schedule'])
@@ -146,15 +146,11 @@ for i in t:
         if len(losses) > n_steps:
             t.display(f'{n_steps}-steps average loss: {sum(losses[-n_steps:]) / n_steps}', pos=pos + 2)
     
-    summary_manager.write_loss(output, combiner.step)
-    summary_manager.write_meta_scalar(name='dropout',
-                                      value=decoder_prenet_dropout,
-                                      step=combiner.step)
-    summary_manager.write_meta_scalar(name='learning_rate',
-                                      value=combiner.text_mel.optimizer.lr,
-                                      step=combiner.step)
+    summary_manager.display_loss(output, tag='Train')
+    summary_manager.display_scalar(tag='Meta/dropout', scalar_value=decoder_prenet_dropout)
+    summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=combiner.text_mel.optimizer.lr)
     if (combiner.step + 1) % config['plot_attention_freq'] == 0:
-        summary_manager.write_attention(output, combiner.step)
+        summary_manager.display_attention_heads(output, tag='Train')
     
     if (combiner.step + 1) % config['weights_save_freq'] == 0:
         save_path = manager.save()
@@ -175,15 +171,16 @@ for i in t:
                                                 pre_dropout=decoder_prenet_dropout,
                                                 max_len_mel=mel.shape[0] + 50,
                                                 verbose=False)
-            summary_manager.write_images(mel=mel,
-                                         pred=pred,
-                                         step=combiner.step,
-                                         id=i)
-            summary_manager.write_audios(mel=mel,
-                                         pred=pred,
-                                         config=config,
-                                         step=combiner.step,
-                                         id=i)
+            summary_manager.display_attention_heads(outputs=pred,
+                                                    tag='Test')
+            
+            summary_manager.display_mel(mel=pred['mel'],
+                                        tag=f'Test/predicted_mel {i}')
+            summary_manager.display_mel(mel=mel,
+                                        tag=f'Test/target_mel {i}')
+            summary_manager.display_audio(tag='Target', mel=mel, config=config)
+            summary_manager.display_audio(tag='Prediction', mel=pred['mel'], config=config)
+            
             t.display(f"{config['n_predictions']} predictions at time step {combiner.step} took {time_taken}s",
                       pos=len(config['n_steps_avg_losses']) + 4)
 
