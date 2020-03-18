@@ -1,4 +1,5 @@
 import os
+import shutil
 import argparse
 
 import ruamel.yaml
@@ -23,6 +24,8 @@ def create_dirs(args):
     base_dir = os.path.join(args.log_dir, config_name)
     log_dir = os.path.join(base_dir, f'logs/')
     weights_dir = os.path.join(base_dir, f'weights/')
+    if args.clear_dir:
+        shutil.rmtree(base_dir, ignore_errors=True)
     os.makedirs(log_dir, exist_ok=True)
     os.makedirs(weights_dir, exist_ok=True)
     return weights_dir, log_dir, base_dir
@@ -69,6 +72,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--datadir', dest='datadir', type=str)
 parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
 parser.add_argument('--config', dest='config', type=str)
+parser.add_argument('--cleardir', action='store_true', help="deletes everything under this config's folder.")
 args = parser.parse_args()
 yaml = ruamel.yaml.YAML()
 config = yaml.load(open(args.config, 'r'))
@@ -78,6 +82,7 @@ weights_paths, log_dir, base_dir = create_dirs(args)
 meldir = os.path.join(args.datadir, 'mels')
 train_meta = os.path.join(args.datadir, 'train_metafile.txt')
 test_meta = os.path.join(args.datadir, 'test_metafile.txt')
+
 train_samples, _ = load_files(metafile=train_meta,
                               meldir=meldir,
                               num_samples=config['n_samples'])
@@ -117,9 +122,9 @@ manager = tf.train.CheckpointManager(checkpoint, weights_paths,
                                      keep_checkpoint_every_n_hours=config['keep_checkpoint_every_n_hours'])
 checkpoint.restore(manager.latest_checkpoint)
 if manager.latest_checkpoint:
-    print(f'\nrestored model from {manager.latest_checkpoint}')
+    print(f'\nresuming training from step {combiner.step} ({manager.latest_checkpoint})')
 else:
-    print(f'\ninitializing model from scratch')
+    print(f'\nstarting training from scratch')
 
 # main event
 
@@ -164,24 +169,24 @@ for i in t:
         t.display(f'validation loss at step {combiner.step}: {val_loss} (took {time_taken}s)',
                   pos=len(config['n_steps_avg_losses']) + 3)
     
-    if (combiner.step + 1) % config['image_freq'] == 0:
+    if (combiner.step + 1) % config['image_freq'] == 0 and (combiner.step > config['prediction_start_step']):
+        timings = []
         for i in range(config['n_predictions']):
             mel, text_seq, stop = test_list[i]
+            t.display(f'Predicting {i}', pos=len(config['n_steps_avg_losses']) + 4)
             pred, time_taken = combiner.predict(text_seq,
                                                 pre_dropout=decoder_prenet_dropout,
                                                 max_len_mel=mel.shape[0] + 50,
                                                 verbose=False)
-            summary_manager.display_attention_heads(outputs=pred,
-                                                    tag='Test')
-            
-            summary_manager.display_mel(mel=pred['mel'],
-                                        tag=f'Test/predicted_mel {i}')
-            summary_manager.display_mel(mel=mel,
-                                        tag=f'Test/target_mel {i}')
-            summary_manager.display_audio(tag='Target', mel=mel, config=config)
-            summary_manager.display_audio(tag='Prediction', mel=pred['mel'], config=config)
-            
-            t.display(f"{config['n_predictions']} predictions at time step {combiner.step} took {time_taken}s",
-                      pos=len(config['n_steps_avg_losses']) + 4)
+            timings.append(time_taken)
+            summary_manager.display_attention_heads(outputs=pred, tag='Test')
+            summary_manager.display_mel(mel=pred['mel'], tag=f'Test/predicted_mel {i}')
+            summary_manager.display_mel(mel=mel, tag=f'Test/target_mel {i}')
+            if combiner.step > config['audio_start_step']:
+                summary_manager.display_audio(tag='Target', mel=mel, config=config)
+                summary_manager.display_audio(tag='Prediction', mel=pred['mel'], config=config)
+        
+        t.display(f"Predictions at time step {combiner.step} took {sum(timings)}s ({timings})",
+                  pos=len(config['n_steps_avg_losses']) + 4)
 
 print('Done.')

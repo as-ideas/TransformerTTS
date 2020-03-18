@@ -51,8 +51,10 @@ weights_save_freq: 10_000
 plot_attention_freq: 1_000
 keep_n_weights: 5
 keep_checkpoint_every_n_hours: 1
-n_steps_avg_losses: [100, 500, 1_000, 5000]
+n_steps_avg_losses: [100, 500, 1_000, 5_000]
 n_predictions: 2
+prediction_start_step: 10_000
+audio_start_step: 40_000
 
 # TOKENIZER
 tokenizer_alphabet: "\"!,.:;?'-() abcdefghijklmnopqrstuvwxyzäüöß"
