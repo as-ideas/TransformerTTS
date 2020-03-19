@@ -3,10 +3,10 @@ import unittest
 import tensorflow as tf
 import numpy as np
 
-from preprocessing.tokenizer import Tokenizer
+from preprocessing.data_handling  import Tokenizer
 
 
-class TestTokenizer(unittest.TestCase):
+class TestCharTokenizer(unittest.TestCase):
     
     def test_tokenizer(self):
         tokenizer = Tokenizer(alphabet=list('ab c'))
