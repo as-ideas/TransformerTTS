@@ -6,26 +6,6 @@ from model.transformer_utils import create_text_padding_mask, create_mel_padding
 from utils.losses import weighted_sum_losses
 
 
-def train_signature(f):
-    def apply_func(*args, **kwargs):
-        if args[0].debug:
-            return f(*args, **kwargs)
-        else:
-            return tf.function(input_signature=args[0].train_input_signature)(f(*args, **kwargs))
-    
-    return apply_func
-
-
-def forward_signature(f):
-    def apply_func(*args, **kwargs):
-        if args[0].debug:
-            return f(*args, **kwargs)
-        else:
-            return tf.function(input_signature=args[0].forward_input_signature)(f(*args, **kwargs))
-    
-    return apply_func
-
-
 class Transformer(tf.keras.Model):
     
     def __init__(
@@ -104,6 +84,15 @@ class TextMelTransformer(Transformer):
             tf.TensorSpec(shape=(None), dtype=tf.float32)
         ]
         self.debug = debug
+        self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
+        self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
+        self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
+    
+    def __apply_signature(self, function, signature):
+        if self.debug:
+            return function
+        else:
+            return tf.function(input_signature=signature)(function)
     
     def call(self,
              inputs,
@@ -131,7 +120,9 @@ class TextMelTransformer(Transformer):
         model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
         return model_output
     
-    def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, verbose=True):
+    def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, encode=False, verbose=True):
+        if encode:
+            inp = self.tokenizer.encode(inp)
         inp = tf.expand_dims(inp, 0)
         inp = tf.cast(inp, tf.int32)
         output = tf.expand_dims(self.start_vec, 0)
@@ -142,7 +133,6 @@ class TextMelTransformer(Transformer):
         for i in range(int(max_length // self.r) + 1):
             model_out = self.forward(inp=inp,
                                      output=output,
-                                     stop_prob=tf.zeros((1, 1), dtype=tf.int32),
                                      decoder_prenet_dropout=decoder_prenet_dropout)
             output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
             output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.r:, :]],axis=-2)
@@ -184,7 +174,7 @@ class TextMelTransformer(Transformer):
             self.val_step = self._val_step
             self.forward = self._forward
 
-    def _forward(self, inp, output, stop_prob, decoder_prenet_dropout):
+    def _forward(self, inp, output, decoder_prenet_dropout):
         enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inp, output)
         model_out = self.__call__(inputs=inp,
                                   targets=output,
@@ -224,15 +214,13 @@ class TextMelTransformer(Transformer):
         model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})
         return model_out, tape
     
-    @train_signature
-    def train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
+    def _train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
         model_out, tape = self._train_forward(inp, tar, stop_prob, decoder_prenet_dropout, training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
     
-    @train_signature
-    def val_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
+    def _val_step(self, inp, tar, stop_prob, decoder_prenet_dropout):
         model_out, _ = self._train_forward(inp, tar, stop_prob, decoder_prenet_dropout, training=False)
         return model_out
     

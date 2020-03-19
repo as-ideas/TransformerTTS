@@ -130,7 +130,7 @@ else:
 
 print('\nTRAINING')
 losses = []
-mel, text, stop = train_dataset.next_batch()
+_ = train_dataset.next_batch()
 t = trange(combiner.step, config['max_steps'], leave=True)
 for i in t:
     t.set_description(f'step {combiner.step}')
