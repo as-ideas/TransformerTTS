@@ -38,6 +38,11 @@ dropout_schedule:
   - [30_000, 0.5]
 learning_rate_schedule:
   - [0, 1.0e-4]
+reduction_schedule:
+  - [0, 10]
+  - [5000, 5]
+  - [10000, 2]
+  - [15000, 1]
 max_steps: 300_000
 batch_size: 16
 mask_prob: 0.3

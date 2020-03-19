@@ -138,9 +138,8 @@ for i in t:
     decoder_prenet_dropout = piecewise_linear_schedule(combiner.step, config['dropout_schedule'])
     learning_rate = piecewise_linear_schedule(combiner.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(combiner.step, config['reduction_schedule'])
-    print(f'red fac {reduction_factor}')
+    t.display(f'red fac {reduction_factor}', pos=10)
     combiner.text_mel.set_r(reduction_factor)
-    combiner.mel_mel.set_r(reduction_factor)
     combiner.set_learning_rates(learning_rate)
     
     output = combiner.train_step(text=text,
