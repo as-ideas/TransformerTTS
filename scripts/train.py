@@ -11,7 +11,7 @@ from model.combiner import Combiner
 from preprocessing.data_handling import load_files, Dataset
 from preprocessing.preprocessor import DataPrepper
 from utils.decorators import ignore_exception, time_it
-from utils.scheduling import piecewise_linear_schedule
+from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging import SummaryManager
 
 np.random.seed(42)
@@ -137,6 +137,10 @@ for i in t:
     mel, text, stop = train_dataset.next_batch()
     decoder_prenet_dropout = piecewise_linear_schedule(combiner.step, config['dropout_schedule'])
     learning_rate = piecewise_linear_schedule(combiner.step, config['learning_rate_schedule'])
+    reduction_factor = reduction_schedule(combiner.step, config['reduction_schedule'])
+    print(f'red fac {reduction_factor}')
+    combiner.text_mel.set_r(reduction_factor)
+    combiner.mel_mel.set_r(reduction_factor)
     combiner.set_learning_rates(learning_rate)
     
     output = combiner.train_step(text=text,
