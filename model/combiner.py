@@ -4,7 +4,7 @@ from utils.decorators import time_it
 from utils.losses import masked_mean_squared_error, new_scaled_crossentropy
 from model.layers import Encoder, Decoder, SpeechPostnet, SpeechDecoderPrenet
 from model.models import TextMelTransformer
-from preprocessing.data_handling  import Tokenizer
+from preprocessing.tokenizer  import Tokenizer
 from preprocessing.text_processing import _phonemes
 
 

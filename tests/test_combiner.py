@@ -6,7 +6,7 @@ import ruamel.yaml
 import tensorflow as tf
 
 from model.combiner import Combiner
-from preprocessing.data_handling import DataPrepper
+from preprocessing.preprocessor import DataPrepper
 
 
 class TestCombiner(unittest.TestCase):

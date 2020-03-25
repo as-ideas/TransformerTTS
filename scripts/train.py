@@ -8,7 +8,8 @@ import numpy as np
 from tqdm import trange
 
 from model.combiner import Combiner
-from preprocessing.data_handling import load_files, Dataset, DataPrepper
+from preprocessing.data_handling import load_files, Dataset
+from preprocessing.preprocessor import DataPrepper
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule
 from utils.logging import SummaryManager
@@ -102,9 +103,9 @@ print_dictionary(config, recursion_level=1)
 
 combiner = Combiner(config=config)
 data_prep = DataPrepper(mel_channels=config['mel_channels'],
-                               start_vec_val=config['mel_start_vec_value'],
-                               end_vec_val=config['mel_end_vec_value'],
-                               tokenizer=combiner.tokenizer)
+                        start_vec_val=config['mel_start_vec_value'],
+                        end_vec_val=config['mel_end_vec_value'],
+                        tokenizer=combiner.tokenizer)
 yaml.dump(config, open(os.path.join(base_dir, os.path.basename(args.config)), 'w'))
 test_list = [data_prep(s, include_text=True) for s in val_samples]
 train_dataset = Dataset(samples=train_samples,
