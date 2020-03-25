@@ -34,20 +34,18 @@ sampling_rate: 22050
 
 # TRAINING
 dropout_schedule:
-  - [0, 0.9]
-  - [30_000, 0.5]
+  - [0, 0.5]
 learning_rate_schedule:
   - [0, 1.0e-4]
-reduction_schedule:
+reduction_factor_schedule:
   - [0, 10]
-  - [5000, 5]
-  - [10000, 2]
-  - [15000, 1]
+  - [20_000, 5]
+  - [50_000, 2]
+  - [100_000, 1]
 max_steps: 300_000
 batch_size: 16
 mask_prob: 0.3
 debug: False
-learning_rate: 1.0e-4 # for initialization
 
 # LOGGING
 val_freq: 500

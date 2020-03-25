@@ -79,8 +79,6 @@ config = yaml.load(open(args.config, 'r'))
 config_name = os.path.splitext(os.path.basename(args.config))[0]
 config['datadir'] = args.datadir
 weights_paths, log_dir, base_dir = create_dirs(args)
-
-print('creating model')
 if not config['use_phonemes'] == True:
     print('Set use_phonemes: True in config')
     exit()
@@ -115,7 +113,6 @@ val_dataset = Dataset(samples=val_samples,
                       preprocessor=data_prep,
                       batch_size=config['batch_size'],
                       shuffle=False)
-# val_list = [data_prep(s) for s in val_samples]
 
 # create logger and checkpointer and restore latest model
 
@@ -163,6 +160,7 @@ for i in t:
     summary_manager.display_loss(output, tag='Train')
     summary_manager.display_scalar(tag='Meta/dropout', scalar_value=decoder_prenet_dropout)
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=combiner.text_mel.optimizer.lr)
+    summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=combiner.text_mel.r)
     if (combiner.step + 1) % config['plot_attention_freq'] == 0:
         summary_manager.display_attention_heads(output, tag='Train')
     

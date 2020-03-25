@@ -35,6 +35,7 @@ def piecewise_linear_schedule(step, schedule):
     value = piecewise_linear(step, x_schedule, y_schedule)
     return tf.cast(value, tf.float32)
 
+
 def reduction_schedule(step, schedule):
     schedule = np.array(schedule)
     r = schedule[0, 0]
@@ -44,4 +45,3 @@ def reduction_schedule(step, schedule):
         else:
             break
     return int(r)
-\

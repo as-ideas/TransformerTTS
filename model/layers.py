@@ -213,7 +213,7 @@ class SpeechPostnet(tf.keras.layers.Layer):
 
 
 class SpeechConvLayers(tf.keras.layers.Layer):
-
+    
     def __init__(self, out_size, n_filters=256, n_layers=5, kernel_size=5, dropout_prob=0.5):
         super(SpeechConvLayers, self).__init__()
         self.convolutions = [tf.keras.layers.Conv1D(filters=n_filters,

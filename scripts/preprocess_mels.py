@@ -37,7 +37,6 @@ if not os.path.exists(mel_dir):
 print('\nLoading and cleaning text')
 text_cleaner = TextCleaner()
 audio_data = []
-# max_samples=100
 with open(args.META_FILE, 'r', encoding='utf-8') as f:
     for l in f.readlines():
         l_split = l.split('|')
@@ -46,8 +45,6 @@ with open(args.META_FILE, 'r', encoding='utf-8') as f:
             filename = filename.split('.')[-1]
         text = text_cleaner.clean(text)
         audio_data.append((filename, text))
-        # if len(audio_data) >= max_samples:
-        #     break
 
 if args.PHONEMIZE:
     print('\nPhonemizing')

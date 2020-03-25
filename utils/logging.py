@@ -28,7 +28,7 @@ class SummaryManager:
         :arg log_dir: base directory where logs of a config are created
         :arg max_plot_frequency: every how many steps to plot
     """
-
+    
     def __init__(self,
                  combiner,
                  log_dir,
@@ -79,7 +79,7 @@ class SummaryManager:
             # dim 0 of image_batch is now number of heads
             batch_plot_path = f'{tag}AttentionHeads/{k}'
             self.add_image(str(batch_plot_path), image_batch)
-
+    
     @ignore_exception
     def display_mel(self, mel, tag='', sr=22050):
         img = tf.transpose(tf.exp(mel))
@@ -97,7 +97,7 @@ class SummaryManager:
     @ignore_exception
     def display_scalar(self, tag, scalar_value, plot_all=False):
         self.add_scalar(tag=tag, scalar_value=scalar_value)
-
+    
     @ignore_exception
     def display_audio(self, tag, mel, config):
         # mel = tf.clip_by_value(mel, clip_value_min=-15., clip_value_max=1.)

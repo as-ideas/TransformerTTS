@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 
 from utils.decorators import time_it
@@ -55,7 +56,7 @@ class Combiner:
                                dff=text_encoder_feed_forward_dimension,
                                maximum_position_encoding=max_position_encoding,
                                rate=dropout_rate, )
-        learning_rate = self.config['learning_rate']
+        learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         stop_scaling = config.get('stop_loss_scaling', 1.)
         self.text_mel = TextMelTransformer(encoder_prenet=text_encoder_prenet,
                                            decoder_prenet=speech_decoder_prenet,

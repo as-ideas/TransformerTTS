@@ -24,6 +24,3 @@ def time_it(f):
         return result, dur
     
     return apply_func
-
-
-
