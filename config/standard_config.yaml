@@ -62,4 +62,6 @@ prediction_start_step: 10_000
 audio_start_step: 40_000
 
 # TOKENIZER
+use_phonemes: True
+phoneme_language: 'en'
 tokenizer_alphabet: "\"!,.:;?'-() abcdefghijklmnopqrstuvwxyzäüöß"

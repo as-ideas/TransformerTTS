@@ -79,6 +79,11 @@ config = yaml.load(open(args.config, 'r'))
 config_name = os.path.splitext(os.path.basename(args.config))[0]
 config['datadir'] = args.datadir
 weights_paths, log_dir, base_dir = create_dirs(args)
+
+print('creating model')
+if not config['use_phonemes'] == True:
+    print('Set use_phonemes: True in config')
+    exit()
 meldir = os.path.join(args.datadir, 'mels')
 train_meta = os.path.join(args.datadir, 'train_metafile.txt')
 test_meta = os.path.join(args.datadir, 'test_metafile.txt')
@@ -86,6 +91,7 @@ test_meta = os.path.join(args.datadir, 'test_metafile.txt')
 train_samples, _ = load_files(metafile=train_meta,
                               meldir=meldir,
                               num_samples=config['n_samples'])
+# OUT = (phonemes, text, mel)
 val_samples, _ = load_files(metafile=test_meta,
                             meldir=meldir,
                             num_samples=config['n_samples'])
@@ -100,7 +106,7 @@ data_prep = DataPrepper(mel_channels=config['mel_channels'],
                         end_vec_val=config['mel_end_vec_value'],
                         tokenizer=combiner.tokenizer)
 yaml.dump(config, open(os.path.join(base_dir, os.path.basename(args.config)), 'w'))
-test_list = [data_prep(s) for s in val_samples]
+test_list = [data_prep(s, include_text=True) for s in val_samples]
 train_dataset = Dataset(samples=train_samples,
                         preprocessor=data_prep,
                         batch_size=config['batch_size'],
@@ -109,7 +115,7 @@ val_dataset = Dataset(samples=val_samples,
                       preprocessor=data_prep,
                       batch_size=config['batch_size'],
                       shuffle=False)
-val_list = [data_prep(s) for s in val_samples]
+# val_list = [data_prep(s) for s in val_samples]
 
 # create logger and checkpointer and restore latest model
 
@@ -134,7 +140,7 @@ _ = train_dataset.next_batch()
 t = trange(combiner.step, config['max_steps'], leave=True)
 for i in t:
     t.set_description(f'step {combiner.step}')
-    mel, text, stop = train_dataset.next_batch()
+    mel, phonemes, stop = train_dataset.next_batch()
     decoder_prenet_dropout = piecewise_linear_schedule(combiner.step, config['dropout_schedule'])
     learning_rate = piecewise_linear_schedule(combiner.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(combiner.step, config['reduction_schedule'])
@@ -142,7 +148,7 @@ for i in t:
     combiner.text_mel.set_r(reduction_factor)
     combiner.set_learning_rates(learning_rate)
     
-    output = combiner.train_step(text=text,
+    output = combiner.train_step(text=phonemes,
                                  mel=mel,
                                  stop=stop,
                                  pre_dropout=decoder_prenet_dropout)
@@ -175,9 +181,9 @@ for i in t:
     if (combiner.step + 1) % config['image_freq'] == 0 and (combiner.step > config['prediction_start_step']):
         timings = []
         for i in range(config['n_predictions']):
-            mel, text_seq, stop = test_list[i]
+            mel, phonemes, stop, text_seq = test_list[i]
             t.display(f'Predicting {i}', pos=len(config['n_steps_avg_losses']) + 4)
-            pred, time_taken = combiner.predict(text_seq,
+            pred, time_taken = combiner.predict(phonemes,
                                                 pre_dropout=decoder_prenet_dropout,
                                                 max_len_mel=mel.shape[0] + 50,
                                                 verbose=False)

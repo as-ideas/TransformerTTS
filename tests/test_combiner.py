@@ -27,7 +27,7 @@ class TestCombiner(unittest.TestCase):
                                     start_vec_val=self.config['mel_start_vec_value'],
                                     end_vec_val=self.config['mel_end_vec_value'],
                                     tokenizer=combiner.tokenizer)
-        train_samples = [data_prep.encode('repeated text', mel) for mel in test_mels]
+        train_samples = [data_prep._run('repeated text', 'repeated_text', mel, include_text=False) for mel in test_mels]
         train_set_gen = lambda: (item for item in train_samples)
         train_dataset = tf.data.Dataset.from_generator(train_set_gen,
                                                        output_types=(tf.float32, tf.int32, tf.int32))
@@ -43,11 +43,11 @@ class TestCombiner(unittest.TestCase):
                                                    pre_dropout=0.5)
                 train_outputs.append(train_output)
 
-        self.assertAlmostEqual(2.5172035694122314, float(train_outputs[-1]['loss']), places=6)
+        self.assertAlmostEqual(2.9094631671905518, float(train_outputs[-1]['loss']), places=6)
         mel_input, text_input = train_samples[0][0], train_samples[0][1]
         pred_text_mel = combiner.text_mel.predict(text_input, max_length=10, verbose=False)
 
-        self.assertAlmostEqual(-1773.509765625, float(tf.reduce_sum(pred_text_mel['mel'])))
+        self.assertAlmostEqual(-862.1229858398438, float(tf.reduce_sum(pred_text_mel['mel'])))
 
         val_outputs = []
         for (batch, (mel, text, stop)) in enumerate(train_dataset):
@@ -57,4 +57,4 @@ class TestCombiner(unittest.TestCase):
                                            pre_dropout=0.5)
             val_outputs.append(val_output)
 
-        self.assertAlmostEqual(2.4509973526000977, float(val_outputs[-1]['loss']), places=6)
+        self.assertAlmostEqual(2.2984085083007812, float(val_outputs[-1]['loss']), places=6)

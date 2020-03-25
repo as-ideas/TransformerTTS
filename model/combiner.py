@@ -4,7 +4,8 @@ from utils.decorators import time_it
 from utils.losses import masked_mean_squared_error, new_scaled_crossentropy
 from model.layers import Encoder, Decoder, SpeechPostnet, SpeechDecoderPrenet
 from model.models import TextMelTransformer
-from preprocessing.tokenizer import CharTokenizer
+from preprocessing.tokenizer import Tokenizer
+from preprocessing.text_processing import _phonemes
 
 
 class Combiner:
@@ -30,8 +31,11 @@ class Combiner:
         debug = self.config['debug']
         mel_start_vec_value = self.config['mel_start_vec_value']
         mel_end_vec_value = self.config['mel_end_vec_value']
-        alphabet = config['tokenizer_alphabet']
-        self.tokenizer = CharTokenizer(list(alphabet))
+        if config['use_phonemes']:
+            self.tokenizer = Tokenizer(list(_phonemes))
+        else:
+            alphabet = config['tokenizer_alphabet']
+            self.tokenizer = Tokenizer(list(alphabet))
         
         speech_decoder_prenet = SpeechDecoderPrenet(d_model=speech_model_dimension, dff=speech_decoder_prenet_dimension)
         speech_decoder_postnet = SpeechPostnet(mel_channels=mel_channels,

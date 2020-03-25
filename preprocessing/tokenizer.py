@@ -1,9 +1,9 @@
-class CharTokenizer:
+class Tokenizer:
     
-    def __init__(self, alphabet, start_token='>', end_token='<'):
+    def __init__(self, alphabet, start_token='>', end_token='<', pad_token='/'):
         self.alphabet = alphabet
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet, start=1)}
-        self.idx_to_token[0] = '/'
+        self.idx_to_token[0] = pad_token
         self.token_to_idx = {s: i for i, s in self.idx_to_token.items()}
         self.start_token_index = len(self.alphabet) + 1
         self.end_token_index = len(self.alphabet) + 2
