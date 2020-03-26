@@ -1,0 +1,48 @@
+# ARCHITECTURE
+speech_decoder_num_layers: 1
+text_encoder_num_layers: 1
+speech_model_dimension: 128
+text_model_dimension: 128
+speech_decoder_num_heads: 1
+text_encoder_num_heads: 1
+text_encoder_feed_forward_dimension: 128
+speech_decoder_feed_forward_dimension: 128
+speech_decoder_prenet_dimension: 128
+max_position_encoding: 10000
+speech_postnet_conv_filters: 64
+speech_postnet_conv_layers: 1
+speech_postnet_kernel_size: 5
+dropout_rate: 0.1
+# DATA
+n_samples: 600
+mel_channels: 80
+sr: 22050
+mel_start_vec_value: -3
+mel_end_vec_value: 1
+# TRAINING
+use_decoder_prenet_dropout_schedule: True
+decoder_prenet_dropout_schedule_max: 0.9
+decoder_prenet_dropout_schedule_min: 0.6
+decoder_prenet_dropout_schedule_max_steps: 30_000
+fixed_decoder_prenet_dropout: 0.6
+epochs: 10
+batch_size: 2
+learning_rate_schedule:
+  - [0, 1.0e-3]
+reduction_factor_schedule:
+  - [0, 10]
+mask_prob: 0.3
+use_block_attention: False
+debug: True
+# LOGGING
+text_freq: 5000
+image_freq: 1000
+weights_save_freq: 10
+plot_attention_freq: 500
+keep_n_weights: 5
+warmup_steps: 1_000
+warmup_lr: 1.0e-6
+#TOKENIZER
+use_phonemes: True
+phoneme_language: 'en'
+tokenizer_alphabet: "!,.:;?'- abcdefghijklmnopqrstuvwxyzäüöß"

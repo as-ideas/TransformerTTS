@@ -1,5 +1,12 @@
 ## CUSTOM
+samples
 .idea
+data
+*.pkl
+*.hdf5
+.DS_Store
+private
+logs
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
