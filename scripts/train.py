@@ -17,6 +17,19 @@ from utils.logging import SummaryManager
 np.random.seed(42)
 tf.random.set_seed(42)
 
+# dinamically allocate GPU
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+  try:
+    # Currently, memory growth needs to be the same across GPUs
+    for gpu in gpus:
+      tf.config.experimental.set_memory_growth(gpu, True)
+    logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+    print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+  except RuntimeError as e:
+    # Memory growth must be set before GPUs have been initialized
+    print(e)
+
 
 # aux functions declaration
 
@@ -25,7 +38,9 @@ def create_dirs(args):
     log_dir = os.path.join(base_dir, f'logs/')
     weights_dir = os.path.join(base_dir, f'weights/')
     if args.clear_dir:
-        shutil.rmtree(base_dir, ignore_errors=True)
+        delete = input('Delete current logs and weights? (y/[n])')
+        if delete == 'y':
+            shutil.rmtree(base_dir, ignore_errors=True)
     os.makedirs(log_dir, exist_ok=True)
     os.makedirs(weights_dir, exist_ok=True)
     return weights_dir, log_dir, base_dir
