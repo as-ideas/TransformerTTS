@@ -1,24 +1,12 @@
 # ARCHITECTURE
-transformer_kinds:
-  - 'text_text'
-  - 'mel_text'
-  - 'text_mel'
-  - 'mel_mel'
-speech_encoder_num_layers: 1
 speech_decoder_num_layers: 1
 text_encoder_num_layers: 1
-text_decoder_num_layers: 1
 speech_model_dimension: 128
 text_model_dimension: 128
-speech_encoder_num_heads: 1
 speech_decoder_num_heads: 1
 text_encoder_num_heads: 1
-text_decoder_num_heads: 1
 text_encoder_feed_forward_dimension: 128
-text_decoder_feed_forward_dimension: 128
-speech_encoder_feed_forward_dimension: 128
 speech_decoder_feed_forward_dimension: 128
-speech_encoder_prenet_dimension: 128
 speech_decoder_prenet_dimension: 128
 max_position_encoding: 10000
 speech_postnet_conv_filters: 64
@@ -39,12 +27,12 @@ decoder_prenet_dropout_schedule_max_steps: 30_000
 fixed_decoder_prenet_dropout: 0.6
 epochs: 10
 batch_size: 2
-learning_rate: 1e-3
+learning_rate_schedule:
+  - [0, 1.0e-3]
+reduction_factor_schedule:
+  - [0, 10]
 mask_prob: 0.3
 use_block_attention: False
-block_attention_schedule:
-  - [7, 30_000]
-  - [2, 40_000]
 debug: True
 # LOGGING
 text_freq: 5000

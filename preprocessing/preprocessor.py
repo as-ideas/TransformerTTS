@@ -26,7 +26,7 @@ class DataPrepper:
         mel = np.load(mel_path)
         return self._run(phonemes, text, mel, include_text=include_text)
     
-    def _run(self, phonemes, text, mel, include_text):
+    def _run(self, phonemes, text, mel, *, include_text):
         if self.lowercase:
             phonemes = phonemes.lower()
         encoded_phonemes = self.tokenizer.encode(phonemes)

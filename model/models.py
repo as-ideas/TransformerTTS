@@ -54,7 +54,7 @@ class TextMelTransformer(Transformer):
                  decoder,
                  decoder_postnet,
                  tokenizer,
-                 r=10,
+                 max_r=10,
                  start_vec_value=-3,
                  end_vec_value=1,
                  debug=False):
@@ -68,8 +68,8 @@ class TextMelTransformer(Transformer):
         self.tokenizer = tokenizer
         self._check_tokenizer()
         self.stop_prob_index = 2
-        self.max_r = 10
-        self.r = r
+        self.max_r = max_r
+        self.r = max_r
         self.mel_channels = 80
         self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r)
         self.training_input_signature = [
@@ -117,7 +117,8 @@ class TextMelTransformer(Transformer):
         t = int(tf.shape(out_proj)[1])
         mel = tf.reshape(out_proj, (b, t * self.r, self.mel_channels))
         model_output = self.decoder_postnet(inputs=mel, training=training)
-        model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
+        model_output.update(
+            {'attention_weights': attention_weights, 'decoder_output': dec_output, 'out_proj': out_proj})
         return model_output
     
     def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, encode=False, verbose=True):
@@ -146,7 +147,7 @@ class TextMelTransformer(Transformer):
     
     def create_masks(self, inp, tar_inp):
         enc_padding_mask = create_text_padding_mask(inp)
-        dec_padding_mask = tf.identity(enc_padding_mask)
+        dec_padding_mask = create_text_padding_mask(inp)
         dec_target_padding_mask = create_mel_padding_mask(tar_inp)
         look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
@@ -198,6 +199,7 @@ class TextMelTransformer(Transformer):
                                                   self.loss_weights)
         model_out.update({'loss': loss})
         model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})
+        model_out.update({'reduced_target': tar_mel})
         return model_out, tape
     
     def _train_step(self, inp, tar, stop_prob, decoder_prenet_dropout):

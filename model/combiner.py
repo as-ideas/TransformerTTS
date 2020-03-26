@@ -57,6 +57,7 @@ class Combiner:
                                maximum_position_encoding=max_position_encoding,
                                rate=dropout_rate, )
         learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
+        max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
         stop_scaling = config.get('stop_loss_scaling', 1.)
         self.text_mel = TextMelTransformer(encoder_prenet=text_encoder_prenet,
                                            decoder_prenet=speech_decoder_prenet,
@@ -64,6 +65,7 @@ class Combiner:
                                            encoder=text_encoder,
                                            decoder=speech_decoder,
                                            tokenizer=self.tokenizer,
+                                           max_r=max_r,
                                            start_vec_value=mel_start_vec_value,
                                            end_vec_value=mel_end_vec_value,
                                            debug=debug)

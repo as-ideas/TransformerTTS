@@ -38,7 +38,7 @@ class TextCleaner:
                 self.garbage.append([x for x in text if x not in clean])
                 out.append(clean)
         elif type(text) is str:
-            out = ''.join([c for c in t if c in self.accepted_chars])
+            out = ''.join([c for c in text if c in self.accepted_chars])
             self.garbage.append([x for x in text if x not in out])
         else:
             print('Datatype not understood')

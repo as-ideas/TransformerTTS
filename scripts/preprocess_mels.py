@@ -7,6 +7,7 @@ import numpy as np
 import tqdm
 
 from preprocessing.text_processing import Phonemizer, TextCleaner
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--sampling_rate', dest='SAMPLING_RATE', default=22050, type=int)
 parser.add_argument('--n_fft', dest='N_FFT', default=1024, type=int)
@@ -30,7 +31,7 @@ for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 if args.PHONEMIZE:
     phonemizer = Phonemizer(args.LANGUAGE)
-    
+
 mel_dir = os.path.join(args.TARGET_DIR, 'mels')
 if not os.path.exists(mel_dir):
     os.makedirs(mel_dir)
@@ -64,12 +65,14 @@ test_metafile = os.path.join(args.TARGET_DIR, 'test_metafile.txt')
 train_metafile = os.path.join(args.TARGET_DIR, 'train_metafile.txt')
 
 if args.PHONEMIZE:
-    test_lines = [''.join([filename, '|', text, '|', phon, '\n']) for filename, text, phon in audio_data[:args.TEST_SIZE]]
-    train_lines = [''.join([filename, '|', text, '|', phon, '\n']) for filename, text, phon in audio_data[args.TEST_SIZE:-1]]
+    test_lines = [''.join([filename, '|', text, '|', phon, '\n']) for filename, text, phon in
+                  audio_data[:args.TEST_SIZE]]
+    train_lines = [''.join([filename, '|', text, '|', phon, '\n']) for filename, text, phon in
+                   audio_data[args.TEST_SIZE:-1]]
 else:
     test_lines = [''.join([filename, '|', text, '\n']) for filename, text in audio_data[:args.TEST_SIZE]]
     train_lines = [''.join([filename, '|', text, '\n']) for filename, text in audio_data[args.TEST_SIZE:-1]]
-    
+
 with open(test_metafile, 'w+', encoding='utf-8') as test_f:
     test_f.writelines(test_lines)
 with open(train_metafile, 'w+', encoding='utf-8') as train_f:
