@@ -39,13 +39,6 @@ Look into ```scripts/preprocess_mels.py``` for more options.
 
 ### Run training
 From the root folder run
-    parser = argparse.ArgumentParser()
-parser.add_argument('--datadir', dest='datadir', type=str)
-parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
-parser.add_argument('--config', dest='config', type=str)
-parser.add_argument('--cleardir', dest='clear_dir', action='store_true',
-                    help="deletes everything under this config's folder.")
-parser.add_argument('--session_name', dest='session_name', default=None)
 ```
 python scripts/train.py
     --datadir /path/to/spectrograms/
