@@ -42,7 +42,7 @@ reduction_factor_schedule:
   - [20_000, 5]
   - [50_000, 2]
   - [100_000, 1]
-max_steps: 300_000
+max_steps: 900_000
 batch_size: 16
 mask_prob: 0.3
 debug: False
