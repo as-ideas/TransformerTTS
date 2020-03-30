@@ -32,12 +32,7 @@ class Combiner:
         debug = self.config['debug']
         mel_start_vec_value = self.config['mel_start_vec_value']
         mel_end_vec_value = self.config['mel_end_vec_value']
-        if config['use_phonemes']:
-            self.tokenizer = Tokenizer(list(_phonemes))
-        else:
-            alphabet = config['tokenizer_alphabet']
-            self.tokenizer = Tokenizer(list(alphabet))
-        
+        self.tokenizer = Tokenizer(list(_phonemes))
         speech_decoder_prenet = SpeechDecoderPrenet(d_model=speech_model_dimension, dff=speech_decoder_prenet_dimension)
         speech_decoder_postnet = SpeechPostnet(mel_channels=mel_channels,
                                                conv_filters=speech_postnet_conv_filters,

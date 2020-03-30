@@ -105,9 +105,6 @@ if not session_name:
     session_name = os.path.splitext(os.path.basename(args.config))[0]
 config['datadir'] = args.datadir
 weights_paths, log_dir, base_dir = create_dirs(args)
-if not config['use_phonemes'] == True:
-    print('Set use_phonemes: True in config')
-    exit()
 meldir = os.path.join(args.datadir, 'mels')
 train_meta = os.path.join(args.datadir, 'train_metafile.txt')
 test_meta = os.path.join(args.datadir, 'test_metafile.txt')
