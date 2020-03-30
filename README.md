@@ -15,7 +15,8 @@ Prepare a dataset in the following format:
 |       |- file1.wav
 |       |- ...
 ```
-where `metadata.csv` has two columns: `wav file name` and `transcribed text`.
+where `metadata.csv` has the following format: 
+``` wav_file_name|trascription ```
 
 The dataset [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) is in this format.
 
@@ -33,19 +34,10 @@ python scripts/preprocess_mels.py
     --meta_file /path/to/metadata.csv 
     --wav_dir /path/to/wav/directory/
     --target_dir /directory/to/store/spectrograms/
+    --config /path/to/config/file.yaml
 ```
-
-Look into ```scripts/preprocess_mels.py``` for more options.
-
 ### Run training
 From the root folder run
-    parser = argparse.ArgumentParser()
-parser.add_argument('--datadir', dest='datadir', type=str)
-parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
-parser.add_argument('--config', dest='config', type=str)
-parser.add_argument('--cleardir', dest='clear_dir', action='store_true',
-                    help="deletes everything under this config's folder.")
-parser.add_argument('--session_name', dest='session_name', default=None)
 ```
 python scripts/train.py
     --datadir /path/to/spectrograms/

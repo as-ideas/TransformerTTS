@@ -45,7 +45,6 @@ reduction_factor_schedule:
   - [100_000, 1]
 max_steps: 900_000
 batch_size: 16
-mask_prob: 0.3
 debug: False
 
 # LOGGING
@@ -61,6 +60,4 @@ prediction_start_step: 10_000
 audio_start_step: 40_000
 
 # TOKENIZER
-use_phonemes: True
 phoneme_language: 'en'
-tokenizer_alphabet: "\"!,.:;?'-() abcdefghijklmnopqrstuvwxyzäüöß"

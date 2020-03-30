@@ -15,15 +15,14 @@ parser.add_argument('--wav_dir', dest='WAV_DIR', type=str, required=True)
 parser.add_argument('--target_dir', dest='TARGET_DIR', type=str, required=True)
 parser.add_argument('--config', dest='CONFIG', type=str, required=True)
 parser.add_argument('--njobs', dest='NJOBS', type=int, default=16)
-
+parser.add_argument('--col_sep', dest='COLUMN_SEP', type=str, default='|')
 args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 
 yaml = ruamel.yaml.YAML()
 config = yaml.load(open(args.CONFIG, 'r'))
-if config['use_phonemes']:
-    phonemizer = Phonemizer(config['phoneme_language'])
+phonemizer = Phonemizer(config['phoneme_language'])
 
 mel_dir = os.path.join(args.TARGET_DIR, 'mels')
 if not os.path.exists(mel_dir):
@@ -33,38 +32,34 @@ text_cleaner = TextCleaner()
 audio_data = []
 with open(args.META_FILE, 'r', encoding='utf-8') as f:
     for l in f.readlines():
-        l_split = l.split('|')
+        l_split = l.split(args.COLUMN_SEP)
         filename, text = l_split[0], l_split[-1]
         if filename.endswith('.wav'):
             filename = filename.split('.')[-1]
         text = text_cleaner.clean(text)
         audio_data.append((filename, text))
 
-if config['use_phonemes']:
-    print('\nPhonemizing')
-    audio_data = np.array(audio_data)
-    texts = audio_data[:, 1]
-    split = 250  # split phonemization to avoid memory issues.
-    phonemes = []
-    for i in range(0, len(audio_data), split):
-        part = texts[i: i + split]
-        part = phonemizer.encode(part, njobs=args.NJOBS)
-        phonemes.extend(part)
-    audio_data = np.concatenate([np.array(audio_data), np.expand_dims(phonemes, axis=1)], axis=1)
+print('\nPhonemizing')
+audio_data = np.array(audio_data)
+texts = audio_data[:, 1]
+batch_size = 250  # batch phonemization to avoid memory issues.
+phonemes = []
+for i in tqdm.tqdm(range(0, len(audio_data), batch_size)):
+    batch = texts[i: i + batch_size]
+    batch = phonemizer.encode(batch, njobs=args.NJOBS)
+    phonemes.extend(batch)
+audio_data = np.concatenate([np.array(audio_data), np.expand_dims(phonemes, axis=1)], axis=1)
+
 print('\nBuilding dataset and writing files')
 random.seed(42)
 random.shuffle(audio_data)
 test_metafile = os.path.join(args.TARGET_DIR, 'test_metafile.txt')
 train_metafile = os.path.join(args.TARGET_DIR, 'train_metafile.txt')
 
-if config['use_phonemes']:
-    test_lines = [''.join([filename, '|', text, '|', phon, '\n']) for filename, text, phon in
-                  audio_data[:config['n_test']]]
-    train_lines = [''.join([filename, '|', text, '|', phon, '\n']) for filename, text, phon in
-                   audio_data[config['n_test']:-1]]
-else:
-    test_lines = [''.join([filename, '|', text, '\n']) for filename, text in audio_data[:config['n_test']]]
-    train_lines = [''.join([filename, '|', text, '\n']) for filename, text in audio_data[config['n_test']:-1]]
+test_lines = [''.join([filename, '|', text, '|', phon, '\n']) for filename, text, phon in
+              audio_data[:config['n_test']]]
+train_lines = [''.join([filename, '|', text, '|', phon, '\n']) for filename, text, phon in
+               audio_data[config['n_test']:-1]]
 
 with open(test_metafile, 'w+', encoding='utf-8') as test_f:
     test_f.writelines(test_lines)
