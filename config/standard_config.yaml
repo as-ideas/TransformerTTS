@@ -19,6 +19,7 @@ stop_loss_scaling: 8
 
 # DATA
 n_samples: 100000
+n_test: 100
 mel_channels: 80
 sr: 22050
 mel_start_vec_value: -3
