@@ -31,8 +31,9 @@ class TextMelTransformer(tf.keras.models.Model):
                  max_r: int = 10,
                  start_vec_value: int = -3,
                  end_vec_value: int = 1,
-                 debug=False):
-        super(TextMelTransformer, self).__init__()
+                 debug=False,
+                 **kwargs):
+        super(TextMelTransformer, self).__init__(**kwargs)
         self.start_vec = tf.ones((1, mel_channels), dtype=tf.float32) * start_vec_value
         self.end_vec = tf.ones((1, mel_channels), dtype=tf.float32) * end_vec_value
         self.stop_prob_index = 2
@@ -43,26 +44,31 @@ class TextMelTransformer(tf.keras.models.Model):
         self.tokenizer = Tokenizer(list(_phonemes))
         self._check_tokenizer()
         
-        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension)
+        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension,
+                                                        name='Embedding')
         self.encoder = Encoder(num_layers=encoder_num_layers,
                                model_dim=encoder_model_dimension,
                                num_heads=encoder_num_heads,
                                dense_hidden_units=encoder_feed_forward_dimension,
                                maximum_position_encoding=max_position_encoding,
-                              dropout_rate=dropout_rate, )
+                               dropout_rate=dropout_rate,
+                               name='Encoder')
         self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
-                                            dense_hidden_units=decoder_prenet_dimension)
+                                            dense_hidden_units=decoder_prenet_dimension,
+                                            name='DecoderPrenet')
         self.decoder = Decoder(num_layers=decoder_num_layers,
                                model_dim=decoder_model_dimension,
                                num_heads=decoder_num_heads,
                                dense_hidden_units=decoder_feed_forward_dimension,
                                maximum_position_encoding=max_position_encoding,
-                              dropout_rate=dropout_rate)
-        self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r)
+                               dropout_rate=dropout_rate,
+                               name='Decoder')
+        self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r, name='FinalProj')
         self.decoder_postnet = Postnet(mel_channels=mel_channels,
                                        conv_filters=postnet_conv_filters,
                                        conv_layers=postnet_conv_layers,
-                                       kernel_size=postnet_kernel_size)
+                                       kernel_size=postnet_kernel_size,
+                                       name='Postnet')
         
         self.training_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
