@@ -227,3 +227,14 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                            masked_mean_squared_error],
                      loss_weights=[1., 1., 1.],
                      optimizer=optimizer)
+    
+    def build_graph(self, r: int):
+        self.set_r(r)
+        try:
+            self.forward([0], output=[0], decoder_prenet_dropout=0)
+        except:
+            pass
+    
+    def load_weights(self, weights_path: str, r: int = 1):
+        self.build_graph(r)
+        super(AutoregressiveTransformer, self).load_weights(weights_path)
