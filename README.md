@@ -66,15 +66,16 @@ config = yaml.load(open('/path/to/config.yaml', 'rb'))
 
 # Create a `ConfigLoader` object using a config file
 config_loader = ConfigLoader(config)
-config_loader.text_mel.set_r(1)
+model = config_loader.get_model()
+model.set_r(1)
 # Do some tensorflow "magic"
 try:
-    config_loader.text_mel.forward([0], output=[0], decoder_prenet_dropout=.5)
+    model.forward([0], output=[0], decoder_prenet_dropout=.5)
 except:
     pass
 
 # Restore a checkpoint using the checkpoint manager
-ckpt = tf.train.Checkpoint(net=config_loader.text_mel)
+ckpt = tf.train.Checkpoint(net=model)
 manager = tf.train.CheckpointManager(ckpt, '/path/to/checkpoint/weights/', max_to_keep=None)
 ckpt.restore(manager.latest_checkpoint)
 
@@ -83,10 +84,10 @@ cleaner = TextCleaner()
 phonemizer = Phonemizer(language='en')
 sentence = "Plese, say something."
 sentence=phonemizer.encode(cleaner.clean(sentence))
-enc_sentence = [config_loader.tokenizer.start_token_index] + config_loader.tokenizer.encode(sentence.lower()) + [config_loader.tokenizer.end_token_index]
+enc_sentence = [model.tokenizer.start_token_index] + model.tokenizer.encode(sentence.lower()) + [model.tokenizer.end_token_index]
 
 # Run predictions
-out = config_loader.text_mel.predict(enc_sentence, max_length=1000, decoder_prenet_dropout=config['dropout_schedule'][-1][-1])
+out = model.predict(enc_sentence, max_length=1000, decoder_prenet_dropout=config['dropout_schedule'][-1][-1])
 
 # Convert spectrogram to wav (with griffin lim) and display
 stft = librosa.feature.inverse.mel_to_stft(np.exp(out['mel'].numpy().T), sr=22050, n_fft=1024, power=1, fmin=0, fmax=8000) 
