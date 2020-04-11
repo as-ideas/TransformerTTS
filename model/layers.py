@@ -16,10 +16,10 @@ class PointWiseFFN(tf.keras.layers.Layer):
         return x
 
 
-class SpeechDecoderPrenet(tf.keras.layers.Layer):
+class DecoderPrenet(tf.keras.layers.Layer):
     
     def __init__(self, d_model, dff, dropout_rate=0.5):
-        super(SpeechDecoderPrenet, self).__init__()
+        super(DecoderPrenet, self).__init__()
         self.d1 = tf.keras.layers.Dense(dff, activation='relu')  # (batch_size, seq_len, dff)
         self.d2 = tf.keras.layers.Dense(d_model, activation='relu')  # (batch_size, seq_len, d_model)
         self.dropout_1 = tf.keras.layers.Dropout(dropout_rate)
@@ -186,36 +186,36 @@ class Decoder(tf.keras.layers.Layer):
         return x, attention_weights
 
 
-class SpeechPostnet(tf.keras.layers.Layer):
+class Postnet(tf.keras.layers.Layer):
     
     def __init__(self, mel_channels, conv_filters=256, conv_layers=5, kernel_size=5):
-        super(SpeechPostnet, self).__init__()
+        super(Postnet, self).__init__()
         self.mel_channels = mel_channels
         self.stop_linear = tf.keras.layers.Dense(3)
-        self.speech_conv_layers = SpeechConvLayers(
+        self.postnet_conv_layers = PostnetConvLayers(
             out_size=mel_channels, n_filters=conv_filters, n_layers=conv_layers, kernel_size=kernel_size
         )
         self.add_layer = tf.keras.layers.Add()
     
     def call(self, x, training):
         stop = self.stop_linear(x)
-        conv_out = self.postnet(x, training)
+        conv_out = self.conv_net(x, training)
         return {
             'mel_linear': x,
             'final_output': conv_out,
             'stop_prob': stop,
         }
     
-    def postnet(self, x, training):
-        conv_out = self.speech_conv_layers(x, training)
+    def conv_net(self, x, training):
+        conv_out = self.postnet_conv_layers(x, training)
         x = self.add_layer([conv_out, x])
         return x
 
 
-class SpeechConvLayers(tf.keras.layers.Layer):
+class PostnetConvLayers(tf.keras.layers.Layer):
     
     def __init__(self, out_size, n_filters=256, n_layers=5, kernel_size=5, dropout_prob=0.5):
-        super(SpeechConvLayers, self).__init__()
+        super(PostnetConvLayers, self).__init__()
         self.convolutions = [tf.keras.layers.Conv1D(filters=n_filters,
                                                     kernel_size=kernel_size,
                                                     padding='causal',

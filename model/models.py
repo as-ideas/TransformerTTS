@@ -2,9 +2,9 @@ import sys
 
 import tensorflow as tf
 
-from model.transformer_utils import create_text_padding_mask, create_mel_padding_mask, create_look_ahead_mask
+from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses
-from model.layers import SpeechDecoderPrenet, SpeechPostnet, Decoder, Encoder
+from model.layers import DecoderPrenet, Postnet, Decoder, Encoder
 from utils.losses import masked_mean_squared_error, new_scaled_crossentropy
 from preprocessing.tokenizer import Tokenizer
 from preprocessing.text_processing import _phonemes
@@ -14,18 +14,18 @@ class TextMelTransformer(tf.keras.models.Model):
     
     def __init__(self,
                  mel_channels: int,
-                 text_model_dimension: int,
-                 text_encoder_num_layers: int,
-                 text_encoder_num_heads: int,
-                 text_encoder_feed_forward_dimension: int,
-                 speech_model_dimension: int,
-                 speech_decoder_prenet_dimension: int,
-                 speech_decoder_num_layers: int,
-                 speech_decoder_num_heads: int,
-                 speech_decoder_feed_forward_dimension: int,
-                 speech_postnet_conv_filters: int,
-                 speech_postnet_conv_layers: int,
-                 speech_postnet_kernel_size: int,
+                 encoder_model_dimension: int,
+                 encoder_num_layers: int,
+                 encoder_num_heads: int,
+                 encoder_feed_forward_dimension: int,
+                 decoder_model_dimension: int,
+                 decoder_prenet_dimension: int,
+                 decoder_num_layers: int,
+                 decoder_num_heads: int,
+                 decoder_feed_forward_dimension: int,
+                 postnet_conv_filters: int,
+                 postnet_conv_layers: int,
+                 postnet_kernel_size: int,
                  max_position_encoding: int,
                  dropout_rate: float,
                  max_r: int = 10,
@@ -43,26 +43,26 @@ class TextMelTransformer(tf.keras.models.Model):
         self.tokenizer = Tokenizer(list(_phonemes))
         self._check_tokenizer()
         
-        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, text_model_dimension)
-        self.encoder = Encoder(num_layers=text_encoder_num_layers,
-                               d_model=text_model_dimension,
-                               num_heads=text_encoder_num_heads,
-                               dff=text_encoder_feed_forward_dimension,
+        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension)
+        self.encoder = Encoder(num_layers=encoder_num_layers,
+                               d_model=encoder_model_dimension,
+                               num_heads=encoder_num_heads,
+                               dff=encoder_feed_forward_dimension,
                                maximum_position_encoding=max_position_encoding,
                                rate=dropout_rate, )
-        self.decoder_prenet = SpeechDecoderPrenet(d_model=speech_model_dimension,
-                                                  dff=speech_decoder_prenet_dimension)
-        self.decoder = Decoder(num_layers=speech_decoder_num_layers,
-                               d_model=speech_model_dimension,
-                               num_heads=speech_decoder_num_heads,
-                               dff=speech_decoder_feed_forward_dimension,
+        self.decoder_prenet = DecoderPrenet(d_model=decoder_model_dimension,
+                                            dff=decoder_prenet_dimension)
+        self.decoder = Decoder(num_layers=decoder_num_layers,
+                               d_model=decoder_model_dimension,
+                               num_heads=decoder_num_heads,
+                               dff=decoder_feed_forward_dimension,
                                maximum_position_encoding=max_position_encoding,
                                rate=dropout_rate)
         self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r)
-        self.decoder_postnet = SpeechPostnet(mel_channels=mel_channels,
-                                             conv_filters=speech_postnet_conv_filters,
-                                             conv_layers=speech_postnet_conv_layers,
-                                             kernel_size=speech_postnet_kernel_size)
+        self.decoder_postnet = Postnet(mel_channels=mel_channels,
+                                       conv_filters=postnet_conv_filters,
+                                       conv_layers=postnet_conv_layers,
+                                       kernel_size=postnet_kernel_size)
         
         self.training_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
@@ -138,8 +138,8 @@ class TextMelTransformer(tf.keras.models.Model):
         return out_dict
     
     def create_masks(self, inp, tar_inp):
-        enc_padding_mask = create_text_padding_mask(inp)
-        dec_padding_mask = create_text_padding_mask(inp)
+        enc_padding_mask = create_encoder_padding_mask(inp)
+        dec_padding_mask = create_encoder_padding_mask(inp)
         dec_target_padding_mask = create_mel_padding_mask(tar_inp)
         look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)

@@ -58,7 +58,7 @@ def scaled_dot_product_attention(q, k, v, mask):
     return output, attention_weights
 
 
-def create_text_padding_mask(seq):
+def create_encoder_padding_mask(seq):
     seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
     return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
 
