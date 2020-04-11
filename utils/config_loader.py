@@ -22,13 +22,13 @@ class ConfigLoader:
                                          encoder_num_layers=self.config['encoder_num_layers'],
                                          encoder_num_heads=self.config['encoder_num_heads'],
                                          encoder_feed_forward_dimension=self.config[
-                                      'encoder_feed_forward_dimension'],
+                                             'encoder_feed_forward_dimension'],
                                          decoder_model_dimension=self.config['decoder_model_dimension'],
                                          decoder_prenet_dimension=self.config['decoder_prenet_dimension'],
                                          decoder_num_layers=self.config['decoder_num_layers'],
                                          decoder_num_heads=self.config['decoder_num_heads'],
                                          decoder_feed_forward_dimension=self.config[
-                                      'decoder_feed_forward_dimension'],
+                                             'decoder_feed_forward_dimension'],
                                          postnet_conv_filters=self.config['postnet_conv_filters'],
                                          postnet_conv_layers=self.config['postnet_conv_layers'],
                                          postnet_kernel_size=self.config['postnet_kernel_size'],
