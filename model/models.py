@@ -4,83 +4,75 @@ import tensorflow as tf
 
 from model.transformer_utils import create_text_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses
+from model.layers import SpeechDecoderPrenet, SpeechPostnet, Decoder, Encoder
+from utils.losses import masked_mean_squared_error, new_scaled_crossentropy
+from preprocessing.tokenizer import Tokenizer
+from preprocessing.text_processing import _phonemes
 
 
-class Transformer(tf.keras.Model):
-    
-    def __init__(
-            self, encoder_prenet, decoder_prenet, encoder, decoder, decoder_postnet):
-        super(Transformer, self).__init__()
-        self.encoder_prenet = encoder_prenet
-        self.decoder_prenet = decoder_prenet
-        self.encoder = encoder
-        self.decoder = decoder
-        self.decoder_postnet = decoder_postnet
-    
-    def call(self,
-             inputs,
-             targets,
-             training,
-             enc_padding_mask,
-             look_ahead_mask,
-             dec_padding_mask):
-        enc_input = self.encoder_prenet(inputs)
-        enc_output = self.encoder(inputs=enc_input,
-                                  training=training,
-                                  mask=enc_padding_mask)
-        dec_input = self.decoder_prenet(targets, training=training)
-        dec_output, attention_weights = self.decoder(inputs=dec_input,
-                                                     enc_output=enc_output,
-                                                     training=training,
-                                                     look_ahead_mask=look_ahead_mask,
-                                                     padding_mask=dec_padding_mask)
-        model_output = self.decoder_postnet(inputs=dec_output, training=training)
-        model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
-        return model_output
-    
-    def predict(self, inputs, max_length=None):
-        raise NotImplementedError()
-    
-    def create_masks(self, inputs, tar_inputs):
-        raise NotImplementedError()
-
-
-class TextMelTransformer(Transformer):
+class TextMelTransformer(tf.keras.models.Model):
     
     def __init__(self,
-                 encoder_prenet,
-                 decoder_prenet,
-                 encoder,
-                 decoder,
-                 decoder_postnet,
-                 tokenizer,
-                 max_r=10,
-                 start_vec_value=-3,
-                 end_vec_value=1,
+                 mel_channels: int,
+                 text_model_dimension: int,
+                 text_encoder_num_layers: int,
+                 text_encoder_num_heads: int,
+                 text_encoder_feed_forward_dimension: int,
+                 speech_model_dimension: int,
+                 speech_decoder_prenet_dimension: int,
+                 speech_decoder_num_layers: int,
+                 speech_decoder_num_heads: int,
+                 speech_decoder_feed_forward_dimension: int,
+                 speech_postnet_conv_filters: int,
+                 speech_postnet_conv_layers: int,
+                 speech_postnet_kernel_size: int,
+                 max_position_encoding: int,
+                 dropout_rate: float,
+                 max_r: int = 10,
+                 start_vec_value: int = -3,
+                 end_vec_value: int = 1,
                  debug=False):
-        super(TextMelTransformer, self).__init__(encoder_prenet,
-                                                 decoder_prenet,
-                                                 encoder,
-                                                 decoder,
-                                                 decoder_postnet)
-        self.start_vec = tf.ones((1, decoder_postnet.mel_channels), dtype=tf.float32) * start_vec_value
-        self.end_vec = tf.ones((1, decoder_postnet.mel_channels), dtype=tf.float32) * end_vec_value
-        self.tokenizer = tokenizer
-        self._check_tokenizer()
+        super(TextMelTransformer, self).__init__()
+        self.start_vec = tf.ones((1, mel_channels), dtype=tf.float32) * start_vec_value
+        self.end_vec = tf.ones((1, mel_channels), dtype=tf.float32) * end_vec_value
         self.stop_prob_index = 2
         self.max_r = max_r
         self.r = max_r
-        self.mel_channels = 80
+        self.mel_channels = mel_channels
+        
+        self.tokenizer = Tokenizer(list(_phonemes))
+        self._check_tokenizer()
+        
+        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, text_model_dimension)
+        self.encoder = Encoder(num_layers=text_encoder_num_layers,
+                               d_model=text_model_dimension,
+                               num_heads=text_encoder_num_heads,
+                               dff=text_encoder_feed_forward_dimension,
+                               maximum_position_encoding=max_position_encoding,
+                               rate=dropout_rate, )
+        self.decoder_prenet = SpeechDecoderPrenet(d_model=speech_model_dimension,
+                                                  dff=speech_decoder_prenet_dimension)
+        self.decoder = Decoder(num_layers=speech_decoder_num_layers,
+                               d_model=speech_model_dimension,
+                               num_heads=speech_decoder_num_heads,
+                               dff=speech_decoder_feed_forward_dimension,
+                               maximum_position_encoding=max_position_encoding,
+                               rate=dropout_rate)
         self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r)
+        self.decoder_postnet = SpeechPostnet(mel_channels=mel_channels,
+                                             conv_filters=speech_postnet_conv_filters,
+                                             conv_layers=speech_postnet_conv_layers,
+                                             kernel_size=speech_postnet_kernel_size)
+        
         self.training_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-            tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(None), dtype=tf.float32)
         ]
         self.forward_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-            tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
             tf.TensorSpec(shape=(None), dtype=tf.float32)
         ]
         self.debug = debug
@@ -215,3 +207,17 @@ class TextMelTransformer(Transformer):
     def _check_tokenizer(self):
         for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
             assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
+    
+    @property
+    def step(self):
+        return int(self.optimizer.iterations)
+    
+    def set_learning_rates(self, new_lr):
+        self.optimizer.lr.assign(new_lr)
+    
+    def _compile(self, stop_scaling, optimizer):
+        self.compile(loss=[masked_mean_squared_error,
+                           new_scaled_crossentropy(index=2, scaling=stop_scaling),
+                           masked_mean_squared_error],
+                     loss_weights=[1., 1., 1.],
+                     optimizer=optimizer)
