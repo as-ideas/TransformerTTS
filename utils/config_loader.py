@@ -6,7 +6,7 @@ from preprocessing.tokenizer import Tokenizer
 from preprocessing.text_processing import _phonemes
 
 
-class Combiner:
+class ConfigLoader:
     
     def __init__(self, config: dict):
         self.config = config

@@ -7,7 +7,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import trange
 
-from model.combiner import Combiner
+from utils.config_loader import ConfigLoader
 from preprocessing.data_handling import load_files, Dataset
 from preprocessing.preprocessor import DataPrepper
 from utils.decorators import ignore_exception, time_it
@@ -121,9 +121,9 @@ print_dictionary(config, recursion_level=1)
 
 # get model, prepare data for model, create datasets
 
-combiner = Combiner(config=config)
-model = combiner.get_model()
-combiner.compile_model(model)
+config_loader = ConfigLoader(config=config)
+model = config_loader.get_model()
+config_loader.compile_model(model)
 
 data_prep = DataPrepper(mel_channels=config['mel_channels'],
                         start_vec_val=config['mel_start_vec_value'],

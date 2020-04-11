@@ -56,7 +56,7 @@ import ruamel.yaml
 import numpy as np
 import tensorflow as tf
 import IPython.display as ipd
-from model.combiner import Combiner
+from utils.config_loader import ConfigLoader
 from preprocessing.text_processing import Phonemizer, TextCleaner
 
 
@@ -64,17 +64,17 @@ from preprocessing.text_processing import Phonemizer, TextCleaner
 yaml = ruamel.yaml.YAML()
 config = yaml.load(open('/path/to/config.yaml', 'rb'))
 
-# Create a `Combiner` object using a config file
-combiner = Combiner(config)
-combiner.text_mel.set_r(1)
+# Create a `ConfigLoader` object using a config file
+config_loader = ConfigLoader(config)
+config_loader.text_mel.set_r(1)
 # Do some tensorflow "magic"
 try:
-    combiner.text_mel.forward([0], output=[0], decoder_prenet_dropout=.5)
+    config_loader.text_mel.forward([0], output=[0], decoder_prenet_dropout=.5)
 except:
     pass
 
 # Restore a checkpoint using the checkpoint manager
-ckpt = tf.train.Checkpoint(net=combiner.text_mel)
+ckpt = tf.train.Checkpoint(net=config_loader.text_mel)
 manager = tf.train.CheckpointManager(ckpt, '/path/to/checkpoint/weights/', max_to_keep=None)
 ckpt.restore(manager.latest_checkpoint)
 
@@ -83,10 +83,10 @@ cleaner = TextCleaner()
 phonemizer = Phonemizer(language='en')
 sentence = "Plese, say something."
 sentence=phonemizer.encode(cleaner.clean(sentence))
-enc_sentence = [combiner.tokenizer.start_token_index] + combiner.tokenizer.encode(sentence.lower()) + [combiner.tokenizer.end_token_index]
+enc_sentence = [config_loader.tokenizer.start_token_index] + config_loader.tokenizer.encode(sentence.lower()) + [config_loader.tokenizer.end_token_index]
 
 # Run predictions
-out = combiner.text_mel.predict(enc_sentence, max_length=1000, decoder_prenet_dropout=config['dropout_schedule'][-1][-1])
+out = config_loader.text_mel.predict(enc_sentence, max_length=1000, decoder_prenet_dropout=config['dropout_schedule'][-1][-1])
 
 # Convert spectrogram to wav (with griffin lim) and display
 stft = librosa.feature.inverse.mel_to_stft(np.exp(out['mel'].numpy().T), sr=22050, n_fft=1024, power=1, fmin=0, fmax=8000) 

@@ -5,7 +5,7 @@ import numpy as np
 import ruamel.yaml
 import tensorflow as tf
 
-from model.combiner import Combiner
+from utils.config_loader import ConfigLoader
 from preprocessing.preprocessor import DataPrepper
 
 
@@ -22,9 +22,9 @@ class TestCombiner(unittest.TestCase):
     
     def test_training(self):
         test_mels = [np.random.random((100 + i * 5, 80)) for i in range(10)]
-        combiner = Combiner(self.config)
-        model = combiner.get_model()
-        combiner.compile_model(model)
+        config_loader = ConfigLoader(self.config)
+        model = config_loader.get_model()
+        config_loader.compile_model(model)
         data_prep = DataPrepper(mel_channels=self.config['mel_channels'],
                                 start_vec_val=self.config['mel_start_vec_value'],
                                 end_vec_val=self.config['mel_end_vec_value'],
