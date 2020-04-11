@@ -147,37 +147,34 @@ class Encoder(tf.keras.layers.Layer):
         return x
 
 
+class CrossAttentionResnorm(tf.keras.layers.Layer):
+    def __init__(self, model_dim, num_heads, dropout_rate=0.1):
+        super(CrossAttentionResnorm, self).__init__()
+        self.mha = MultiHeadAttention(model_dim, num_heads)
+        self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
+    
+    def call(self, q, k, v, training, mask):
+        attn_values, attn_weights = self.mha(v, k=k, q_in=q, mask=mask)
+        attn_values = self.dropout(attn_values, training=training)
+        out = self.layernorm(attn_values + q)
+        return out, attn_weights
+
+
 class DecoderLayer(tf.keras.layers.Layer):
     def __init__(self, model_dim, num_heads, dense_hidden_units, dropout_rate=0.1):
         super(DecoderLayer, self).__init__()
-        
-        self.mha1 = MultiHeadAttention(model_dim, num_heads)
-        self.mha2 = MultiHeadAttention(model_dim, num_heads)
-        
-        self.ffn = PointWiseFFN(model_dim, dense_hidden_units)
-        
-        self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        self.layernorm3 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        
-        self.dropout1 = tf.keras.layers.Dropout(dropout_rate)
-        self.dropout2 = tf.keras.layers.Dropout(dropout_rate)
-        self.dropout3 = tf.keras.layers.Dropout(dropout_rate)
+        self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
+        self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate)
+        self.ffn = FFNResNorm(model_dim, dense_hidden_units, dropout_rate=dropout_rate)
     
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
-        attn1, attn_weights_block1 = self.mha1(x, x, x, look_ahead_mask)
-        attn1 = self.dropout1(attn1, training=training)
-        out1 = self.layernorm1(attn1 + x)
+        attn1, attn_weights_block1 = self.sarn(x, mask=look_ahead_mask, training=training)
         
-        attn2, attn_weights_block2 = self.mha2(enc_output, enc_output, out1, padding_mask)
-        attn2 = self.dropout2(attn2, training=training)
-        out2 = self.layernorm2(attn2 + out1)
-        
-        ffn_out = self.ffn(out2)
-        ffn_out = self.dropout3(ffn_out, training=training)
-        out3 = self.layernorm3(ffn_out + out2)
-        
-        return out3, attn_weights_block1, attn_weights_block2
+        attn2, attn_weights_block2 = self.carn(attn1, v=enc_output, k=enc_output,
+                                               mask=padding_mask, training=training)
+        ffn_out = self.ffn(attn2, training)
+        return ffn_out, attn_weights_block1, attn_weights_block2
 
 
 class Decoder(tf.keras.layers.Layer):
