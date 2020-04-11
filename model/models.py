@@ -10,7 +10,7 @@ from preprocessing.tokenizer import Tokenizer
 from preprocessing.text_processing import _phonemes
 
 
-class TextMelTransformer(tf.keras.models.Model):
+class AutoregressiveTransformer(tf.keras.models.Model):
     
     def __init__(self,
                  mel_channels: int,
@@ -33,7 +33,7 @@ class TextMelTransformer(tf.keras.models.Model):
                  end_vec_value: int = 1,
                  debug=False,
                  **kwargs):
-        super(TextMelTransformer, self).__init__(**kwargs)
+        super(AutoregressiveTransformer, self).__init__(**kwargs)
         self.start_vec = tf.ones((1, mel_channels), dtype=tf.float32) * start_vec_value
         self.end_vec = tf.ones((1, mel_channels), dtype=tf.float32) * end_vec_value
         self.stop_prob_index = 2
