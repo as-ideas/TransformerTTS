@@ -20,15 +20,15 @@ tf.random.set_seed(42)
 # dinamically allocate GPU
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
-  try:
-    # Currently, memory growth needs to be the same across GPUs
-    for gpu in gpus:
-      tf.config.experimental.set_memory_growth(gpu, True)
-    logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-    print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-  except RuntimeError as e:
-    # Memory growth must be set before GPUs have been initialized
-    print(e)
+    try:
+        # Currently, memory growth needs to be the same across GPUs
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+    except RuntimeError as e:
+        # Memory growth must be set before GPUs have been initialized
+        print(e)
 
 
 # aux functions declaration
@@ -48,17 +48,17 @@ def create_dirs(args):
 
 @ignore_exception
 @time_it
-def validate(combiner,
+def validate(model,
              val_dataset,
              summary_manager,
              decoder_prenet_dropout):
     val_loss = {'loss': 0.}
     norm = 0.
     for val_mel, val_text, val_stop in val_dataset.all_batches():
-        model_out = combiner.val_step(val_text,
-                                      val_mel,
-                                      val_stop,
-                                      pre_dropout=decoder_prenet_dropout)
+        model_out = model.val_step(val_text,
+                                   val_mel,
+                                   val_stop,
+                                   pre_dropout=decoder_prenet_dropout)
         norm += 1
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
@@ -122,10 +122,13 @@ print_dictionary(config, recursion_level=1)
 # get model, prepare data for model, create datasets
 
 combiner = Combiner(config=config)
+model = combiner.get_model()
+combiner.compile_model(model)
+
 data_prep = DataPrepper(mel_channels=config['mel_channels'],
                         start_vec_val=config['mel_start_vec_value'],
                         end_vec_val=config['mel_end_vec_value'],
-                        tokenizer=combiner.tokenizer)
+                        tokenizer=model.tokenizer)
 yaml.dump(config, open(os.path.join(base_dir, session_name + '.yaml'), 'w'))
 test_list = [data_prep(s, include_text=True) for s in val_samples]
 train_dataset = Dataset(samples=train_samples,
@@ -139,16 +142,16 @@ val_dataset = Dataset(samples=val_samples,
 
 # create logger and checkpointer and restore latest model
 
-summary_manager = SummaryManager(combiner=combiner, log_dir=log_dir)
+summary_manager = SummaryManager(model=model, log_dir=log_dir)
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
-                                 optimizer=combiner.text_mel.optimizer,
-                                 net=combiner.text_mel)
+                                 optimizer=model.optimizer,
+                                 net=model)
 manager = tf.train.CheckpointManager(checkpoint, weights_paths,
                                      max_to_keep=config['keep_n_weights'],
                                      keep_checkpoint_every_n_hours=config['keep_checkpoint_every_n_hours'])
 checkpoint.restore(manager.latest_checkpoint)
 if manager.latest_checkpoint:
-    print(f'\nresuming training from step {combiner.step} ({manager.latest_checkpoint})')
+    print(f'\nresuming training from step {model.step} ({manager.latest_checkpoint})')
 else:
     print(f'\nstarting training from scratch')
 
@@ -157,21 +160,20 @@ else:
 print('\nTRAINING')
 losses = []
 _ = train_dataset.next_batch()
-t = trange(combiner.step, config['max_steps'], leave=True)
-for i in t:
-    t.set_description(f'step {combiner.step}')
+t = trange(model.step, config['max_steps'], leave=True)
+for _ in t:
+    t.set_description(f'step {model.step}')
     mel, phonemes, stop = train_dataset.next_batch()
-    decoder_prenet_dropout = piecewise_linear_schedule(combiner.step, config['dropout_schedule'])
-    learning_rate = piecewise_linear_schedule(combiner.step, config['learning_rate_schedule'])
-    reduction_factor = reduction_schedule(combiner.step, config['reduction_factor_schedule'])
+    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['dropout_schedule'])
+    learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
+    reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
     t.display(f'reduction factor {reduction_factor}', pos=10)
-    combiner.text_mel.set_r(reduction_factor)
-    combiner.set_learning_rates(learning_rate)
-    output = combiner.train_step(text=phonemes,
-                                 mel=mel,
-                                 stop=stop,
-                                 pre_dropout=decoder_prenet_dropout)
-    
+    model.set_r(reduction_factor)
+    model.set_learning_rates(learning_rate)
+    output = model.train_step(inp=phonemes,
+                              tar=mel,
+                              stop_prob=stop,
+                              decoder_prenet_dropout=decoder_prenet_dropout)
     losses.append(float(output['loss']))
     
     t.display(f'step loss: {losses[-1]}', pos=1)
@@ -181,9 +183,9 @@ for i in t:
     
     summary_manager.display_loss(output, tag='Train')
     summary_manager.display_scalar(tag='Meta/dropout', scalar_value=decoder_prenet_dropout)
-    summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=combiner.text_mel.optimizer.lr)
-    summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=combiner.text_mel.r)
-    if (combiner.step + 1) % config['train_images_plotting_frequency'] == 0:
+    summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
+    summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=model.r)
+    if (model.step + 1) % config['train_images_plotting_frequency'] == 0:
         summary_manager.display_attention_heads(output, tag='Train')
         summary_manager.display_mel(mel=output['mel_linear'][0], tag=f'Train/linear_mel_out')
         summary_manager.display_mel(mel=output['final_output'][0], tag=f'Train/predicted_mel')
@@ -191,38 +193,40 @@ for i in t:
         summary_manager.display_mel(mel=residual[0], tag=f'Train/conv-linear_residual')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
     
-    if (combiner.step + 1) % config['weights_save_frequency'] == 0:
+    if (model.step + 1) % config['weights_save_frequency'] == 0:
         save_path = manager.save()
-        t.display(f'checkpoint at step {combiner.step}: {save_path}', pos=len(config['n_steps_avg_losses']) + 2)
+        t.display(f'checkpoint at step {model.step}: {save_path}', pos=len(config['n_steps_avg_losses']) + 2)
     
-    if (combiner.step + 1) % config['validation_frequency'] == 0:
-        val_loss, time_taken = validate(combiner=combiner,
+    if (model.step + 1) % config['validation_frequency'] == 0:
+        val_loss, time_taken = validate(model=model,
                                         val_dataset=val_dataset,
                                         summary_manager=summary_manager,
                                         decoder_prenet_dropout=decoder_prenet_dropout)
-        t.display(f'validation loss at step {combiner.step}: {val_loss} (took {time_taken}s)',
+        t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
                   pos=len(config['n_steps_avg_losses']) + 3)
     
-    if (combiner.step + 1) % config['prediction_frequency'] == 0 and (combiner.step > config['prediction_start_step']):
+    if (model.step + 1) % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
+        timed_predict = time_it(model.predict)
         timings = []
-        for i in range(config['n_predictions']):
-            mel, phonemes, stop, text_seq = test_list[i]
-            t.display(f'Predicting {i}', pos=len(config['n_steps_avg_losses']) + 4)
-            pred, time_taken = combiner.predict(phonemes,
-                                                pre_dropout=decoder_prenet_dropout,
-                                                max_len_mel=mel.shape[0] + 50,
-                                                verbose=False)
+        for j in range(config['n_predictions']):
+            mel, phonemes, stop, text_seq = test_list[j]
+            t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
+            pred, time_taken = timed_predict(phonemes,
+                                             max_length=decoder_prenet_dropout,
+                                             decoder_prenet_dropout=mel.shape[0] + 50,
+                                             encode=False,
+                                             verbose=False)
             pred_mel = pred['mel']
             target_mel = mel
             timings.append(time_taken)
             summary_manager.display_attention_heads(outputs=pred, tag='Test')
-            summary_manager.display_mel(mel=pred_mel, tag=f'Test/predicted_mel {i}')
-            summary_manager.display_mel(mel=target_mel, tag=f'Test/target_mel {i}')
-            if combiner.step > config['audio_start_step']:
+            summary_manager.display_mel(mel=pred_mel, tag=f'Test/predicted_mel {j}')
+            summary_manager.display_mel(mel=target_mel, tag=f'Test/target_mel {j}')
+            if model.step > config['audio_start_step']:
                 summary_manager.display_audio(tag='Target', mel=target_mel, config=config)
                 summary_manager.display_audio(tag='Prediction', mel=pred_mel, config=config)
         
-        t.display(f"Predictions at time step {combiner.step} took {sum(timings)}s ({timings})",
+        t.display(f"Predictions at time step {model.step} took {sum(timings)}s ({timings})",
                   pos=len(config['n_steps_avg_losses']) + 4)
 
 print('Done.')

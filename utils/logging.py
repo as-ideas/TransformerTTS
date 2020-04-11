@@ -24,16 +24,16 @@ def control_frequency(f):
 class SummaryManager:
     """ Writes tensorboard logs during training.
     
-        :arg combiner: Combiner object that is trained
+        :arg model: model object that is trained
         :arg log_dir: base directory where logs of a config are created
         :arg max_plot_frequency: every how many steps to plot
     """
     
     def __init__(self,
-                 combiner,
+                 model,
                  log_dir,
                  max_plot_frequency=10):
-        self.combiner = combiner
+        self.model = model
         self.log_dir = Path(log_dir)
         self.plot_frequency = max_plot_frequency
         self.writers = {'log_dir': tf.summary.create_file_writer(str(self.log_dir))}
@@ -50,7 +50,7 @@ class SummaryManager:
     
     @property
     def global_step(self):
-        return self.combiner.step
+        return self.model.step
     
     def add_scalars(self, tag, dictionary):
         for k in dictionary.keys():
