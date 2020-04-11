@@ -45,19 +45,19 @@ class TextMelTransformer(tf.keras.models.Model):
         
         self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension)
         self.encoder = Encoder(num_layers=encoder_num_layers,
-                               d_model=encoder_model_dimension,
+                               model_dim=encoder_model_dimension,
                                num_heads=encoder_num_heads,
-                               dff=encoder_feed_forward_dimension,
+                               dense_hidden_units=encoder_feed_forward_dimension,
                                maximum_position_encoding=max_position_encoding,
-                               rate=dropout_rate, )
-        self.decoder_prenet = DecoderPrenet(d_model=decoder_model_dimension,
-                                            dff=decoder_prenet_dimension)
+                              dropout_rate=dropout_rate, )
+        self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
+                                            dense_hidden_units=decoder_prenet_dimension)
         self.decoder = Decoder(num_layers=decoder_num_layers,
-                               d_model=decoder_model_dimension,
+                               model_dim=decoder_model_dimension,
                                num_heads=decoder_num_heads,
-                               dff=decoder_feed_forward_dimension,
+                               dense_hidden_units=decoder_feed_forward_dimension,
                                maximum_position_encoding=max_position_encoding,
-                               rate=dropout_rate)
+                              dropout_rate=dropout_rate)
         self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r)
         self.decoder_postnet = Postnet(mel_channels=mel_channels,
                                        conv_filters=postnet_conv_filters,

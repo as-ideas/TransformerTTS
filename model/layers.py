@@ -5,10 +5,11 @@ from model.transformer_utils import positional_encoding, scaled_dot_product_atte
 
 class PointWiseFFN(tf.keras.layers.Layer):
     
-    def __init__(self, d_model, dff):
+    def __init__(self, model_dim, dense_hidden_units):
         super(PointWiseFFN, self).__init__()
-        self.d1 = tf.keras.layers.Dense(dff, activation='relu')  # (batch_size, seq_len, dff)
-        self.d2 = tf.keras.layers.Dense(d_model)  # (batch_size, seq_len, d_model)
+        self.d1 = tf.keras.layers.Dense(dense_hidden_units,
+                                        activation='relu')  # (batch_size, seq_len, dense_hidden_units)
+        self.d2 = tf.keras.layers.Dense(model_dim)  # (batch_size, seq_len, model_dim)
     
     def call(self, x):
         x = self.d1(x)
@@ -18,16 +19,17 @@ class PointWiseFFN(tf.keras.layers.Layer):
 
 class DecoderPrenet(tf.keras.layers.Layer):
     
-    def __init__(self, d_model, dff, dropout_rate=0.5):
+    def __init__(self, model_dim, dense_hidden_units, dropout_rate=0.5):
         super(DecoderPrenet, self).__init__()
-        self.d1 = tf.keras.layers.Dense(dff, activation='relu')  # (batch_size, seq_len, dff)
-        self.d2 = tf.keras.layers.Dense(d_model, activation='relu')  # (batch_size, seq_len, d_model)
+        self.d1 = tf.keras.layers.Dense(dense_hidden_units,
+                                        activation='relu')  # (batch_size, seq_len, dense_hidden_units)
+        self.d2 = tf.keras.layers.Dense(model_dim, activation='relu')  # (batch_size, seq_len, model_dim)
         self.dropout_1 = tf.keras.layers.Dropout(dropout_rate)
         self.dropout_2 = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, x, dropout_rate=0.5):
-        self.dropout_1.rate = dropout_rate
-        self.dropout_2.rate = dropout_rate
+        self.dropout_1.dropout_rate = dropout_rate
+        self.dropout_2.dropout_rate = dropout_rate
         x = self.d1(x)
         # use dropout also in inference for additional noise as suggested in the original tacotron2 paper
         x = self.dropout_1(x, training=True)
@@ -37,20 +39,20 @@ class DecoderPrenet(tf.keras.layers.Layer):
 
 
 class MultiHeadAttention(tf.keras.layers.Layer):
-    def __init__(self, d_model, num_heads):
+    def __init__(self, model_dim, num_heads):
         super(MultiHeadAttention, self).__init__()
         self.num_heads = num_heads
-        self.d_model = d_model
+        self.model_dim = model_dim
         
-        assert d_model % self.num_heads == 0
+        assert model_dim % self.num_heads == 0
         
-        self.depth = d_model // self.num_heads
+        self.depth = model_dim // self.num_heads
         
-        self.wq = tf.keras.layers.Dense(d_model)
-        self.wk = tf.keras.layers.Dense(d_model)
-        self.wv = tf.keras.layers.Dense(d_model)
+        self.wq = tf.keras.layers.Dense(model_dim)
+        self.wk = tf.keras.layers.Dense(model_dim)
+        self.wv = tf.keras.layers.Dense(model_dim)
         
-        self.dense = tf.keras.layers.Dense(d_model)
+        self.dense = tf.keras.layers.Dense(model_dim)
     
     def split_heads(self, x, batch_size):
         """Split the last dimension into (num_heads, depth).
@@ -63,9 +65,9 @@ class MultiHeadAttention(tf.keras.layers.Layer):
     def call(self, v, k, q_in, mask):
         batch_size = tf.shape(q_in)[0]
         
-        q = self.wq(q_in)  # (batch_size, seq_len, d_model)
-        k = self.wk(k)  # (batch_size, seq_len, d_model)
-        v = self.wv(v)  # (batch_size, seq_len, d_model)
+        q = self.wq(q_in)  # (batch_size, seq_len, model_dim)
+        k = self.wk(k)  # (batch_size, seq_len, model_dim)
+        v = self.wv(v)  # (batch_size, seq_len, model_dim)
         
         q = self.split_heads(q, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
         k = self.split_heads(k, batch_size)  # (batch_size, num_heads, seq_len_k, depth)
@@ -76,51 +78,51 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         scaled_attention = tf.transpose(scaled_attention,
                                         perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
         concat_attention = tf.reshape(scaled_attention,
-                                      (batch_size, -1, self.d_model))  # (batch_size, seq_len_q, d_model)
+                                      (batch_size, -1, self.model_dim))  # (batch_size, seq_len_q, model_dim)
         concat_query = tf.concat([q_in, concat_attention], axis=-1)
-        output = self.dense(concat_query)  # (batch_size, seq_len_q, d_model)
+        output = self.dense(concat_query)  # (batch_size, seq_len_q, model_dim)
         
         return output, attention_weights
 
 
 class EncoderLayer(tf.keras.layers.Layer):
-    def __init__(self, d_model, num_heads, dff, rate=0.1):
+    def __init__(self, model_dim, num_heads, dense_hidden_units,dropout_rate=0.1):
         super(EncoderLayer, self).__init__()
         
-        self.mha = MultiHeadAttention(d_model, num_heads)
-        self.ffn = PointWiseFFN(d_model, dff)
+        self.mha = MultiHeadAttention(model_dim, num_heads)
+        self.ffn = PointWiseFFN(model_dim, dense_hidden_units)
         
         self.ln1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.ln2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         
-        self.dropout1 = tf.keras.layers.Dropout(rate)
-        self.dropout2 = tf.keras.layers.Dropout(rate)
+        self.dropout1 = tf.keras.layers.Dropout(dropout_rate)
+        self.dropout2 = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, x, training, mask):
-        attn_out, _ = self.mha(x, x, x, mask)  # (batch_size, input_seq_len, d_model)
+        attn_out, _ = self.mha(x, x, x, mask)  # (batch_size, input_seq_len, model_dim)
         attn_out = self.dropout1(attn_out, training=training)
-        out1 = self.ln1(x + attn_out)  # (batch_size, input_seq_len, d_model)
+        out1 = self.ln1(x + attn_out)  # (batch_size, input_seq_len, model_dim)
         
-        ffn_out = self.ffn(out1)  # (batch_size, input_seq_len, d_model)
+        ffn_out = self.ffn(out1)  # (batch_size, input_seq_len, model_dim)
         ffn_out = self.dropout2(ffn_out, training=training)
-        out2 = self.ln2(out1 + ffn_out)  # (batch_size, input_seq_len, d_model)
+        out2 = self.ln2(out1 + ffn_out)  # (batch_size, input_seq_len, model_dim)
         
         return out2
 
 
 class Encoder(tf.keras.layers.Layer):
     
-    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, rate=0.1):
+    def __init__(self, num_layers, model_dim, num_heads, dense_hidden_units, maximum_position_encoding,dropout_rate=0.1):
         super(Encoder, self).__init__()
-        self.d_model = d_model
+        self.model_dim = model_dim
         self.num_layers = num_layers
-        self.pos_encoding = positional_encoding(maximum_position_encoding, d_model)
-        self.enc_layers = [EncoderLayer(d_model, num_heads, dff, rate) for _ in range(num_layers)]
-        self.dropout = tf.keras.layers.Dropout(rate)
+        self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
+        self.enc_layers = [EncoderLayer(model_dim, num_heads, dense_hidden_units,dropout_rate) for _ in range(num_layers)]
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, inputs, training, mask):
         seq_len = tf.shape(inputs)[1]
-        x = inputs * tf.math.sqrt(tf.cast(self.d_model, tf.float32))
+        x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
         x = self.dropout(x, training=training)
         for i in range(self.num_layers):
@@ -129,21 +131,21 @@ class Encoder(tf.keras.layers.Layer):
 
 
 class DecoderLayer(tf.keras.layers.Layer):
-    def __init__(self, d_model, num_heads, dff, rate=0.1):
+    def __init__(self, model_dim, num_heads, dense_hidden_units,dropout_rate=0.1):
         super(DecoderLayer, self).__init__()
         
-        self.mha1 = MultiHeadAttention(d_model, num_heads)
-        self.mha2 = MultiHeadAttention(d_model, num_heads)
+        self.mha1 = MultiHeadAttention(model_dim, num_heads)
+        self.mha2 = MultiHeadAttention(model_dim, num_heads)
         
-        self.ffn = PointWiseFFN(d_model, dff)
+        self.ffn = PointWiseFFN(model_dim, dense_hidden_units)
         
         self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.layernorm3 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         
-        self.dropout1 = tf.keras.layers.Dropout(rate)
-        self.dropout2 = tf.keras.layers.Dropout(rate)
-        self.dropout3 = tf.keras.layers.Dropout(rate)
+        self.dropout1 = tf.keras.layers.Dropout(dropout_rate)
+        self.dropout2 = tf.keras.layers.Dropout(dropout_rate)
+        self.dropout3 = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
         attn1, attn_weights_block1 = self.mha1(x, x, x, look_ahead_mask)
@@ -163,18 +165,18 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 class Decoder(tf.keras.layers.Layer):
     
-    def __init__(self, num_layers, d_model, num_heads, dff, maximum_position_encoding, rate=0.1):
+    def __init__(self, num_layers, model_dim, num_heads, dense_hidden_units, maximum_position_encoding,dropout_rate=0.1):
         super(Decoder, self).__init__()
-        self.d_model = d_model
+        self.model_dim = model_dim
         self.num_layers = num_layers
-        self.pos_encoding = positional_encoding(maximum_position_encoding, d_model)
-        self.dec_layers = [DecoderLayer(d_model, num_heads, dff, rate) for _ in range(num_layers)]
-        self.dropout = tf.keras.layers.Dropout(rate)
+        self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
+        self.dec_layers = [DecoderLayer(model_dim, num_heads, dense_hidden_units,dropout_rate) for _ in range(num_layers)]
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, inputs, enc_output, training, look_ahead_mask, padding_mask):
         seq_len = tf.shape(inputs)[1]
         attention_weights = {}
-        x = inputs * tf.math.sqrt(tf.cast(self.d_model, tf.float32))
+        x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
         x = self.dropout(x, training=training)
         for i in range(self.num_layers):
