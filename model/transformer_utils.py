@@ -64,7 +64,7 @@ def create_encoder_padding_mask(seq):
 
 
 def create_mel_padding_mask(seq):
-    seq = tf.reduce_sum(seq, axis=-1)
+    seq = tf.reduce_sum(tf.math.abs(seq), axis=-1)
     seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
     return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
 
