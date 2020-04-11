@@ -1,7 +1,6 @@
 import numpy as np
 import tensorflow as tf
 
-from utils.decorators import time_it
 from model.models import TextMelTransformer
 from preprocessing.tokenizer import Tokenizer
 from preprocessing.text_processing import _phonemes
@@ -60,23 +59,3 @@ class Combiner:
         config_keys = set(self.config.keys())
         missing = [key for key in key_list if key not in config_keys]
         assert len(missing) == 0, 'Config is missing the following keys: {}'.format(missing)
-    
-    def train_step(self, text, mel, stop, pre_dropout):
-        output = self.text_mel.train_step(text, mel, stop, decoder_prenet_dropout=pre_dropout)
-        return output
-    
-    def val_step(self, text, mel, stop, pre_dropout):
-        output = self.text_mel.val_step(text, mel, stop, decoder_prenet_dropout=pre_dropout)
-        return output
-    
-    @time_it
-    def predict(self,
-                text_seq,
-                pre_dropout,
-                max_len_mel=1000,
-                verbose=True):
-        output = self.text_mel.predict(text_seq,
-                                       decoder_prenet_dropout=pre_dropout,
-                                       max_length=max_len_mel,
-                                       verbose=verbose)
-        return output
