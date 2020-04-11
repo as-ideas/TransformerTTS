@@ -5,8 +5,8 @@ from model.transformer_utils import positional_encoding, scaled_dot_product_atte
 
 class PointWiseFFN(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim, dense_hidden_units):
-        super(PointWiseFFN, self).__init__()
+    def __init__(self, model_dim, dense_hidden_units, **kwargs):
+        super(PointWiseFFN, self).__init__(**kwargs)
         self.d1 = tf.keras.layers.Dense(dense_hidden_units,
                                         activation='relu')  # (batch_size, seq_len, dense_hidden_units)
         self.d2 = tf.keras.layers.Dense(model_dim)  # (batch_size, seq_len, model_dim)
@@ -19,8 +19,8 @@ class PointWiseFFN(tf.keras.layers.Layer):
 
 class DecoderPrenet(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim, dense_hidden_units, dropout_rate=0.5):
-        super(DecoderPrenet, self).__init__()
+    def __init__(self, model_dim, dense_hidden_units, dropout_rate=0.5, **kwargs):
+        super(DecoderPrenet, self).__init__(**kwargs)
         self.d1 = tf.keras.layers.Dense(dense_hidden_units,
                                         activation='relu')  # (batch_size, seq_len, dense_hidden_units)
         self.d2 = tf.keras.layers.Dense(model_dim, activation='relu')  # (batch_size, seq_len, model_dim)
@@ -39,8 +39,9 @@ class DecoderPrenet(tf.keras.layers.Layer):
 
 
 class MultiHeadAttention(tf.keras.layers.Layer):
-    def __init__(self, model_dim, num_heads):
-        super(MultiHeadAttention, self).__init__()
+    
+    def __init__(self, model_dim, num_heads, **kwargs):
+        super(MultiHeadAttention, self).__init__(**kwargs)
         self.num_heads = num_heads
         self.model_dim = model_dim
         
@@ -86,8 +87,9 @@ class MultiHeadAttention(tf.keras.layers.Layer):
 
 
 class SelfAttentionResNorm(tf.keras.layers.Layer):
-    def __init__(self, model_dim, num_heads, dropout_rate):
-        super(SelfAttentionResNorm, self).__init__()
+    
+    def __init__(self, model_dim, num_heads, dropout_rate, **kwargs):
+        super(SelfAttentionResNorm, self).__init__(**kwargs)
         self.mha = MultiHeadAttention(model_dim, num_heads)
         self.ln = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
@@ -100,8 +102,9 @@ class SelfAttentionResNorm(tf.keras.layers.Layer):
 
 
 class FFNResNorm(tf.keras.layers.Layer):
-    def __init__(self, model_dim, dense_hidden_units, dropout_rate=0.1):
-        super(FFNResNorm, self).__init__()
+    
+    def __init__(self, model_dim, dense_hidden_units, dropout_rate=0.1, **kwargs):
+        super(FFNResNorm, self).__init__(**kwargs)
         self.ffn = PointWiseFFN(model_dim, dense_hidden_units)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
         self.ln = tf.keras.layers.LayerNormalization(epsilon=1e-6)
@@ -115,8 +118,9 @@ class FFNResNorm(tf.keras.layers.Layer):
 
 
 class EncoderLayer(tf.keras.layers.Layer):
-    def __init__(self, model_dim, num_heads, dense_hidden_units, dropout_rate=0.1):
-        super(EncoderLayer, self).__init__()
+    
+    def __init__(self, model_dim, num_heads, dense_hidden_units, dropout_rate=0.1, **kwargs):
+        super(EncoderLayer, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.ffn = FFNResNorm(model_dim, dense_hidden_units)
     
@@ -128,8 +132,8 @@ class EncoderLayer(tf.keras.layers.Layer):
 class Encoder(tf.keras.layers.Layer):
     
     def __init__(self, num_layers, model_dim, num_heads, dense_hidden_units, maximum_position_encoding,
-                 dropout_rate=0.1):
-        super(Encoder, self).__init__()
+                 dropout_rate=0.1, **kwargs):
+        super(Encoder, self).__init__(**kwargs)
         self.model_dim = model_dim
         self.num_layers = num_layers
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
@@ -148,8 +152,9 @@ class Encoder(tf.keras.layers.Layer):
 
 
 class CrossAttentionResnorm(tf.keras.layers.Layer):
-    def __init__(self, model_dim, num_heads, dropout_rate=0.1):
-        super(CrossAttentionResnorm, self).__init__()
+    
+    def __init__(self, model_dim, num_heads, dropout_rate=0.1, **kwargs):
+        super(CrossAttentionResnorm, self).__init__(**kwargs)
         self.mha = MultiHeadAttention(model_dim, num_heads)
         self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
@@ -162,8 +167,9 @@ class CrossAttentionResnorm(tf.keras.layers.Layer):
 
 
 class DecoderLayer(tf.keras.layers.Layer):
-    def __init__(self, model_dim, num_heads, dense_hidden_units, dropout_rate=0.1):
-        super(DecoderLayer, self).__init__()
+    
+    def __init__(self, model_dim, num_heads, dense_hidden_units, dropout_rate=0.1, **kwargs):
+        super(DecoderLayer, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.ffn = FFNResNorm(model_dim, dense_hidden_units, dropout_rate=dropout_rate)
@@ -173,15 +179,15 @@ class DecoderLayer(tf.keras.layers.Layer):
         
         attn2, attn_weights_block2 = self.carn(attn1, v=enc_output, k=enc_output,
                                                mask=padding_mask, training=training)
-        ffn_out = self.ffn(attn2, training)
+        ffn_out = self.ffn(attn2, training=training)
         return ffn_out, attn_weights_block1, attn_weights_block2
 
 
 class Decoder(tf.keras.layers.Layer):
     
     def __init__(self, num_layers, model_dim, num_heads, dense_hidden_units, maximum_position_encoding,
-                 dropout_rate=0.1):
-        super(Decoder, self).__init__()
+                 dropout_rate=0.1, **kwargs):
+        super(Decoder, self).__init__(**kwargs)
         self.model_dim = model_dim
         self.num_layers = num_layers
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
@@ -206,8 +212,8 @@ class Decoder(tf.keras.layers.Layer):
 
 class Postnet(tf.keras.layers.Layer):
     
-    def __init__(self, mel_channels, conv_filters=256, conv_layers=5, kernel_size=5):
-        super(Postnet, self).__init__()
+    def __init__(self, mel_channels, conv_filters=256, conv_layers=5, kernel_size=5, **kwargs):
+        super(Postnet, self).__init__(**kwargs)
         self.mel_channels = mel_channels
         self.stop_linear = tf.keras.layers.Dense(3)
         self.postnet_conv_layers = PostnetConvLayers(
@@ -217,14 +223,14 @@ class Postnet(tf.keras.layers.Layer):
     
     def call(self, x, training):
         stop = self.stop_linear(x)
-        conv_out = self.conv_net(x, training)
+        conv_out = self.conv_net(x, training=training)
         return {
             'mel_linear': x,
             'final_output': conv_out,
             'stop_prob': stop,
         }
     
-    def conv_net(self, x, training):
+    def conv_net(self, x, *, training):
         conv_out = self.postnet_conv_layers(x, training)
         x = self.add_layer([conv_out, x])
         return x
@@ -232,8 +238,8 @@ class Postnet(tf.keras.layers.Layer):
 
 class PostnetConvLayers(tf.keras.layers.Layer):
     
-    def __init__(self, out_size, n_filters=256, n_layers=5, kernel_size=5, dropout_prob=0.5):
-        super(PostnetConvLayers, self).__init__()
+    def __init__(self, out_size, n_filters=256, n_layers=5, kernel_size=5, dropout_prob=0.5, **kwargs):
+        super(PostnetConvLayers, self).__init__(**kwargs)
         self.convolutions = [tf.keras.layers.Conv1D(filters=n_filters,
                                                     kernel_size=kernel_size,
                                                     padding='causal',
