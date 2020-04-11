@@ -85,39 +85,56 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         return output, attention_weights
 
 
-class EncoderLayer(tf.keras.layers.Layer):
-    def __init__(self, model_dim, num_heads, dense_hidden_units,dropout_rate=0.1):
-        super(EncoderLayer, self).__init__()
-        
+class SelfAttentionResNorm(tf.keras.layers.Layer):
+    def __init__(self, model_dim, num_heads, dropout_rate):
+        super(SelfAttentionResNorm, self).__init__()
         self.mha = MultiHeadAttention(model_dim, num_heads)
-        self.ffn = PointWiseFFN(model_dim, dense_hidden_units)
-        
-        self.ln1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        self.ln2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        
-        self.dropout1 = tf.keras.layers.Dropout(dropout_rate)
-        self.dropout2 = tf.keras.layers.Dropout(dropout_rate)
+        self.ln = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, x, training, mask):
-        attn_out, _ = self.mha(x, x, x, mask)  # (batch_size, input_seq_len, model_dim)
-        attn_out = self.dropout1(attn_out, training=training)
-        out1 = self.ln1(x + attn_out)  # (batch_size, input_seq_len, model_dim)
+        attn_out, attn_weights = self.mha(x, x, x, mask)  # (batch_size, input_seq_len, model_dim)
+        attn_out = self.dropout(attn_out, training=training)
+        out = self.ln(x + attn_out)  # (batch_size, input_seq_len, model_dim)
+        return out, attn_weights
+
+
+class FFNResNorm(tf.keras.layers.Layer):
+    def __init__(self, model_dim, dense_hidden_units, dropout_rate=0.1):
+        super(FFNResNorm, self).__init__()
+        self.ffn = PointWiseFFN(model_dim, dense_hidden_units)
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
+        self.ln = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+    
+    def call(self, x, training):
+        ffn_out = self.ffn(x)  # (batch_size, input_seq_len, model_dim)
+        ffn_out = self.dropout(ffn_out, training=training)
+        out = self.ln(x + ffn_out)  # (batch_size, input_seq_len, model_dim)
         
-        ffn_out = self.ffn(out1)  # (batch_size, input_seq_len, model_dim)
-        ffn_out = self.dropout2(ffn_out, training=training)
-        out2 = self.ln2(out1 + ffn_out)  # (batch_size, input_seq_len, model_dim)
-        
-        return out2
+        return out
+
+
+class EncoderLayer(tf.keras.layers.Layer):
+    def __init__(self, model_dim, num_heads, dense_hidden_units, dropout_rate=0.1):
+        super(EncoderLayer, self).__init__()
+        self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
+        self.ffn = FFNResNorm(model_dim, dense_hidden_units)
+    
+    def call(self, x, training, mask):
+        attn_out, _ = self.sarn(x, mask=mask, training=training)
+        return self.ffn(attn_out, training=training)
 
 
 class Encoder(tf.keras.layers.Layer):
     
-    def __init__(self, num_layers, model_dim, num_heads, dense_hidden_units, maximum_position_encoding,dropout_rate=0.1):
+    def __init__(self, num_layers, model_dim, num_heads, dense_hidden_units, maximum_position_encoding,
+                 dropout_rate=0.1):
         super(Encoder, self).__init__()
         self.model_dim = model_dim
         self.num_layers = num_layers
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
-        self.enc_layers = [EncoderLayer(model_dim, num_heads, dense_hidden_units,dropout_rate) for _ in range(num_layers)]
+        self.enc_layers = [EncoderLayer(model_dim, num_heads, dense_hidden_units, dropout_rate) for _ in
+                           range(num_layers)]
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, inputs, training, mask):
@@ -131,7 +148,7 @@ class Encoder(tf.keras.layers.Layer):
 
 
 class DecoderLayer(tf.keras.layers.Layer):
-    def __init__(self, model_dim, num_heads, dense_hidden_units,dropout_rate=0.1):
+    def __init__(self, model_dim, num_heads, dense_hidden_units, dropout_rate=0.1):
         super(DecoderLayer, self).__init__()
         
         self.mha1 = MultiHeadAttention(model_dim, num_heads)
@@ -165,12 +182,14 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 class Decoder(tf.keras.layers.Layer):
     
-    def __init__(self, num_layers, model_dim, num_heads, dense_hidden_units, maximum_position_encoding,dropout_rate=0.1):
+    def __init__(self, num_layers, model_dim, num_heads, dense_hidden_units, maximum_position_encoding,
+                 dropout_rate=0.1):
         super(Decoder, self).__init__()
         self.model_dim = model_dim
         self.num_layers = num_layers
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
-        self.dec_layers = [DecoderLayer(model_dim, num_heads, dense_hidden_units,dropout_rate) for _ in range(num_layers)]
+        self.dec_layers = [DecoderLayer(model_dim, num_heads, dense_hidden_units, dropout_rate) for _ in
+                           range(num_layers)]
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, inputs, enc_output, training, look_ahead_mask, padding_mask):
