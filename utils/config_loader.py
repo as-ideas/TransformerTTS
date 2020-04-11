@@ -2,8 +2,6 @@ import numpy as np
 import tensorflow as tf
 
 from model.models import AutoregressiveTransformer
-from preprocessing.tokenizer import Tokenizer
-from preprocessing.text_processing import _phonemes
 
 
 class ConfigLoader:
@@ -11,7 +9,6 @@ class ConfigLoader:
     def __init__(self, config: dict):
         self.config = config
         self._check_config()
-        self.tokenizer = Tokenizer(list(_phonemes))
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         self.max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
         self.stop_scaling = config.get('stop_loss_scaling', 1.)
