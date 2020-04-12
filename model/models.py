@@ -7,7 +7,7 @@ from utils.losses import weighted_sum_losses
 from model.layers import DecoderPrenet, Postnet, Decoder, Encoder
 from utils.losses import masked_mean_squared_error, new_scaled_crossentropy
 from preprocessing.tokenizer import Tokenizer
-from preprocessing.text_processing import _phonemes, Phonemizer
+from preprocessing.text_processing import _phonemes, Phonemizer, _punctuations
 
 
 class AutoregressiveTransformer(tf.keras.models.Model):
@@ -42,7 +42,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.r = max_r
         self.mel_channels = mel_channels
         
-        self.tokenizer = Tokenizer(list(_phonemes))
+        self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)))
         self.phonemizer = Phonemizer(language=phoneme_language)
         
         self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension,
