@@ -48,46 +48,21 @@ python scripts/train.py
 #### Resume training
 Simply target an existing log directory with ```--logdir``` to resume training.
 
-## Prediction [WIP]
+## Prediction
 In a Jupiter notebook
 ```python
 import librosa
-import ruamel.yaml
 import numpy as np
-import tensorflow as tf
 import IPython.display as ipd
 from utils.config_loader import ConfigLoader
-from preprocessing.text_processing import Phonemizer, TextCleaner
 
-
-# Import a config file
-yaml = ruamel.yaml.YAML()
-config = yaml.load(open('/path/to/config.yaml', 'rb'))
-
-# Create a `ConfigLoader` object using a config file
-config_loader = ConfigLoader(config)
+# Create a `ConfigLoader` object using a config file and restore a checkpoint or directly load a weights file
+config_loader = ConfigLoader('/path/to/config.yaml')
 model = config_loader.get_model()
-model.set_r(1)
-# Do some tensorflow "magic"
-try:
-    model.forward([0], output=[0], decoder_prenet_dropout=.5)
-except:
-    pass
-
-# Restore a checkpoint using the checkpoint manager
-ckpt = tf.train.Checkpoint(net=model)
-manager = tf.train.CheckpointManager(ckpt, '/path/to/checkpoint/weights/', max_to_keep=None)
-ckpt.restore(manager.latest_checkpoint)
-
-# Prepare sentence for prediction
-cleaner = TextCleaner()
-phonemizer = Phonemizer(language='en')
-sentence = "Plese, say something."
-sentence=phonemizer.encode(cleaner.clean(sentence))
-enc_sentence = [model.tokenizer.start_token_index] + model.tokenizer.encode(sentence.lower()) + [model.tokenizer.end_token_index]
-
+model.load_weights('weights_new.hdf5')
+# model.load_checkpoint('/path/to/checkpoint/weights/', checkpoint_path=None) # optional: specify checkpoint file
 # Run predictions
-out = model.predict(enc_sentence, max_length=1000, decoder_prenet_dropout=config['dropout_schedule'][-1][-1])
+out = model.predict("Please, say something.", encode=True)
 
 # Convert spectrogram to wav (with griffin lim) and display
 stft = librosa.feature.inverse.mel_to_stft(np.exp(out['mel'].numpy().T), sr=22050, n_fft=1024, power=1, fmin=0, fmax=8000) 

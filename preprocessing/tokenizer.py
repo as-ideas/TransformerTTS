@@ -11,8 +11,11 @@ class Tokenizer:
         self.idx_to_token[self.start_token_index] = start_token
         self.idx_to_token[self.end_token_index] = end_token
     
-    def encode(self, sentence):
-        return [self.token_to_idx[c] for c in sentence if c in self.token_to_idx]
+    def encode(self, sentence, add_start_end=True):
+        sequence = [self.token_to_idx[c] for c in sentence if c in self.token_to_idx]
+        if add_start_end:
+            sequence = [self.start_token_index] + sequence + [self.end_token_index]
+        return sequence
     
     def decode(self, sequence):
         return ''.join([self.idx_to_token[int(t)] for t in sequence if int(t) in self.idx_to_token])

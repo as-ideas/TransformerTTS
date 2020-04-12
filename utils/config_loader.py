@@ -43,6 +43,7 @@ class ConfigLoader:
                                          max_r=self.max_r,
                                          start_vec_value=self.config['mel_start_vec_value'],
                                          end_vec_value=self.config['mel_end_vec_value'],
+                                         phoneme_language=self.config['phoneme_language'],
                                          debug=self.config['debug'], )
     
     def compile_model(self, model):

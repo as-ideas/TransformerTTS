@@ -7,7 +7,7 @@ from utils.losses import weighted_sum_losses
 from model.layers import DecoderPrenet, Postnet, Decoder, Encoder
 from utils.losses import masked_mean_squared_error, new_scaled_crossentropy
 from preprocessing.tokenizer import Tokenizer
-from preprocessing.text_processing import _phonemes
+from preprocessing.text_processing import _phonemes, Phonemizer
 
 
 class AutoregressiveTransformer(tf.keras.models.Model):
@@ -31,6 +31,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  max_r: int = 10,
                  start_vec_value: int = -3,
                  end_vec_value: int = 1,
+                 phoneme_language: str = 'en',
                  debug=False,
                  **kwargs):
         super(AutoregressiveTransformer, self).__init__(**kwargs)
@@ -42,7 +43,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.mel_channels = mel_channels
         
         self.tokenizer = Tokenizer(list(_phonemes))
-        self._check_tokenizer()
+        self.phonemizer = Phonemizer(language=phoneme_language)
         
         self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension,
                                                         name='Embedding')
@@ -121,7 +122,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     
     def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, encode=False, verbose=True):
         if encode:
-            inp = self.tokenizer.encode(inp)
+            inp = self.encode_text(inp)
         inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
         output = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
         output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
@@ -210,10 +211,6 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         model_out, _ = self._train_forward(inp, tar, stop_prob, decoder_prenet_dropout, training=False)
         return model_out
     
-    def _check_tokenizer(self):
-        for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
-            assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
-    
     @property
     def step(self):
         return int(self.optimizer.iterations)
@@ -250,3 +247,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             ckpt.restore(manager.latest_checkpoint)
         self.set_r(r)
         return ckpt, manager
+    
+    def encode_text(self, text):
+        phons = self.phonemizer.encode(text, clean=True)
+        return self.tokenizer.encode(phons, add_start_end=True)

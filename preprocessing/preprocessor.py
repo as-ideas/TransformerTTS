@@ -30,7 +30,6 @@ class DataPrepper:
         if self.lowercase:
             phonemes = phonemes.lower()
         encoded_phonemes = self.tokenizer.encode(phonemes)
-        encoded_phonemes = [self.tokenizer.start_token_index] + encoded_phonemes + [self.tokenizer.end_token_index]
         norm_mel = np.log(mel.clip(self.mel_clip_val))
         norm_mel = np.concatenate([self.start_vec, norm_mel, self.end_vec], axis=0)
         stop_probs = np.ones((norm_mel.shape[0]))

@@ -46,7 +46,7 @@ batch_size = 250  # batch phonemization to avoid memory issues.
 phonemes = []
 for i in tqdm.tqdm(range(0, len(audio_data), batch_size)):
     batch = texts[i: i + batch_size]
-    batch = phonemizer.encode(batch, njobs=args.NJOBS)
+    batch = phonemizer.encode(batch, njobs=args.NJOBS, clean=False)
     phonemes.extend(batch)
 audio_data = np.concatenate([np.array(audio_data), np.expand_dims(phonemes, axis=1)], axis=1)
 
