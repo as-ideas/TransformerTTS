@@ -54,10 +54,10 @@ def validate(model,
     val_loss = {'loss': 0.}
     norm = 0.
     for val_mel, val_text, val_stop in val_dataset.all_batches():
-        model_out = model.val_step(val_text,
-                                   val_mel,
-                                   val_stop,
-                                   pre_dropout=decoder_prenet_dropout)
+        model_out = model.val_step(inp=val_text,
+                                   tar=val_mel,
+                                   stop_prob=val_stop,
+                                   decoder_prenet_dropout=decoder_prenet_dropout)
         norm += 1
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm

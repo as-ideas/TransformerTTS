@@ -14,6 +14,7 @@ parser.add_argument('--meta_file', dest='META_FILE', type=str, required=True)
 parser.add_argument('--wav_dir', dest='WAV_DIR', type=str, required=True)
 parser.add_argument('--target_dir', dest='TARGET_DIR', type=str, required=True)
 parser.add_argument('--config', dest='CONFIG', type=str, required=True)
+parser.add_argument('--cache_phon', dest='CACHE_PHON', type=str, default=None)
 parser.add_argument('--njobs', dest='NJOBS', type=int, default=16)
 parser.add_argument('--col_sep', dest='COLUMN_SEP', type=str, default='|')
 args = parser.parse_args()
@@ -49,6 +50,9 @@ for i in tqdm.tqdm(range(0, len(audio_data), batch_size)):
     batch = phonemizer.encode(batch, njobs=args.NJOBS, clean=False)
     phonemes.extend(batch)
 audio_data = np.concatenate([np.array(audio_data), np.expand_dims(phonemes, axis=1)], axis=1)
+if args.CACHE_PHON:
+    phon_path = os.path.join(args.TARGET_DIR, 'phonemes.npy')
+    np.save(phon_path, audio_data, allow_pickle=True)
 
 print('\nBuilding dataset and writing files')
 random.seed(42)
@@ -75,10 +79,10 @@ for i in tqdm.tqdm(range(len(audio_data))):
                                        n_mels=config['mel_channels'],
                                        power=1,
                                        n_fft=config['n_fft'],
-                                       win_length=config['win_lenght'],
+                                       win_length=config['win_length'],
                                        hop_length=config['hop_length'],
-                                       fmin=config['fmin'],
-                                       fmax=config['fmax'])
+                                       fmin=config['f_min'],
+                                       fmax=config['f_max'])
     mel_path = os.path.join(mel_dir, filename)
     np.save(mel_path, S.T)
 print('\nDone')
