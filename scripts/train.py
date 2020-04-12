@@ -2,7 +2,6 @@ import os
 import shutil
 import argparse
 
-import ruamel.yaml
 import tensorflow as tf
 import numpy as np
 from tqdm import trange
@@ -96,40 +95,36 @@ parser.add_argument('--config', dest='config', type=str)
 parser.add_argument('--cleardir', dest='clear_dir', action='store_true',
                     help="deletes everything under this config's folder.")
 parser.add_argument('--session_name', dest='session_name', default=None)
-
 args = parser.parse_args()
-yaml = ruamel.yaml.YAML()
-config = yaml.load(open(args.config, 'r'))
 session_name = args.session_name
 if not session_name:
     session_name = os.path.splitext(os.path.basename(args.config))[0]
-config['datadir'] = args.datadir
+config_loader = ConfigLoader(config=args.config)
+config_loader.config['datadir'] = args.datadir
+config = config_loader.config
 weights_paths, log_dir, base_dir = create_dirs(args)
+config_loader.dump_config(os.path.join(base_dir, session_name + '.yaml'))
+
 meldir = os.path.join(args.datadir, 'mels')
 train_meta = os.path.join(args.datadir, 'train_metafile.txt')
 test_meta = os.path.join(args.datadir, 'test_metafile.txt')
-
 train_samples, _ = load_files(metafile=train_meta,
                               meldir=meldir,
-                              num_samples=config['n_samples'])
-# OUT = (phonemes, text, mel)
+                              num_samples=config['n_samples'])  # (phonemes, mel)
 val_samples, _ = load_files(metafile=test_meta,
                             meldir=meldir,
-                            num_samples=config['n_samples'])
+                            num_samples=config['n_samples'])  # (phonemes, text, mel)
 print('\nCONFIGURATION', session_name)
 print_dictionary(config, recursion_level=1)
 
 # get model, prepare data for model, create datasets
-
-config_loader = ConfigLoader(config=config)
 model = config_loader.get_model()
 config_loader.compile_model(model)
-
 data_prep = DataPrepper(mel_channels=config['mel_channels'],
                         start_vec_val=config['mel_start_vec_value'],
                         end_vec_val=config['mel_end_vec_value'],
                         tokenizer=model.tokenizer)
-yaml.dump(config, open(os.path.join(base_dir, session_name + '.yaml'), 'w'))
+
 test_list = [data_prep(s, include_text=True) for s in val_samples]
 train_dataset = Dataset(samples=train_samples,
                         preprocessor=data_prep,

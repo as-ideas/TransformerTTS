@@ -10,8 +10,10 @@ from model.models import AutoregressiveTransformer
 class ConfigLoader:
     
     def __init__(self, config: Union[dict, str]):
+        self.yaml = ruamel.yaml.YAML()
         if isinstance(config, str):
             config = self._load_config(config)
+        
         self.config = config
         self._check_config()
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
@@ -19,8 +21,7 @@ class ConfigLoader:
         self.stop_scaling = config.get('stop_loss_scaling', 1.)
     
     def _load_config(self, config_path):
-        yaml = ruamel.yaml.YAML()
-        return yaml.load(open(config_path, 'rb'))
+        return self.yaml.load(open(config_path, 'rb'))
     
     def get_model(self):
         return AutoregressiveTransformer(mel_channels=self.config['mel_channels'],
@@ -66,3 +67,6 @@ class ConfigLoader:
         config_keys = set(self.config.keys())
         missing = [key for key in key_list if key not in config_keys]
         assert len(missing) == 0, 'Config is missing the following keys: {}'.format(missing)
+        
+    def dump_config(self, config_path):
+        self.yaml.dump(self.config, open(config_path, 'w'))
