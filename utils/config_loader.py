@@ -1,17 +1,26 @@
+from typing import Union
+
 import numpy as np
 import tensorflow as tf
+import ruamel.yaml
 
 from model.models import AutoregressiveTransformer
 
 
 class ConfigLoader:
     
-    def __init__(self, config: dict):
+    def __init__(self, config: Union[dict, str]):
+        if isinstance(config, str):
+            config = self._load_config(config)
         self.config = config
         self._check_config()
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         self.max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
         self.stop_scaling = config.get('stop_loss_scaling', 1.)
+    
+    def _load_config(self, config_path):
+        yaml = ruamel.yaml.YAML()
+        return yaml.load(open(config_path, 'rb'))
     
     def get_model(self):
         return AutoregressiveTransformer(mel_channels=self.config['mel_channels'],

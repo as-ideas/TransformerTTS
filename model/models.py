@@ -238,3 +238,15 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     def load_weights(self, weights_path: str, r: int = 1):
         self.build_graph(r)
         super(AutoregressiveTransformer, self).load_weights(weights_path)
+    
+    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None, r: int = 1):
+        self.build_graph(self.max_r)
+        ckpt = tf.train.Checkpoint(net=self)
+        manager = tf.train.CheckpointManager(ckpt, checkpoint_dir,
+                                             max_to_keep=None)
+        if checkpoint_path:
+            ckpt.restore(checkpoint_path)
+        else:
+            ckpt.restore(manager.latest_checkpoint)
+        self.set_r(r)
+        return ckpt, manager
