@@ -94,3 +94,11 @@ stft = librosa.feature.inverse.mel_to_stft(np.exp(out['mel'].numpy().T), sr=2205
 wav = librosa.feature.inverse.griffinlim(stft, n_iter=32, hop_length=256, win_length=1024)
 ipd.display(ipd.Audio(wav, rate=22050))
 ```
+
+## Maintainers
+
+* Francesco Cardinale, github: [cfrancesco](https://github.com/cfrancesco)
+
+## Copyright
+
+See [LICENSE](LICENSE) for details.
