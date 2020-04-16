@@ -2,13 +2,13 @@ import numpy as np
 import tensorflow as tf
 
 
-def get_angles(pos, i, d_model):
-    angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
+def get_angles(pos, i, model_dim):
+    angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(model_dim))
     return pos * angle_rates
 
 
-def positional_encoding(position, d_model):
-    angle_rads = get_angles(np.arange(position)[:, np.newaxis], np.arange(d_model)[np.newaxis, :], d_model)
+def positional_encoding(position, model_dim):
+    angle_rads = get_angles(np.arange(position)[:, np.newaxis], np.arange(model_dim)[np.newaxis, :], model_dim)
     
     # apply sin to even indices in the array; 2i
     angle_rads[:, 0::2] = np.sin(angle_rads[:, 0::2])
@@ -58,13 +58,13 @@ def scaled_dot_product_attention(q, k, v, mask):
     return output, attention_weights
 
 
-def create_text_padding_mask(seq):
+def create_encoder_padding_mask(seq):
     seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
     return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
 
 
 def create_mel_padding_mask(seq):
-    seq = tf.reduce_sum(seq, axis=-1)
+    seq = tf.reduce_sum(tf.math.abs(seq), axis=-1)
     seq = tf.cast(tf.math.equal(seq, 0), tf.float32)
     return seq[:, tf.newaxis, tf.newaxis, :]  # (batch_size, 1, y, x)
 

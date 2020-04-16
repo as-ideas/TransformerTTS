@@ -1,17 +1,17 @@
 # ARCHITECTURE
-speech_decoder_num_layers: 4
-text_encoder_num_layers: 4
-speech_model_dimension: 256
-text_model_dimension: 256
-speech_decoder_num_heads: 4
-text_encoder_num_heads: 4
-text_encoder_feed_forward_dimension: 512
-speech_decoder_feed_forward_dimension: 512
-speech_decoder_prenet_dimension: 256
+decoder_num_layers: 4
+encoder_num_layers: 4
+decoder_model_dimension: 256
+encoder_model_dimension: 256
+decoder_num_heads: 4
+encoder_num_heads: 4
+encoder_feed_forward_dimension: 512
+decoder_feed_forward_dimension: 512
+decoder_prenet_dimension: 256
 max_position_encoding: 100000
-speech_postnet_conv_filters: 256
-speech_postnet_conv_layers: 5
-speech_postnet_kernel_size: 5
+postnet_conv_filters: 256
+postnet_conv_layers: 5
+postnet_kernel_size: 5
 dropout_rate: 0.1
 
 # LOSSES
@@ -19,6 +19,7 @@ stop_loss_scaling: 8
 
 # DATA
 n_samples: 100000
+n_test: 100
 mel_channels: 80
 sr: 22050
 mel_start_vec_value: -3
@@ -44,7 +45,6 @@ reduction_factor_schedule:
   - [100_000, 1]
 max_steps: 900_000
 batch_size: 16
-mask_prob: 0.3
 debug: False
 
 # LOGGING
@@ -60,6 +60,4 @@ prediction_start_step: 10_000
 audio_start_step: 40_000
 
 # TOKENIZER
-use_phonemes: True
 phoneme_language: 'en'
-tokenizer_alphabet: "\"!,.:;?'-() abcdefghijklmnopqrstuvwxyzäüöß"

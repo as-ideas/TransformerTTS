@@ -15,7 +15,8 @@ Prepare a dataset in the following format:
 |       |- file1.wav
 |       |- ...
 ```
-where `metadata.csv` has two columns: `wav file name` and `transcribed text`.
+where `metadata.csv` has the following format: 
+``` wav_file_name|trascription ```
 
 The dataset [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) is in this format.
 
@@ -33,10 +34,8 @@ python scripts/preprocess_mels.py
     --meta_file /path/to/metadata.csv 
     --wav_dir /path/to/wav/directory/
     --target_dir /directory/to/store/spectrograms/
+    --config /path/to/config/file.yaml
 ```
-
-Look into ```scripts/preprocess_mels.py``` for more options.
-
 ### Run training
 From the root folder run
 ```
@@ -49,45 +48,21 @@ python scripts/train.py
 #### Resume training
 Simply target an existing log directory with ```--logdir``` to resume training.
 
-## Prediction [WIP]
+## Prediction
 In a Jupiter notebook
 ```python
 import librosa
-import ruamel.yaml
 import numpy as np
-import tensorflow as tf
 import IPython.display as ipd
-from model.combiner import Combiner
-from preprocessing.text_processing import Phonemizer, TextCleaner
+from utils.config_loader import ConfigLoader
 
-
-# Import a config file
-yaml = ruamel.yaml.YAML()
-config = yaml.load(open('/path/to/config.yaml', 'rb'))
-
-# Create a `Combiner` object using a config file
-combiner = Combiner(config)
-combiner.text_mel.set_r(1)
-# Do some tensorflow "magic"
-try:
-    combiner.text_mel.forward([0], output=[0], decoder_prenet_dropout=.5)
-except:
-    pass
-
-# Restore a checkpoint using the checkpoint manager
-ckpt = tf.train.Checkpoint(net=combiner.text_mel)
-manager = tf.train.CheckpointManager(ckpt, '/path/to/checkpoint/weights/', max_to_keep=None)
-ckpt.restore(manager.latest_checkpoint)
-
-# Prepare sentence for prediction
-cleaner = TextCleaner()
-phonemizer = Phonemizer(language='en')
-sentence = "Plese, say something."
-sentence=phonemizer.encode(cleaner.clean(sentence))
-enc_sentence = [combiner.tokenizer.start_token_index] + combiner.tokenizer.encode(sentence.lower()) + [combiner.tokenizer.end_token_index]
-
+# Create a `ConfigLoader` object using a config file and restore a checkpoint or directly load a weights file
+config_loader = ConfigLoader('/path/to/config.yaml')
+model = config_loader.get_model()
+model.load_weights('weights_new.hdf5')
+# model.load_checkpoint('/path/to/checkpoint/weights/', checkpoint_path=None) # optional: specify checkpoint file
 # Run predictions
-out = combiner.text_mel.predict(enc_sentence, max_length=1000, decoder_prenet_dropout=config['dropout_schedule'][-1][-1])
+out = model.predict("Please, say something.", encode=True)
 
 # Convert spectrogram to wav (with griffin lim) and display
 stft = librosa.feature.inverse.mel_to_stft(np.exp(out['mel'].numpy().T), sr=22050, n_fft=1024, power=1, fmin=0, fmax=8000) 

@@ -15,7 +15,7 @@ class TestCharTokenizer(unittest.TestCase):
         self.assertEqual(7, tokenizer.vocab_size)
         
         seq = tokenizer.encode('a b d')
-        self.assertEqual([1, 3, 2, 3], seq)
+        self.assertEqual([5, 1, 3, 2, 3, 6], seq)
         
         seq = np.array([5, 1, 3, 2, 8, 6])
         seq = tf.convert_to_tensor(seq)

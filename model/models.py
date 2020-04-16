@@ -2,85 +2,84 @@ import sys
 
 import tensorflow as tf
 
-from model.transformer_utils import create_text_padding_mask, create_mel_padding_mask, create_look_ahead_mask
+from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses
+from model.layers import DecoderPrenet, Postnet, Decoder, Encoder
+from utils.losses import masked_mean_squared_error, new_scaled_crossentropy
+from preprocessing.tokenizer import Tokenizer
+from preprocessing.text_processing import _phonemes, Phonemizer, _punctuations
 
 
-class Transformer(tf.keras.Model):
-    
-    def __init__(
-            self, encoder_prenet, decoder_prenet, encoder, decoder, decoder_postnet):
-        super(Transformer, self).__init__()
-        self.encoder_prenet = encoder_prenet
-        self.decoder_prenet = decoder_prenet
-        self.encoder = encoder
-        self.decoder = decoder
-        self.decoder_postnet = decoder_postnet
-    
-    def call(self,
-             inputs,
-             targets,
-             training,
-             enc_padding_mask,
-             look_ahead_mask,
-             dec_padding_mask):
-        enc_input = self.encoder_prenet(inputs)
-        enc_output = self.encoder(inputs=enc_input,
-                                  training=training,
-                                  mask=enc_padding_mask)
-        dec_input = self.decoder_prenet(targets, training=training)
-        dec_output, attention_weights = self.decoder(inputs=dec_input,
-                                                     enc_output=enc_output,
-                                                     training=training,
-                                                     look_ahead_mask=look_ahead_mask,
-                                                     padding_mask=dec_padding_mask)
-        model_output = self.decoder_postnet(inputs=dec_output, training=training)
-        model_output.update({'attention_weights': attention_weights, 'decoder_output': dec_output})
-        return model_output
-    
-    def predict(self, inputs, max_length=None):
-        raise NotImplementedError()
-    
-    def create_masks(self, inputs, tar_inputs):
-        raise NotImplementedError()
-
-
-class TextMelTransformer(Transformer):
+class AutoregressiveTransformer(tf.keras.models.Model):
     
     def __init__(self,
-                 encoder_prenet,
-                 decoder_prenet,
-                 encoder,
-                 decoder,
-                 decoder_postnet,
-                 tokenizer,
-                 max_r=10,
-                 start_vec_value=-3,
-                 end_vec_value=1,
-                 debug=False):
-        super(TextMelTransformer, self).__init__(encoder_prenet,
-                                                 decoder_prenet,
-                                                 encoder,
-                                                 decoder,
-                                                 decoder_postnet)
-        self.start_vec = tf.ones((1, decoder_postnet.mel_channels), dtype=tf.float32) * start_vec_value
-        self.end_vec = tf.ones((1, decoder_postnet.mel_channels), dtype=tf.float32) * end_vec_value
-        self.tokenizer = tokenizer
-        self._check_tokenizer()
+                 mel_channels: int,
+                 encoder_model_dimension: int,
+                 encoder_num_layers: int,
+                 encoder_num_heads: int,
+                 encoder_feed_forward_dimension: int,
+                 decoder_model_dimension: int,
+                 decoder_prenet_dimension: int,
+                 decoder_num_layers: int,
+                 decoder_num_heads: int,
+                 decoder_feed_forward_dimension: int,
+                 postnet_conv_filters: int,
+                 postnet_conv_layers: int,
+                 postnet_kernel_size: int,
+                 max_position_encoding: int,
+                 dropout_rate: float,
+                 max_r: int = 10,
+                 start_vec_value: int = -3,
+                 end_vec_value: int = 1,
+                 phoneme_language: str = 'en',
+                 debug=False,
+                 **kwargs):
+        super(AutoregressiveTransformer, self).__init__(**kwargs)
+        self.start_vec = tf.ones((1, mel_channels), dtype=tf.float32) * start_vec_value
+        self.end_vec = tf.ones((1, mel_channels), dtype=tf.float32) * end_vec_value
         self.stop_prob_index = 2
         self.max_r = max_r
         self.r = max_r
-        self.mel_channels = 80
-        self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r)
+        self.mel_channels = mel_channels
+        
+        self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)))
+        self.phonemizer = Phonemizer(language=phoneme_language)
+        
+        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension,
+                                                        name='Embedding')
+        self.encoder = Encoder(num_layers=encoder_num_layers,
+                               model_dim=encoder_model_dimension,
+                               num_heads=encoder_num_heads,
+                               dense_hidden_units=encoder_feed_forward_dimension,
+                               maximum_position_encoding=max_position_encoding,
+                               dropout_rate=dropout_rate,
+                               name='Encoder')
+        self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
+                                            dense_hidden_units=decoder_prenet_dimension,
+                                            name='DecoderPrenet')
+        self.decoder = Decoder(num_layers=decoder_num_layers,
+                               model_dim=decoder_model_dimension,
+                               num_heads=decoder_num_heads,
+                               dense_hidden_units=decoder_feed_forward_dimension,
+                               maximum_position_encoding=max_position_encoding,
+                               dropout_rate=dropout_rate,
+                               name='Decoder')
+        self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r, name='FinalProj')
+        self.decoder_postnet = Postnet(mel_channels=mel_channels,
+                                       conv_filters=postnet_conv_filters,
+                                       conv_layers=postnet_conv_layers,
+                                       kernel_size=postnet_kernel_size,
+                                       name='Postnet')
+        
         self.training_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-            tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(None), dtype=tf.float32)
         ]
         self.forward_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-            tf.TensorSpec(shape=(None, None, decoder_postnet.mel_channels), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
             tf.TensorSpec(shape=(None), dtype=tf.float32)
         ]
         self.debug = debug
@@ -123,7 +122,7 @@ class TextMelTransformer(Transformer):
     
     def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, encode=False, verbose=True):
         if encode:
-            inp = self.tokenizer.encode(inp)
+            inp = self.encode_text(inp)
         inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
         output = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
         output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
@@ -146,8 +145,8 @@ class TextMelTransformer(Transformer):
         return out_dict
     
     def create_masks(self, inp, tar_inp):
-        enc_padding_mask = create_text_padding_mask(inp)
-        dec_padding_mask = create_text_padding_mask(inp)
+        enc_padding_mask = create_encoder_padding_mask(inp)
+        dec_padding_mask = create_encoder_padding_mask(inp)
         dec_target_padding_mask = create_mel_padding_mask(tar_inp)
         look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
@@ -212,6 +211,43 @@ class TextMelTransformer(Transformer):
         model_out, _ = self._train_forward(inp, tar, stop_prob, decoder_prenet_dropout, training=False)
         return model_out
     
-    def _check_tokenizer(self):
-        for attribute in ['start_token_index', 'end_token_index', 'vocab_size']:
-            assert hasattr(self.tokenizer, attribute), f'Tokenizer is missing {attribute}.'
+    @property
+    def step(self):
+        return int(self.optimizer.iterations)
+    
+    def set_learning_rates(self, new_lr):
+        self.optimizer.lr.assign(new_lr)
+    
+    def _compile(self, stop_scaling, optimizer):
+        self.compile(loss=[masked_mean_squared_error,
+                           new_scaled_crossentropy(index=2, scaling=stop_scaling),
+                           masked_mean_squared_error],
+                     loss_weights=[1., 1., 1.],
+                     optimizer=optimizer)
+    
+    def build_graph(self, r: int):
+        self.set_r(r)
+        try:
+            self.forward([0], output=[0], decoder_prenet_dropout=0)
+        except:
+            pass
+    
+    def load_weights(self, weights_path: str, r: int = 1):
+        self.build_graph(r)
+        super(AutoregressiveTransformer, self).load_weights(weights_path)
+    
+    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None, r: int = 1):
+        self.build_graph(self.max_r)
+        ckpt = tf.train.Checkpoint(net=self)
+        manager = tf.train.CheckpointManager(ckpt, checkpoint_dir,
+                                             max_to_keep=None)
+        if checkpoint_path:
+            ckpt.restore(checkpoint_path)
+        else:
+            ckpt.restore(manager.latest_checkpoint)
+        self.set_r(r)
+        return ckpt, manager
+    
+    def encode_text(self, text):
+        phons = self.phonemizer.encode(text, clean=True)
+        return self.tokenizer.encode(phons, add_start_end=True)

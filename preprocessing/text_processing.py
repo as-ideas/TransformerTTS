@@ -47,10 +47,13 @@ class TextCleaner:
 
 
 class Phonemizer:
-    def __init__(self, language):
+    def __init__(self, language, alphabet=None):
         self.language = language
+        self.cleaner = TextCleaner(alphabet)
     
-    def encode(self, text, strip=True, preserve_punctuation=True, with_stress=False, njobs=4):
+    def encode(self, text, strip=True, preserve_punctuation=True, with_stress=False, njobs=4, clean=True):
+        if clean:
+            text = self.cleaner.clean(text)
         phonemes = phonemize(text,
                              language=self.language,
                              backend='espeak',
