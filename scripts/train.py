@@ -207,8 +207,8 @@ for _ in t:
             mel, phonemes, stop, text_seq = test_list[j]
             t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
             pred, time_taken = timed_predict(phonemes,
-                                             max_length=decoder_prenet_dropout,
-                                             decoder_prenet_dropout=mel.shape[0] + 50,
+                                             max_length=mel.shape[0] + 50,
+                                             decoder_prenet_dropout=decoder_prenet_dropout,
                                              encode=False,
                                              verbose=False)
             pred_mel = pred['mel']

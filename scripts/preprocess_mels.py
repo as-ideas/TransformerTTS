@@ -55,8 +55,8 @@ if args.CACHE_PHON:
     np.save(phon_path, audio_data, allow_pickle=True)
 
 print('\nBuilding dataset and writing files')
-random.seed(42)
-random.shuffle(audio_data)
+np.random.seed(42)
+np.random.shuffle(audio_data)
 test_metafile = os.path.join(args.TARGET_DIR, 'test_metafile.txt')
 train_metafile = os.path.join(args.TARGET_DIR, 'train_metafile.txt')
 
