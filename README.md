@@ -51,10 +51,9 @@ Simply target an existing log directory with ```--logdir``` to resume training.
 ## Prediction
 In a Jupiter notebook
 ```python
-import librosa
-import numpy as np
 import IPython.display as ipd
 from utils.config_loader import ConfigLoader
+from utils.audio import reconstruct_waveform
 
 # Create a `ConfigLoader` object using a config file and restore a checkpoint or directly load a weights file
 config_loader = ConfigLoader('/path/to/config.yaml')
@@ -65,7 +64,6 @@ model.load_weights('weights_new.hdf5')
 out = model.predict("Please, say something.", encode=True)
 
 # Convert spectrogram to wav (with griffin lim) and display
-stft = librosa.feature.inverse.mel_to_stft(np.exp(out['mel'].numpy().T), sr=22050, n_fft=1024, power=1, fmin=0, fmax=8000) 
-wav = librosa.feature.inverse.griffinlim(stft, n_iter=32, hop_length=256, win_length=1024)
-ipd.display(ipd.Audio(wav, rate=22050))
+wav= reconstruct_waveform(out['mel'].numpy().T, config=config_loader.config)
+ipd.display(ipd.Audio(wav, rate=config_loader.config['sampling_rate']))
 ```
