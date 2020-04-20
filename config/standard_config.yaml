@@ -1,10 +1,8 @@
 # ARCHITECTURE
-decoder_num_layers: 4
-encoder_num_layers: 4
-decoder_model_dimension: 256
+decoder_model_dimension: 264
 encoder_model_dimension: 256
-decoder_num_heads: 4
-encoder_num_heads: 4
+decoder_num_heads: [1,2,3,4]
+encoder_num_heads: [4,4,4,4]
 encoder_feed_forward_dimension: 512
 decoder_feed_forward_dimension: 512
 decoder_prenet_dimension: 256
