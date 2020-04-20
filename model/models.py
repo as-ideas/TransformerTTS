@@ -5,7 +5,7 @@ import tensorflow as tf
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses
 from model.layers import DecoderPrenet, Postnet, Decoder, Encoder
-from utils.losses import masked_mean_squared_error, new_scaled_crossentropy
+from utils.losses import masked_mean_absolute_error, new_scaled_crossentropy
 from preprocessing.tokenizer import Tokenizer
 from preprocessing.text_processing import _phonemes, Phonemizer, _punctuations
 
@@ -29,14 +29,14 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  max_position_encoding: int,
                  dropout_rate: float,
                  max_r: int = 10,
-                 start_vec_value: int = -3,
-                 end_vec_value: int = 1,
+                 mel_start_value: int = -3,
+                 mel_end_value: int = 1,
                  phoneme_language: str = 'en',
                  debug=False,
                  **kwargs):
         super(AutoregressiveTransformer, self).__init__(**kwargs)
-        self.start_vec = tf.ones((1, mel_channels), dtype=tf.float32) * start_vec_value
-        self.end_vec = tf.ones((1, mel_channels), dtype=tf.float32) * end_vec_value
+        self.start_vec = tf.ones((1, mel_channels), dtype=tf.float32) * mel_start_value
+        self.end_vec = tf.ones((1, mel_channels), dtype=tf.float32) * mel_end_value
         self.stop_prob_index = 2
         self.max_r = max_r
         self.r = max_r
@@ -219,9 +219,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.optimizer.lr.assign(new_lr)
     
     def _compile(self, stop_scaling, optimizer):
-        self.compile(loss=[masked_mean_squared_error,
+        self.compile(loss=[masked_mean_absolute_error,
                            new_scaled_crossentropy(index=2, scaling=stop_scaling),
-                           masked_mean_squared_error],
+                           masked_mean_absolute_error],
                      loss_weights=[1., 1., 1.],
                      optimizer=optimizer)
     

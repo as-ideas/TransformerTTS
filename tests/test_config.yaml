@@ -17,8 +17,8 @@ dropout_rate: 0.1
 n_samples: 600
 mel_channels: 80
 sr: 22050
-mel_start_vec_value: -3
-mel_end_vec_value: 1
+mel_start_value: -3
+mel_end_value: 1
 # TRAINING
 use_decoder_prenet_dropout_schedule: True
 decoder_prenet_dropout_schedule_max: 0.9

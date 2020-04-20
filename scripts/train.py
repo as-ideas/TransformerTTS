@@ -62,8 +62,7 @@ def validate(model,
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
     summary_manager.display_loss(model_out, tag='Validation', plot_all=True)
-    summary_manager.display_attention_heads(model_out, tag='Validation')
-    summary_manager.display_attention_heads(output, tag='Train')
+    summary_manager.display_attention_heads(model_out, tag='ValidationAttentionHeads')
     summary_manager.display_mel(mel=model_out['mel_linear'][0], tag=f'Validation/linear_mel_out')
     summary_manager.display_mel(mel=model_out['final_output'][0], tag=f'Validation/predicted_mel')
     residual = abs(model_out['mel_linear'] - model_out['final_output'])
@@ -120,9 +119,7 @@ print_dictionary(config, recursion_level=1)
 # get model, prepare data for model, create datasets
 model = config_loader.get_model()
 config_loader.compile_model(model)
-data_prep = DataPrepper(mel_channels=config['mel_channels'],
-                        start_vec_val=config['mel_start_vec_value'],
-                        end_vec_val=config['mel_end_vec_value'],
+data_prep = DataPrepper(config=config,
                         tokenizer=model.tokenizer)
 
 test_list = [data_prep(s, include_text=True) for s in val_samples]
@@ -137,7 +134,7 @@ val_dataset = Dataset(samples=val_samples,
 
 # create logger and checkpointer and restore latest model
 
-summary_manager = SummaryManager(model=model, log_dir=log_dir)
+summary_manager = SummaryManager(model=model, log_dir=log_dir, config=config)
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
                                  optimizer=model.optimizer,
                                  net=model)
@@ -149,9 +146,7 @@ if manager.latest_checkpoint:
     print(f'\nresuming training from step {model.step} ({manager.latest_checkpoint})')
 else:
     print(f'\nstarting training from scratch')
-
 # main event
-
 print('\nTRAINING')
 losses = []
 _ = train_dataset.next_batch()
@@ -181,7 +176,7 @@ for _ in t:
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=model.r)
     if (model.step + 1) % config['train_images_plotting_frequency'] == 0:
-        summary_manager.display_attention_heads(output, tag='Train')
+        summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel_linear'][0], tag=f'Train/linear_mel_out')
         summary_manager.display_mel(mel=output['final_output'][0], tag=f'Train/predicted_mel')
         residual = abs(output['mel_linear'] - output['final_output'])
@@ -201,27 +196,21 @@ for _ in t:
                   pos=len(config['n_steps_avg_losses']) + 3)
     
     if (model.step + 1) % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
-        timed_predict = time_it(model.predict)
-        timings = []
         for j in range(config['n_predictions']):
             mel, phonemes, stop, text_seq = test_list[j]
             t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
-            pred, time_taken = timed_predict(phonemes,
-                                             max_length=mel.shape[0] + 50,
-                                             decoder_prenet_dropout=decoder_prenet_dropout,
-                                             encode=False,
-                                             verbose=False)
+            pred = model.predict(phonemes,
+                                 max_length=mel.shape[0] + 50,
+                                 decoder_prenet_dropout=decoder_prenet_dropout,
+                                 encode=False,
+                                 verbose=False)
             pred_mel = pred['mel']
             target_mel = mel
-            timings.append(time_taken)
-            summary_manager.display_attention_heads(outputs=pred, tag='Test')
-            summary_manager.display_mel(mel=pred_mel, tag=f'Test/predicted_mel {j}')
-            summary_manager.display_mel(mel=target_mel, tag=f'Test/target_mel {j}')
+            summary_manager.display_attention_heads(outputs=pred, tag=f'TestAttentionHeads/sample {j}')
+            summary_manager.display_mel(mel=pred_mel, tag=f'Test/sample {j}/predicted_mel')
+            summary_manager.display_mel(mel=target_mel, tag=f'Test/sample {j}/target_mel')
             if model.step > config['audio_start_step']:
-                summary_manager.display_audio(tag='Target', mel=target_mel, config=config)
-                summary_manager.display_audio(tag='Prediction', mel=pred_mel, config=config)
-        
-        t.display(f"Predictions at time step {model.step} took {sum(timings)}s ({timings})",
-                  pos=len(config['n_steps_avg_losses']) + 4)
+                summary_manager.display_audio(tag=f'Target/sample {j}', mel=target_mel)
+                summary_manager.display_audio(tag=f'Prediction/sample {j}', mel=pred_mel)
 
 print('Done.')

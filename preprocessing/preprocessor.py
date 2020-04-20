@@ -8,18 +8,12 @@ from preprocessing.tokenizer import Tokenizer
 class DataPrepper:
     
     def __init__(self,
-                 mel_channels: int,
-                 start_vec_val: float,
-                 end_vec_val: float,
-                 tokenizer: Union[Tokenizer],
-                 lowercase=True,
-                 mel_clip_val=1e-5):
-        self.start_vec = np.ones((1, mel_channels)) * start_vec_val
-        self.end_vec = np.ones((1, mel_channels)) * end_vec_val
+                 config,
+                 tokenizer: Union[Tokenizer]):
+        self.start_vec = np.ones((1, config['mel_channels'])) * config['mel_start_value']
+        self.end_vec = np.ones((1, config['mel_channels'])) * config['mel_end_value']
         self.tokenizer = tokenizer
-        self.lowercase = lowercase
-        self.mel_channels = mel_channels
-        self.mel_clip_val = mel_clip_val
+        self.mel_channels = config['mel_channels']
     
     def __call__(self, sample, include_text=True):
         phonemes, text, mel_path = sample
@@ -27,11 +21,8 @@ class DataPrepper:
         return self._run(phonemes, text, mel, include_text=include_text)
     
     def _run(self, phonemes, text, mel, *, include_text):
-        if self.lowercase:
-            phonemes = phonemes.lower()
         encoded_phonemes = self.tokenizer.encode(phonemes)
-        norm_mel = np.log(mel.clip(self.mel_clip_val))
-        norm_mel = np.concatenate([self.start_vec, norm_mel, self.end_vec], axis=0)
+        norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
         stop_probs = np.ones((norm_mel.shape[0]))
         stop_probs[-1] = 2
         if include_text:
