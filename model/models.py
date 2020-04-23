@@ -116,7 +116,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             {'attention_weights': attention_weights, 'decoder_output': dec_output, 'out_proj': out_proj})
         return model_output
     
-    def predict(self, inp, max_length=50, decoder_prenet_dropout=0.5, encode=False, verbose=True):
+    def predict(self, inp, max_length=1000, decoder_prenet_dropout=0.5, encode=False, verbose=True):
         if encode:
             inp = self.encode_text(inp)
         inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
