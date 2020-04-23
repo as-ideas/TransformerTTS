@@ -25,31 +25,31 @@ Prepare a ```yaml``` configuration file with architecture, data and training con
 
 If unsure, simply use ```config/standard_config.yaml```.
 
-Note: configurations files are dataset dependent, ```standard_config.yaml``` is tuned for LJSpeech1.1.
+Note: configurations files are dataset dependent, ```standard_config.yaml``` is tuned for LJSpeech v1.1.
 
 ### Process dataset
 From the root folder run
 ```
-python scripts/preprocess_mels.py 
-    --meta_file /path/to/metadata.csv 
-    --wav_dir /path/to/wav/directory/
-    --target_dir /directory/to/store/spectrograms/
-    --config /path/to/config/file.yaml
+python scripts/preprocess_mels.py \
+    --meta_file /path/to/metadata.csv \
+    --wav_dir /path/to/wav/directory/ \
+    --target_dir /directory/to/store/spectrograms/ \
+    --config /path/to/config_file.yaml
 ```
 ### Run training
 From the root folder run
 ```
-python scripts/train.py
-    --datadir /path/to/spectrograms/
-    --logdir /logs/directory/
-    --config /path/to/config_file.yaml
+python scripts/train.py \
+    --datadir /path/to/spectrograms/ \
+    --logdir /logs/directory/ \
+    --config /path/to/config_file.yaml \
     [--cleardir | optional flag, deletes all logs and weights from previous sessions]
 ```
 #### Resume training
 Simply target an existing log directory with ```--logdir``` to resume training.
 
 ## Prediction
-In a Jupiter notebook
+In a Jupyter notebook
 ```python
 import librosa
 import numpy as np
@@ -62,7 +62,7 @@ model = config_loader.get_model()
 model.load_weights('weights_new.hdf5')
 # model.load_checkpoint('/path/to/checkpoint/weights/', checkpoint_path=None) # optional: specify checkpoint file
 # Run predictions
-out = model.predict("Please, say something.", encode=True)
+out = model.predict('Please, say something.', encode=True)
 
 # Convert spectrogram to wav (with griffin lim) and display
 stft = librosa.feature.inverse.mel_to_stft(np.exp(out['mel'].numpy().T), sr=22050, n_fft=1024, power=1, fmin=0, fmax=8000) 
