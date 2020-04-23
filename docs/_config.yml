@@ -22,7 +22,7 @@ title: TransformerTTS
 email: ai@axelspringer.com
 description: >- # this means to ignore newlines until "baseurl:"
   Implementation of a Transformer based neural network for text to speech.
-google_analytics:
+google_analytics: UA-137434942-7
 baseurl: "/TransformerTTS" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
 twitter_username: axelspringerai
