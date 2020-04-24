@@ -46,7 +46,7 @@ reduction_factor_schedule:
   - [100_000, 1]
 max_steps: 900_000
 batch_size: 16
-debug: False
+debug: True
 
 # LOGGING
 validation_frequency: 500

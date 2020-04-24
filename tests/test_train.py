@@ -35,12 +35,12 @@ class TestTrain(unittest.TestCase):
             self.config['batch_size'], padded_shapes=([-1, 80], [-1], [-1]), drop_remainder=True)
         
         train_outputs = []
+        model.set_constants(decoder_prenet_dropout=0.5)
         for epoch in range(self.config['epochs']):
             for (batch, (mel, text, stop)) in enumerate(train_dataset):
                 train_output = model.train_step(inp=text,
                                                 tar=mel,
-                                                stop_prob=stop,
-                                                decoder_prenet_dropout=0.5)
+                                                stop_prob=stop)
                 train_outputs.append(train_output)
         
         self.assertAlmostEqual(0.875761091709137, float(train_outputs[-1]['loss']), places=6)
@@ -53,8 +53,7 @@ class TestTrain(unittest.TestCase):
         for (batch, (mel, text, stop)) in enumerate(train_dataset):
             val_output = model.val_step(inp=text,
                                         tar=mel,
-                                        stop_prob=stop,
-                                        decoder_prenet_dropout=0.5)
+                                        stop_prob=stop)
             val_outputs.append(val_output)
         
         self.assertAlmostEqual(0.7932366132736206, float(val_outputs[-1]['loss']), places=6)

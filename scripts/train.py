@@ -49,15 +49,13 @@ def create_dirs(args):
 @time_it
 def validate(model,
              val_dataset,
-             summary_manager,
-             decoder_prenet_dropout):
+             summary_manager):
     val_loss = {'loss': 0.}
     norm = 0.
     for val_mel, val_text, val_stop in val_dataset.all_batches():
         model_out = model.val_step(inp=val_text,
                                    tar=val_mel,
-                                   stop_prob=val_stop,
-                                   decoder_prenet_dropout=decoder_prenet_dropout)
+                                   stop_prob=val_stop)
         norm += 1
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
@@ -158,12 +156,12 @@ for _ in t:
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
     t.display(f'reduction factor {reduction_factor}', pos=10)
-    model.set_r(reduction_factor)
-    model.set_learning_rates(learning_rate)
+    model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
+                        learning_rate=learning_rate,
+                        reduction_factor=reduction_factor)
     output = model.train_step(inp=phonemes,
                               tar=mel,
-                              stop_prob=stop,
-                              decoder_prenet_dropout=decoder_prenet_dropout)
+                              stop_prob=stop)
     losses.append(float(output['loss']))
     
     t.display(f'step loss: {losses[-1]}', pos=1)
@@ -190,8 +188,7 @@ for _ in t:
     if (model.step + 1) % config['validation_frequency'] == 0:
         val_loss, time_taken = validate(model=model,
                                         val_dataset=val_dataset,
-                                        summary_manager=summary_manager,
-                                        decoder_prenet_dropout=decoder_prenet_dropout)
+                                        summary_manager=summary_manager)
         t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
                   pos=len(config['n_steps_avg_losses']) + 3)
     
