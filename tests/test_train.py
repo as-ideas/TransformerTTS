@@ -6,7 +6,7 @@ import ruamel.yaml
 import tensorflow as tf
 
 from utils.config_loader import ConfigLoader
-from preprocessing.preprocessor import DataPrepper
+from preprocessing.data_handling import DataPrepper
 
 
 class TestTrain(unittest.TestCase):

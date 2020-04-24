@@ -3,7 +3,7 @@ import unittest
 import tensorflow as tf
 import numpy as np
 
-from preprocessing.tokenizer import Tokenizer
+from preprocessing.data_handling import Tokenizer
 
 
 class TestCharTokenizer(unittest.TestCase):

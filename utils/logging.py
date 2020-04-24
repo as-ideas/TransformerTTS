@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from utils.audio import reconstruct_waveform, denormalize
 from utils.display import buffer_mel, tight_grid
-from preprocessing.utils import norm_tensor
+from utils.vec_ops import norm_tensor
 from utils.decorators import ignore_exception
 
 

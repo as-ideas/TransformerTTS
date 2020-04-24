@@ -6,7 +6,7 @@ from model.transformer_utils import create_encoder_padding_mask, create_mel_padd
 from utils.losses import weighted_sum_losses
 from model.layers import DecoderPrenet, Postnet, Decoder, Encoder
 from utils.losses import masked_mean_absolute_error, new_scaled_crossentropy
-from preprocessing.tokenizer import Tokenizer
+from preprocessing.data_handling import Tokenizer
 from preprocessing.text_processing import _phonemes, Phonemizer, _punctuations
 
 

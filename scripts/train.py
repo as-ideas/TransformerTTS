@@ -7,8 +7,7 @@ import numpy as np
 from tqdm import trange
 
 from utils.config_loader import ConfigLoader
-from preprocessing.data_handling import load_files, Dataset
-from preprocessing.preprocessor import DataPrepper
+from preprocessing.data_handling import load_files, Dataset, DataPrepper
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging import SummaryManager
