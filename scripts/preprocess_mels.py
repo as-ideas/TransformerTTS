@@ -15,9 +15,11 @@ parser.add_argument('--meta_file', dest='META_FILE', type=str, required=True)
 parser.add_argument('--wav_dir', dest='WAV_DIR', type=str, required=True)
 parser.add_argument('--target_dir', dest='TARGET_DIR', type=str, required=True)
 parser.add_argument('--config', dest='CONFIG', type=str, required=True)
-parser.add_argument('--cache_phon', dest='CACHE_PHON', type=bool, default=True)
+parser.add_argument('--not_cache_phon', dest='CACHE_PHON', action='store_false')
+parser.add_argument('--cache_phon', dest='CACHE_PHON', action='store_true')
 parser.add_argument('--njobs', dest='NJOBS', type=int, default=16)
 parser.add_argument('--col_sep', dest='COLUMN_SEP', type=str, default='|')
+parser.add_argument('--recompute_phon', dest='RECOMPUTE_PHON', action='store_true')
 args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
@@ -30,7 +32,7 @@ if not os.path.exists(mel_dir):
     os.makedirs(mel_dir)
 
 phon_path = os.path.join(args.TARGET_DIR, 'phonemes.npy')
-if os.path.exists(phon_path):
+if os.path.exists(phon_path) and not args.RECOMPUTE_PHON:
     print("using cached phonemes")
     audio_data = np.load(phon_path)
 else:
@@ -80,7 +82,7 @@ for i in tqdm.tqdm(range(len(audio_data))):
     filename, _, _ = audio_data[i]
     wav_path = os.path.join(args.WAV_DIR, filename + '.wav')
     y, sr = librosa.load(wav_path, sr=config['sampling_rate'])
-    mel = melspectrogram(y, configloader)
+    mel = melspectrogram(y, config)
     mel_path = os.path.join(mel_dir, filename)
     np.save(mel_path, mel.T)
 print('\nDone')
