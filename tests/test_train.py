@@ -45,7 +45,7 @@ class TestTrain(unittest.TestCase):
         
         self.assertAlmostEqual(0.875761091709137, float(train_outputs[-1]['loss']), places=6)
         mel_input, encoder_input = train_samples[0][0], train_samples[0][1]
-        pred_text_mel = model.predict(encoder_input, max_length=10, verbose=False)
+        pred_text_mel = model.predict(encoder_input, max_length=10, verbose=False, encode=False)
         
         self.assertAlmostEqual(857.8726196289062, float(tf.reduce_sum(pred_text_mel['mel'])))
         

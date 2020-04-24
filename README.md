@@ -61,7 +61,7 @@ model = config_loader.get_model()
 model.load_weights('weights_new.hdf5')
 # model.load_checkpoint('/path/to/checkpoint/weights/', checkpoint_path=None) # optional: specify checkpoint file
 # Run predictions
-out = model.predict("Please, say something.", encode=True)
+out = model.predict("Please, say something.")
 
 # Convert spectrogram to wav (with griffin lim) and display
 wav= reconstruct_waveform(out['mel'].numpy().T, config=config_loader.config)
