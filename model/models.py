@@ -77,10 +77,20 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32)
         ]
+        self.encoder_signature = [
+            tf.TensorSpec(shape=(None, None), dtype=tf.int32)
+        ]
+        self.decoder_signature = [
+            tf.TensorSpec(shape=(None, None, encoder_model_dimension), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None, None, None), dtype=tf.float32),
+        ]
         self.debug = debug
         self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
         self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
+        self.forward_encoder = self.__apply_signature(self._forward_encoder, self.encoder_signature)
+        self.forward_decoder = self.__apply_signature(self._forward_decoder, self.decoder_signature)
     
     def __apply_signature(self, function, signature):
         if self.debug:
@@ -127,9 +137,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         output = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
         output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
         out_dict = {}
+        encoder_output, padding_mask = self.forward_encoder(inp)
         for i in range(int(max_length // self.r) + 1):
-            model_out = self.forward(inp=inp,
-                                     output=output)
+            model_out = self.forward_decoder(encoder_output, output, padding_mask)
             output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
             output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.r:, :]],
                                       axis=-2)
@@ -142,14 +152,6 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                     print('Stopping')
                 break
         return out_dict
-    
-    def create_decoder_masks(self, inp, tar_inp):
-        enc_padding_mask = create_encoder_padding_mask(inp)
-        dec_padding_mask = create_encoder_padding_mask(inp)
-        dec_target_padding_mask = create_mel_padding_mask(tar_inp)
-        look_ahead_mask = create_look_ahead_mask(tf.shape(tar_inp)[1])
-        combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
-        return enc_padding_mask, combined_mask, dec_padding_mask
     
     def _set_r(self, r):
         if self.r == r:
@@ -173,6 +175,12 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                                   targets=output,
                                   training=False)
         return model_out
+    
+    def _forward_encoder(self, inputs):
+        return self._call_encoder(inputs, training=False)
+    
+    def _forward_decoder(self, encoder_output, targets, encoder_padding_mask):
+        return self._call_decoder(encoder_output, targets, encoder_padding_mask, training=False)
     
     def _gta_forward(self, inp, tar, stop_prob, training):
         tar_inp = tar[:, :-1]
