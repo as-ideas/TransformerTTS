@@ -29,7 +29,7 @@ Note: configurations files are dataset dependent, ```standard_config.yaml``` is 
 
 ### Process dataset
 From the root folder run
-```
+```bash
 python scripts/preprocess_mels.py \
     --meta_file /path/to/metadata.csv \
     --wav_dir /path/to/wav/directory/ \
@@ -38,7 +38,7 @@ python scripts/preprocess_mels.py \
 ```
 ### Run training
 From the root folder run
-```
+```bash
 python scripts/train.py \
     --datadir /path/to/spectrograms/ \
     --logdir /logs/directory/ \
@@ -47,6 +47,11 @@ python scripts/train.py \
 ```
 #### Resume training
 Simply target an existing log directory with ```--logdir``` to resume training.
+#### Monitor training
+We log some information that can be visualized with TensorBoard:
+```bash
+tensorboard --logdir /logs/directory/
+```
 
 ## Prediction
 In a Jupyter notebook
