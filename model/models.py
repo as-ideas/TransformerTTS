@@ -88,21 +88,24 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         else:
             return tf.function(input_signature=signature)(function)
     
-    def call(self,
-             inputs,
-             targets,
-             training):
-        enc_padding_mask, combined_mask, dec_padding_mask = self.create_masks(inputs, targets)
+    def _call_encoder(self, inputs, training):
+        padding_mask = create_encoder_padding_mask(inputs)
         enc_input = self.encoder_prenet(inputs)
         enc_output = self.encoder(inputs=enc_input,
                                   training=training,
-                                  mask=enc_padding_mask)
+                                  mask=padding_mask)
+        return enc_output, padding_mask
+    
+    def _call_decoder(self, encoder_output, targets, encoder_padding_mask, training):
+        dec_target_padding_mask = create_mel_padding_mask(targets)
+        look_ahead_mask = create_look_ahead_mask(tf.shape(targets)[1])
+        combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
         dec_input = self.decoder_prenet(targets, training=training, dropout_rate=self.decoder_prenet_dropout)
         dec_output, attention_weights = self.decoder(inputs=dec_input,
-                                                     enc_output=enc_output,
+                                                     enc_output=encoder_output,
                                                      training=training,
                                                      look_ahead_mask=combined_mask,
-                                                     padding_mask=dec_padding_mask)
+                                                     padding_mask=encoder_padding_mask)
         out_proj = self.final_proj_mel(dec_output)[:, :, :self.r * self.mel_channels]
         b = int(tf.shape(out_proj)[0])
         t = int(tf.shape(out_proj)[1])
@@ -111,6 +114,11 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         model_output.update(
             {'attention_weights': attention_weights, 'decoder_output': dec_output, 'out_proj': out_proj})
         return model_output
+    
+    def call(self, inputs, targets, training):
+        encoder_output, padding_mask = self._call_encoder(inputs, training)
+        model_out = self._call_decoder(encoder_output, targets, padding_mask, training)
+        return model_out
     
     def predict(self, inp, max_length=1000, encode=True, verbose=True):
         if encode:
@@ -135,7 +143,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                 break
         return out_dict
     
-    def create_masks(self, inp, tar_inp):
+    def create_decoder_masks(self, inp, tar_inp):
         enc_padding_mask = create_encoder_padding_mask(inp)
         dec_padding_mask = create_encoder_padding_mask(inp)
         dec_target_padding_mask = create_mel_padding_mask(tar_inp)
