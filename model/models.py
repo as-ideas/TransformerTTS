@@ -26,9 +26,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  postnet_kernel_size: int,
                  max_position_encoding: int,
                  dropout_rate: float,
+                 mel_start_value: int,
+                 mel_end_value: int,
                  max_r: int = 10,
-                 mel_start_value: int = -3,
-                 mel_end_value: int = 1,
                  phoneme_language: str = 'en',
                  debug=False,
                  **kwargs):

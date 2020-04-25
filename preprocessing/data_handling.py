@@ -93,7 +93,7 @@ class DataPrepper:
     
     def __init__(self,
                  config,
-                 tokenizer: Union[Tokenizer]):
+                 tokenizer: Tokenizer):
         self.start_vec = np.ones((1, config['mel_channels'])) * config['mel_start_value']
         self.end_vec = np.ones((1, config['mel_channels'])) * config['mel_end_value']
         self.tokenizer = tokenizer
