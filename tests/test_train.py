@@ -6,10 +6,10 @@ import ruamel.yaml
 import tensorflow as tf
 
 from utils.config_loader import ConfigLoader
-from preprocessing.preprocessor import DataPrepper
+from preprocessing.data_handling import DataPrepper
 
 
-class TestCombiner(unittest.TestCase):
+class TestTrain(unittest.TestCase):
     
     def setUp(self) -> None:
         tf.random.set_seed(42)
@@ -25,9 +25,7 @@ class TestCombiner(unittest.TestCase):
         config_loader = ConfigLoader(self.config)
         model = config_loader.get_model()
         config_loader.compile_model(model)
-        data_prep = DataPrepper(mel_channels=self.config['mel_channels'],
-                                start_vec_val=self.config['mel_start_vec_value'],
-                                end_vec_val=self.config['mel_end_vec_value'],
+        data_prep = DataPrepper(config=config_loader.config,
                                 tokenizer=model.tokenizer)
         train_samples = [data_prep._run('repeated text', 'repeated_text', mel, include_text=False) for mel in test_mels]
         train_set_gen = lambda: (item for item in train_samples)
@@ -37,26 +35,25 @@ class TestCombiner(unittest.TestCase):
             self.config['batch_size'], padded_shapes=([-1, 80], [-1], [-1]), drop_remainder=True)
         
         train_outputs = []
+        model.set_constants(decoder_prenet_dropout=0.5)
         for epoch in range(self.config['epochs']):
             for (batch, (mel, text, stop)) in enumerate(train_dataset):
                 train_output = model.train_step(inp=text,
                                                 tar=mel,
-                                                stop_prob=stop,
-                                                decoder_prenet_dropout=0.5)
+                                                stop_prob=stop)
                 train_outputs.append(train_output)
         
-        self.assertAlmostEqual(2.5181326866149902, float(train_outputs[-1]['loss']), places=6)
+        self.assertAlmostEqual(0.875761091709137, float(train_outputs[-1]['loss']), places=6)
         mel_input, encoder_input = train_samples[0][0], train_samples[0][1]
-        pred_text_mel = model.predict(encoder_input, max_length=10, verbose=False)
+        pred_text_mel = model.predict(encoder_input, max_length=10, verbose=False, encode=False)
         
-        self.assertAlmostEqual(-1768.918212890625, float(tf.reduce_sum(pred_text_mel['mel'])))
+        self.assertAlmostEqual(857.8726196289062, float(tf.reduce_sum(pred_text_mel['mel'])))
         
         val_outputs = []
         for (batch, (mel, text, stop)) in enumerate(train_dataset):
             val_output = model.val_step(inp=text,
                                         tar=mel,
-                                        stop_prob=stop,
-                                        decoder_prenet_dropout=0.5)
+                                        stop_prob=stop)
             val_outputs.append(val_output)
         
-        self.assertAlmostEqual(2.4514124393463135, float(val_outputs[-1]['loss']), places=6)
+        self.assertAlmostEqual(0.7932366132736206, float(val_outputs[-1]['loss']), places=6)

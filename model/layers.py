@@ -131,15 +131,13 @@ class EncoderLayer(tf.keras.layers.Layer):
 
 class Encoder(tf.keras.layers.Layer):
     
-    def __init__(self, num_layers: int, model_dim: int, num_heads: int, dense_hidden_units: int,
+    def __init__(self, model_dim: int, num_heads: list, dense_hidden_units: int,
                  maximum_position_encoding: int,
                  dropout_rate: float = 0.1, **kwargs):
         super(Encoder, self).__init__(**kwargs)
         self.model_dim = model_dim
-        self.num_layers = num_layers
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
-        self.enc_layers = [EncoderLayer(model_dim, num_heads, dense_hidden_units, dropout_rate) for _ in
-                           range(num_layers)]
+        self.enc_layers = [EncoderLayer(model_dim, heads, dense_hidden_units, dropout_rate) for heads in num_heads]
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, inputs, training, mask):
@@ -147,8 +145,8 @@ class Encoder(tf.keras.layers.Layer):
         x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
         x = self.dropout(x, training=training)
-        for i in range(self.num_layers):
-            x = self.enc_layers[i](x, training, mask)
+        for layer in self.enc_layers:
+            x = layer(x, training, mask)
         return x
 
 
@@ -186,15 +184,13 @@ class DecoderLayer(tf.keras.layers.Layer):
 
 class Decoder(tf.keras.layers.Layer):
     
-    def __init__(self, num_layers: int, model_dim: int, num_heads: int, dense_hidden_units: int,
+    def __init__(self, model_dim: int, num_heads: list, dense_hidden_units: int,
                  maximum_position_encoding: int,
                  dropout_rate: float = 0.1, **kwargs):
         super(Decoder, self).__init__(**kwargs)
         self.model_dim = model_dim
-        self.num_layers = num_layers
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
-        self.dec_layers = [DecoderLayer(model_dim, num_heads, dense_hidden_units, dropout_rate) for _ in
-                           range(num_layers)]
+        self.dec_layers = [DecoderLayer(model_dim, heads, dense_hidden_units, dropout_rate) for heads in num_heads]
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, inputs, enc_output, training, look_ahead_mask, padding_mask):
@@ -203,8 +199,8 @@ class Decoder(tf.keras.layers.Layer):
         x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
         x = self.dropout(x, training=training)
-        for i in range(self.num_layers):
-            x, block1, block2 = self.dec_layers[i](x, enc_output, training, look_ahead_mask, padding_mask)
+        for i, layer in enumerate(self.dec_layers):
+            x, block1, block2 = layer(x, enc_output, training, look_ahead_mask, padding_mask)
             
             attention_weights[f'decoder_layer{i + 1}_block1'] = block1
             attention_weights[f'decoder_layer{i + 1}_block2'] = block2

@@ -1,3 +1,5 @@
+import re
+
 from phonemizer.phonemize import phonemize
 
 _vowels = 'iyɨʉɯuɪʏʊeøɘəɵɤoɛœɜɞʌɔæɐaɶɑɒᵻ'
@@ -8,42 +10,56 @@ _other_symbols = 'ʍwɥʜʢʡɕʑɺɧ'
 _diacrilics = 'ɚ˞ɫ'
 _phonemes = sorted(list(
     _vowels + _non_pulmonic_consonants + _pulmonic_consonants + _suprasegmentals + _other_symbols + _diacrilics))
-# _punctuations = '!\'(),-.:;? '
 _punctuations = '!,-.:;? '
 _alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzäüöß'
-
-
-# _alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!\'(),-.:;? äüöß'
+_not_end_punctuation = ',-.:; '
+_ad_hoc_replace = {
+    'Mrs.': 'Mrs',
+    'Mr.': 'Mr',
+    'Dr.': 'Dr',
+    'St.': 'St',
+    'Co.': 'Co',
+    'Jr.': 'Jr',
+    'Maj.': 'Maj',
+    'Gen.': 'Gen',
+    'Drs.': 'Drs',
+    'Rev.': 'Rev',
+    'Lt.': 'Lt',
+    'Hon.': 'Hon',
+    'Sgt.': 'Sgt',
+    'Capt.': 'Capt',
+    'Esq.': 'Esq',
+    'Ltd.': 'Ltd',
+    'Col.': 'Col',
+    'Ft.': 'Ft',
+    'a.m.': 'a m',
+    'p.m.': 'p m',
+    'e.g.': 'e g',
+    'i.e.': 'i e',
+    ';': ',',
+    ':': ','}
+_ad_hoc_pattern = '|'.join(sorted(re.escape(k) for k in _ad_hoc_replace))
 
 
 class TextCleaner:
     def __init__(self, alphabet=None):
-        self.garbage = []
         if not alphabet:
             self.accepted_chars = list(_alphabet) + list(_punctuations)
     
     def clean(self, text):
         if type(text) is list:
-            return [''.join([c for c in t if c in self.accepted_chars]) for t in text]
+            return [self.clean_line(t) for t in text]
         elif type(text) is str:
-            return ''.join([c for c in text if c in self.accepted_chars])
+            return self.clean_line(text)
         else:
-            print('Datatype not understood')
+            raise TypeError(f'TextCleaner.clean() input must be list or str, not {type(text)}')
     
-    def collect_garbage(self, text):
-        if type(text) is list:
-            out = []
-            for t in text:
-                clean = ''.join([c for c in t if c in self.accepted_chars])
-                self.garbage.append([x for x in text if x not in clean])
-                out.append(clean)
-        elif type(text) is str:
-            out = ''.join([c for c in text if c in self.accepted_chars])
-            self.garbage.append([x for x in text if x not in out])
-        else:
-            print('Datatype not understood')
-            out = None
-        return out
+    def clean_line(self, text):
+        text = ''.join([c for c in text if c in self.accepted_chars])
+        text = re.sub(_ad_hoc_pattern, lambda m: _ad_hoc_replace.get(m.group(0)), text)
+        if text.endswith(tuple(_not_end_punctuation)):
+            text = text[:-1]
+        return text + ' '
 
 
 class Phonemizer:

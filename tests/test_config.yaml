@@ -1,10 +1,8 @@
 # ARCHITECTURE
-decoder_num_layers: 1
-encoder_num_layers: 1
 decoder_model_dimension: 128
 encoder_model_dimension: 128
-decoder_num_heads: 1
-encoder_num_heads: 1
+decoder_num_heads: [1]
+encoder_num_heads: [1]
 encoder_feed_forward_dimension: 128
 decoder_feed_forward_dimension: 128
 decoder_prenet_dimension: 128
@@ -17,8 +15,8 @@ dropout_rate: 0.1
 n_samples: 600
 mel_channels: 80
 sr: 22050
-mel_start_vec_value: -3
-mel_end_vec_value: 1
+mel_start_value: -3
+mel_end_value: 1
 # TRAINING
 use_decoder_prenet_dropout_schedule: True
 decoder_prenet_dropout_schedule_max: 0.9

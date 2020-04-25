@@ -37,6 +37,14 @@ def masked_mean_squared_error(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tenso
     loss = mse(targets, logits, sample_weight=mask)
     return loss
 
+def masked_mean_absolute_error(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tensor:
+    mae = tf.keras.losses.MeanAbsoluteError()
+    mask = tf.math.logical_not(tf.math.equal(targets, 0))
+    mask = tf.cast(mask, dtype=tf.int32)
+    mask = tf.reduce_max(mask, axis=-1)
+    loss = mae(targets, logits, sample_weight=mask)
+    return loss
+
 
 def masked_binary_crossentropy(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tensor:
     bc = tf.keras.losses.BinaryCrossentropy(reduction='none')

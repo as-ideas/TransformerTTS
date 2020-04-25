@@ -7,8 +7,7 @@ import numpy as np
 from tqdm import trange
 
 from utils.config_loader import ConfigLoader
-from preprocessing.data_handling import load_files, Dataset
-from preprocessing.preprocessor import DataPrepper
+from preprocessing.data_handling import load_files, Dataset, DataPrepper
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging import SummaryManager
@@ -49,21 +48,18 @@ def create_dirs(args):
 @time_it
 def validate(model,
              val_dataset,
-             summary_manager,
-             decoder_prenet_dropout):
+             summary_manager):
     val_loss = {'loss': 0.}
     norm = 0.
     for val_mel, val_text, val_stop in val_dataset.all_batches():
         model_out = model.val_step(inp=val_text,
                                    tar=val_mel,
-                                   stop_prob=val_stop,
-                                   decoder_prenet_dropout=decoder_prenet_dropout)
+                                   stop_prob=val_stop)
         norm += 1
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
     summary_manager.display_loss(model_out, tag='Validation', plot_all=True)
-    summary_manager.display_attention_heads(model_out, tag='Validation')
-    summary_manager.display_attention_heads(output, tag='Train')
+    summary_manager.display_attention_heads(model_out, tag='ValidationAttentionHeads')
     summary_manager.display_mel(mel=model_out['mel_linear'][0], tag=f'Validation/linear_mel_out')
     summary_manager.display_mel(mel=model_out['final_output'][0], tag=f'Validation/predicted_mel')
     residual = abs(model_out['mel_linear'] - model_out['final_output'])
@@ -92,7 +88,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--datadir', dest='datadir', type=str)
 parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
 parser.add_argument('--config', dest='config', type=str)
-parser.add_argument('--cleardir', dest='clear_dir', action='store_true',
+parser.add_argument('--reset_dir', dest='clear_dir', action='store_true',
                     help="deletes everything under this config's folder.")
 parser.add_argument('--session_name', dest='session_name', default=None)
 args = parser.parse_args()
@@ -120,9 +116,7 @@ print_dictionary(config, recursion_level=1)
 # get model, prepare data for model, create datasets
 model = config_loader.get_model()
 config_loader.compile_model(model)
-data_prep = DataPrepper(mel_channels=config['mel_channels'],
-                        start_vec_val=config['mel_start_vec_value'],
-                        end_vec_val=config['mel_end_vec_value'],
+data_prep = DataPrepper(config=config,
                         tokenizer=model.tokenizer)
 
 test_list = [data_prep(s, include_text=True) for s in val_samples]
@@ -137,7 +131,7 @@ val_dataset = Dataset(samples=val_samples,
 
 # create logger and checkpointer and restore latest model
 
-summary_manager = SummaryManager(model=model, log_dir=log_dir)
+summary_manager = SummaryManager(model=model, log_dir=log_dir, config=config)
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
                                  optimizer=model.optimizer,
                                  net=model)
@@ -149,9 +143,7 @@ if manager.latest_checkpoint:
     print(f'\nresuming training from step {model.step} ({manager.latest_checkpoint})')
 else:
     print(f'\nstarting training from scratch')
-
 # main event
-
 print('\nTRAINING')
 losses = []
 _ = train_dataset.next_batch()
@@ -163,12 +155,12 @@ for _ in t:
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
     t.display(f'reduction factor {reduction_factor}', pos=10)
-    model.set_r(reduction_factor)
-    model.set_learning_rates(learning_rate)
+    model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
+                        learning_rate=learning_rate,
+                        reduction_factor=reduction_factor)
     output = model.train_step(inp=phonemes,
                               tar=mel,
-                              stop_prob=stop,
-                              decoder_prenet_dropout=decoder_prenet_dropout)
+                              stop_prob=stop)
     losses.append(float(output['loss']))
     
     t.display(f'step loss: {losses[-1]}', pos=1)
@@ -181,7 +173,7 @@ for _ in t:
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=model.r)
     if (model.step + 1) % config['train_images_plotting_frequency'] == 0:
-        summary_manager.display_attention_heads(output, tag='Train')
+        summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel_linear'][0], tag=f'Train/linear_mel_out')
         summary_manager.display_mel(mel=output['final_output'][0], tag=f'Train/predicted_mel')
         residual = abs(output['mel_linear'] - output['final_output'])
@@ -195,33 +187,26 @@ for _ in t:
     if (model.step + 1) % config['validation_frequency'] == 0:
         val_loss, time_taken = validate(model=model,
                                         val_dataset=val_dataset,
-                                        summary_manager=summary_manager,
-                                        decoder_prenet_dropout=decoder_prenet_dropout)
+                                        summary_manager=summary_manager)
         t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
                   pos=len(config['n_steps_avg_losses']) + 3)
     
     if (model.step + 1) % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
-        timed_predict = time_it(model.predict)
-        timings = []
         for j in range(config['n_predictions']):
             mel, phonemes, stop, text_seq = test_list[j]
             t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
-            pred, time_taken = timed_predict(phonemes,
-                                             max_length=decoder_prenet_dropout,
-                                             decoder_prenet_dropout=mel.shape[0] + 50,
-                                             encode=False,
-                                             verbose=False)
+            pred = model.predict(phonemes,
+                                 max_length=mel.shape[0] + 50,
+                                 decoder_prenet_dropout=decoder_prenet_dropout,
+                                 encode=False,
+                                 verbose=False)
             pred_mel = pred['mel']
             target_mel = mel
-            timings.append(time_taken)
-            summary_manager.display_attention_heads(outputs=pred, tag='Test')
-            summary_manager.display_mel(mel=pred_mel, tag=f'Test/predicted_mel {j}')
-            summary_manager.display_mel(mel=target_mel, tag=f'Test/target_mel {j}')
+            summary_manager.display_attention_heads(outputs=pred, tag=f'TestAttentionHeads/sample {j}')
+            summary_manager.display_mel(mel=pred_mel, tag=f'Test/sample {j}/predicted_mel')
+            summary_manager.display_mel(mel=target_mel, tag=f'Test/sample {j}/target_mel')
             if model.step > config['audio_start_step']:
-                summary_manager.display_audio(tag='Target', mel=target_mel, config=config)
-                summary_manager.display_audio(tag='Prediction', mel=pred_mel, config=config)
-        
-        t.display(f"Predictions at time step {model.step} took {sum(timings)}s ({timings})",
-                  pos=len(config['n_steps_avg_losses']) + 4)
+                summary_manager.display_audio(tag=f'Target/sample {j}', mel=target_mel)
+                summary_manager.display_audio(tag=f'Prediction/sample {j}', mel=pred_mel)
 
 print('Done.')

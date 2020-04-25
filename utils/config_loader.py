@@ -13,7 +13,6 @@ class ConfigLoader:
         self.yaml = ruamel.yaml.YAML()
         if isinstance(config, str):
             config = self._load_config(config)
-        
         self.config = config
         self._check_config()
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
@@ -26,13 +25,11 @@ class ConfigLoader:
     def get_model(self):
         return AutoregressiveTransformer(mel_channels=self.config['mel_channels'],
                                          encoder_model_dimension=self.config['encoder_model_dimension'],
-                                         encoder_num_layers=self.config['encoder_num_layers'],
                                          encoder_num_heads=self.config['encoder_num_heads'],
                                          encoder_feed_forward_dimension=self.config[
                                              'encoder_feed_forward_dimension'],
                                          decoder_model_dimension=self.config['decoder_model_dimension'],
                                          decoder_prenet_dimension=self.config['decoder_prenet_dimension'],
-                                         decoder_num_layers=self.config['decoder_num_layers'],
                                          decoder_num_heads=self.config['decoder_num_heads'],
                                          decoder_feed_forward_dimension=self.config[
                                              'decoder_feed_forward_dimension'],
@@ -42,14 +39,15 @@ class ConfigLoader:
                                          max_position_encoding=self.config['max_position_encoding'],
                                          dropout_rate=self.config['dropout_rate'],
                                          max_r=self.max_r,
-                                         start_vec_value=self.config['mel_start_vec_value'],
-                                         end_vec_value=self.config['mel_end_vec_value'],
+                                         mel_start_value=self.config['mel_start_value'],
+                                         mel_end_value=self.config['mel_end_value'],
                                          phoneme_language=self.config['phoneme_language'],
-                                         debug=self.config['debug'], )
+                                         debug=self.config['debug'])
     
     def compile_model(self, model):
         model._compile(stop_scaling=self.stop_scaling, optimizer=self.new_adam(self.learning_rate))
     
+    # TODO: move to model
     @staticmethod
     def new_adam(learning_rate):
         return tf.keras.optimizers.Adam(learning_rate,
@@ -58,15 +56,15 @@ class ConfigLoader:
                                         epsilon=1e-9)
     
     def _check_config(self):
-        key_list = ['mel_channels', 'decoder_num_layers', 'encoder_num_layers', 'decoder_model_dimension',
+        key_list = ['mel_channels', 'decoder_model_dimension',
                     'encoder_model_dimension', 'decoder_num_heads', 'encoder_num_heads',
                     'encoder_feed_forward_dimension', 'decoder_feed_forward_dimension',
                     'decoder_prenet_dimension', 'max_position_encoding', 'postnet_conv_filters',
                     'postnet_conv_layers', 'postnet_kernel_size', 'dropout_rate', 'debug',
-                    'mel_start_vec_value', 'mel_end_vec_value', ]
+                    'mel_start_value', 'mel_end_value']
         config_keys = set(self.config.keys())
         missing = [key for key in key_list if key not in config_keys]
-        assert len(missing) == 0, 'Config is missing the following keys: {}'.format(missing)
-        
+        assert len(missing) == 0, 'Configuration file error. Missing keys {}'.format(missing)
+    
     def dump_config(self, config_path):
         self.yaml.dump(self.config, open(config_path, 'w'))

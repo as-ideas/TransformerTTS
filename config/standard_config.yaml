@@ -1,10 +1,8 @@
 # ARCHITECTURE
-decoder_num_layers: 4
-encoder_num_layers: 4
-decoder_model_dimension: 256
+decoder_model_dimension: 264
 encoder_model_dimension: 256
-decoder_num_heads: 4
-encoder_num_heads: 4
+decoder_num_heads: [4,4,4,4]
+encoder_num_heads: [4,4,4,4]
 encoder_feed_forward_dimension: 512
 decoder_feed_forward_dimension: 512
 decoder_prenet_dimension: 256
@@ -20,18 +18,20 @@ stop_loss_scaling: 8
 # DATA
 n_samples: 100000
 n_test: 100
-mel_channels: 80
-sr: 22050
-mel_start_vec_value: -3
-mel_end_vec_value: -4
+mel_start_value: 4
+mel_end_value: -4
 
 # AUDIO
-n_fft: 1024
-f_max: 8000
-f_min: 0
-hop_length: 256
-win_length: 1024
-sampling_rate: 22050
+sampling_rate : 22050
+n_fft : 2048
+mel_channels: 80
+hop_length : 275                    # 12.5ms - in line with Tacotron 2 paper
+win_length : 1100                   # 50ms - same reason as above
+f_min : 40
+min_level_db : -100
+ref_level_db : 20
+peak_norm: False  # if False, only normalizes to peak if peak>1
+max_norm: 4 # normalizes values between -max norm, max_norm
 
 # TRAINING
 dropout_schedule:
@@ -53,9 +53,9 @@ prediction_frequency: 10_000
 weights_save_frequency: 10_000
 train_images_plotting_frequency: 1_000
 keep_n_weights: 5
-keep_checkpoint_every_n_hours: 1
+keep_checkpoint_every_n_hours: None
 n_steps_avg_losses: [100, 500, 1_000, 5_000]
-n_predictions: 2
+n_predictions: 5
 prediction_start_step: 10_000
 audio_start_step: 40_000
 
