@@ -197,7 +197,6 @@ for _ in t:
             t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
             pred = model.predict(phonemes,
                                  max_length=mel.shape[0] + 50,
-                                 decoder_prenet_dropout=decoder_prenet_dropout,
                                  encode=False,
                                  verbose=False)
             pred_mel = pred['mel']
