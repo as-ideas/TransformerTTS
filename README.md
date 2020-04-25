@@ -25,10 +25,11 @@ Prepare a ```yaml``` configuration file with architecture, data and training con
 
 If unsure, simply use ```config/standard_config.yaml```.
 
-Note: configurations files are dataset dependent, ```standard_config.yaml``` is tuned for LJSpeech1.1.
+Note: configurations files are dataset dependent, ```standard_config.yaml``` is tuned for LJSpeech v1.1.
 
 ### Process dataset
 From the root folder run
+
 ```
 python scripts/create_dataset.py 
     --metafile /path/to/metadata.csv 
@@ -47,9 +48,14 @@ python scripts/train.py
 ```
 #### Resume training
 Simply target an existing log directory with ```--logdir``` to resume training.
+#### Monitor training
+We log some information that can be visualized with TensorBoard:
+```bash
+tensorboard --logdir /logs/directory/
+```
 
 ## Prediction
-In a Jupiter notebook
+In a Jupyter notebook
 ```python
 import IPython.display as ipd
 from utils.config_loader import ConfigLoader
@@ -58,8 +64,7 @@ from utils.audio import reconstruct_waveform
 # Create a `ConfigLoader` object using a config file and restore a checkpoint or directly load a weights file
 config_loader = ConfigLoader('/path/to/config.yaml')
 model = config_loader.get_model()
-model.load_weights('weights_new.hdf5')
-# model.load_checkpoint('/path/to/checkpoint/weights/', checkpoint_path=None) # optional: specify checkpoint file
+model.load_checkpoint('/path/to/checkpoint/weights/', checkpoint_path=None) # optional: specify checkpoint file
 # Run predictions
 out = model.predict("Please, say something.")
 
@@ -67,3 +72,11 @@ out = model.predict("Please, say something.")
 wav= reconstruct_waveform(out['mel'].numpy().T, config=config_loader.config)
 ipd.display(ipd.Audio(wav, rate=config_loader.config['sampling_rate']))
 ```
+
+## Maintainers
+
+* Francesco Cardinale, github: [cfrancesco](https://github.com/cfrancesco)
+
+## Copyright
+
+See [LICENSE](LICENSE) for details.
