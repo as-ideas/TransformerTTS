@@ -30,10 +30,10 @@ Note: configurations files are dataset dependent, ```standard_config.yaml``` is 
 ### Process dataset
 From the root folder run
 ```
-python scripts/preprocess_mels.py 
-    --meta_file /path/to/metadata.csv 
-    --wav_dir /path/to/wav/directory/
-    --target_dir /directory/to/store/spectrograms/
+python scripts/create_dataset.py 
+    --metafile /path/to/metadata.csv 
+    --wavdir /path/to/wav/directory/
+    --targetdir /directory/to/store/spectrograms/
     --config /path/to/config/file.yaml
 ```
 ### Run training
@@ -43,7 +43,7 @@ python scripts/train.py
     --datadir /path/to/spectrograms/
     --logdir /logs/directory/
     --config /path/to/config_file.yaml
-    [--cleardir | optional flag, deletes all logs and weights from previous sessions]
+    [--reset_dir | optional flag, deletes all logs and weights from previous sessions]
 ```
 #### Resume training
 Simply target an existing log directory with ```--logdir``` to resume training.

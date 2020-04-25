@@ -88,7 +88,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--datadir', dest='datadir', type=str)
 parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
 parser.add_argument('--config', dest='config', type=str)
-parser.add_argument('--cleardir', dest='clear_dir', action='store_true',
+parser.add_argument('--reset_dir', dest='clear_dir', action='store_true',
                     help="deletes everything under this config's folder.")
 parser.add_argument('--session_name', dest='session_name', default=None)
 args = parser.parse_args()

@@ -64,7 +64,7 @@ class ConfigLoader:
                     'mel_start_value', 'mel_end_value']
         config_keys = set(self.config.keys())
         missing = [key for key in key_list if key not in config_keys]
-        assert len(missing) == 0, 'Config is missing the following keys: {}'.format(missing)
+        assert len(missing) == 0, 'Configuration file error. Missing keys {}'.format(missing)
     
     def dump_config(self, config_path):
         self.yaml.dump(self.config, open(config_path, 'w'))

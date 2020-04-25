@@ -11,9 +11,9 @@ from utils.config_loader import ConfigLoader
 from utils.audio import melspectrogram
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--meta_file', dest='META_FILE', type=str, required=True)
-parser.add_argument('--wav_dir', dest='WAV_DIR', type=str, required=True)
-parser.add_argument('--target_dir', dest='TARGET_DIR', type=str, required=True)
+parser.add_argument('--metafile', dest='META_FILE', type=str, required=True)
+parser.add_argument('--wavdir', dest='WAV_DIR', type=str, required=True)
+parser.add_argument('--targetdir', dest='TARGET_DIR', type=str, required=True)
 parser.add_argument('--config', dest='CONFIG', type=str, required=True)
 parser.add_argument('--dont_cache_phonemes', dest='CACHE_PHON', action='store_false')
 parser.add_argument('--njobs', dest='NJOBS', type=int, default=16)
