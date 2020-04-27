@@ -63,7 +63,8 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
         return tf.transpose(x, perm=[0, 2, 1, 3])
     
-    def call(self, v, k, q_in, mask):
+    def call(self, v, k, q_in, mask, reduction_factor):
+        reduction_factor = tf.cast(reduction_factor, tf.int32)
         batch_size = tf.shape(q_in)[0]
         
         q = self.wq(q_in)  # (batch_size, seq_len, model_dim)
@@ -73,9 +74,22 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         q = self.split_heads(q, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
         k = self.split_heads(k, batch_size)  # (batch_size, num_heads, seq_len_k, depth)
         v = self.split_heads(v, batch_size)  # (batch_size, num_heads, seq_len_v, depth)
-        
+
+        if reduction_factor > 1:
+
+            q = tf.reshape(q, (batch_size, -1, int(tf.shape(q)[2]/reduction_factor), tf.shape(q)[3]*reduction_factor))
+            k = tf.reshape(k, (batch_size, -1, int(tf.shape(k)[2]/reduction_factor), tf.shape(k)[3]*reduction_factor))
+            v = tf.reshape(v, (batch_size, -1, int(tf.shape(v)[2]/reduction_factor), tf.shape(v)[3]*reduction_factor))
+            mask = 1 - tf.linalg.band_part(tf.ones((tf.shape(q)[2], tf.shape(k)[2])), -1, 0)
+
         scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
-        
+        if reduction_factor > 1:
+            scaled_attention = tf.reshape(scaled_attention,
+                                          (tf.shape(scaled_attention)[0],
+                                           tf.shape(scaled_attention)[1],
+                                           tf.shape(scaled_attention)[2] * reduction_factor,
+                                           int(tf.shape(scaled_attention)[3] / reduction_factor)))
+
         scaled_attention = tf.transpose(scaled_attention,
                                         perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
         concat_attention = tf.reshape(scaled_attention,
@@ -95,7 +109,7 @@ class SelfAttentionResNorm(tf.keras.layers.Layer):
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, x, training, mask):
-        attn_out, attn_weights = self.mha(x, x, x, mask)  # (batch_size, input_seq_len, model_dim)
+        attn_out, attn_weights = self.mha(x, x, x, mask, reduction_factor=1)  # (batch_size, input_seq_len, model_dim)
         attn_out = self.dropout(attn_out, training=training)
         out = self.ln(x + attn_out)  # (batch_size, input_seq_len, model_dim)
         return out, attn_weights
@@ -158,8 +172,8 @@ class CrossAttentionResnorm(tf.keras.layers.Layer):
         self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
-    def call(self, q, k, v, training, mask):
-        attn_values, attn_weights = self.mha(v, k=k, q_in=q, mask=mask)
+    def call(self, q, k, v, training, mask, reduction_factor):
+        attn_values, attn_weights = self.mha(v, k=k, q_in=q, mask=mask, reduction_factor=reduction_factor)
         attn_values = self.dropout(attn_values, training=training)
         out = self.layernorm(attn_values + q)
         return out, attn_weights
@@ -173,11 +187,11 @@ class DecoderLayer(tf.keras.layers.Layer):
         self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.ffn = FFNResNorm(model_dim, dense_hidden_units, dropout_rate=dropout_rate)
     
-    def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
+    def call(self, x, enc_output, training, look_ahead_mask, padding_mask, reduction_factor):
         attn1, attn_weights_block1 = self.sarn(x, mask=look_ahead_mask, training=training)
         
-        attn2, attn_weights_block2 = self.carn(attn1, v=enc_output, k=enc_output,
-                                               mask=padding_mask, training=training)
+        attn2, attn_weights_block2 = self.carn(attn1, v=enc_output, k=enc_output, mask=padding_mask,
+                                               training=training, reduction_factor=reduction_factor)
         ffn_out = self.ffn(attn2, training=training)
         return ffn_out, attn_weights_block1, attn_weights_block2
 
@@ -193,14 +207,14 @@ class Decoder(tf.keras.layers.Layer):
         self.dec_layers = [DecoderLayer(model_dim, heads, dense_hidden_units, dropout_rate) for heads in num_heads]
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
-    def call(self, inputs, enc_output, training, look_ahead_mask, padding_mask):
+    def call(self, inputs, enc_output, training, look_ahead_mask, padding_mask, reduction_factor):
         seq_len = tf.shape(inputs)[1]
         attention_weights = {}
         x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
         x = self.dropout(x, training=training)
         for i, layer in enumerate(self.dec_layers):
-            x, block1, block2 = layer(x, enc_output, training, look_ahead_mask, padding_mask)
+            x, block1, block2 = layer(x, enc_output, training, look_ahead_mask, padding_mask, reduction_factor)
             
             attention_weights[f'decoder_layer{i + 1}_block1'] = block1
             attention_weights[f'decoder_layer{i + 1}_block2'] = block2

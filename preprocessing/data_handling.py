@@ -99,16 +99,22 @@ class DataPrepper:
         self.tokenizer = tokenizer
         self.mel_channels = config['mel_channels']
     
-    def __call__(self, sample, include_text=True):
+    def __call__(self, sample, *,include_text=True, divisible_by):
         phonemes, text, mel_path = sample
         mel = np.load(mel_path)
-        return self._run(phonemes, text, mel, include_text=include_text)
+        return self._run(phonemes, text, mel, include_text=include_text, divisible_by=divisible_by)
     
-    def _run(self, phonemes, text, mel, *, include_text):
+    def _run(self, phonemes, text, mel, *, include_text, divisible_by):
         encoded_phonemes = self.tokenizer.encode(phonemes)
         norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
+        norm_mel_len = norm_mel.shape[-2]
+        extra_end = (divisible_by - ((norm_mel.shape[-2] + 2) % divisible_by)) % divisible_by
+        divisibility_pads = np.zeros(self.end_vec.shape)
+        norm_mel = np.concatenate([self.start_vec, norm_mel, self.end_vec, np.tile(divisibility_pads, (extra_end, 1))],
+                                  axis=0)
         stop_probs = np.ones((norm_mel.shape[0]))
-        stop_probs[-1] = 2
+        # stop_probs[-1] = 2
+        stop_probs[norm_mel_len:] = 2
         if include_text:
             return norm_mel, encoded_phonemes, stop_probs, text
         else:

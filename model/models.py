@@ -185,6 +185,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     def _gta_forward(self, inp, tar, stop_prob, training):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
+        # tar_real = tf.concat([tar[:, 1:, :], tf.cast(tf.zeros((tf.shape(tar)[0], 1, tf.shape(tar)[-1])), tf.float32)],
+        #                      axis=-2)  # shift target
         tar_stop_prob = stop_prob[:, 1:]
         
         mel_len = int(tf.shape(tar_inp)[1])
