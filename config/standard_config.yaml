@@ -49,7 +49,7 @@ debug: False
 validation_frequency: 500
 prediction_frequency: 10_000
 weights_save_frequency: 10_000
-train_images_plotting_frequency: 1
+train_images_plotting_frequency: 500
 keep_n_weights: 5
 keep_checkpoint_every_n_hours: None
 n_steps_avg_losses: [100, 500, 1_000, 5_000]

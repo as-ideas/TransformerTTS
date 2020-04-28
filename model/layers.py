@@ -288,6 +288,7 @@ class MultiResAttention(tf.keras.layers.Layer):
         heads = []
         weights = []
         batch_size = tf.shape(query)[0]
+        mask = mask[:, 0, :, :]
         for i in range(self.num_heads):
             q = self.wq[i](query)
             k = self.wk[i](key_value)
@@ -296,7 +297,7 @@ class MultiResAttention(tf.keras.layers.Layer):
                            (
                                batch_size, int(tf.shape(q)[1] / self.resolutions[i]),
                                tf.shape(q)[2] * self.resolutions[i]))
-            mask = 1 - tf.linalg.band_part(tf.ones((tf.shape(q)[1], tf.shape(k)[1])), -1, 0)
+            
             attn_values, attn_weights = scaled_dot_product_attention(q, k, v, mask)
             attn_values = tf.reshape(attn_values, (
                 tf.shape(attn_values)[0], tf.shape(attn_values)[1] * self.resolutions[i],
