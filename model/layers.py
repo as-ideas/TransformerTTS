@@ -169,7 +169,8 @@ class CrossAttentionResnorm(tf.keras.layers.Layer):
 
 class DecoderLayer(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, num_heads: int, dense_hidden_units: int, heads_resolutions: list, dropout_rate: float = 0.1, **kwargs):
+    def __init__(self, model_dim: int, num_heads: int, dense_hidden_units: int, heads_resolutions: list,
+                 dropout_rate: float = 0.1, **kwargs):
         super(DecoderLayer, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate,
@@ -193,7 +194,8 @@ class Decoder(tf.keras.layers.Layer):
         super(Decoder, self).__init__(**kwargs)
         self.model_dim = model_dim
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
-        self.dec_layers = [DecoderLayer(model_dim, heads, dense_hidden_units, heads_resolutions, dropout_rate) for heads in num_heads]
+        self.dec_layers = [DecoderLayer(model_dim, heads, dense_hidden_units, heads_resolutions, dropout_rate) for heads
+                           in num_heads]
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, inputs, enc_output, training, look_ahead_mask, padding_mask):
@@ -274,12 +276,12 @@ class MultiResAttention(tf.keras.layers.Layer):
         assert model_dim % self.num_heads == 0
         assert sum([(model_dim // self.num_heads) % res != 0 for res in resolutions]) == 0
         
-        query_depths = [(model_dim / self.num_heads) / res for res in resolutions]
-        depth = model_dim // self.num_heads
+        self.query_depths = [tf.cast((model_dim / self.num_heads) / res, tf.int32) for res in resolutions]
+        self.depth = model_dim // self.num_heads
         
-        self.wq = [tf.keras.layers.Dense(query_depths[i]) for i in range(num_heads)]
-        self.wk = [tf.keras.layers.Dense(depth) for _ in range(num_heads)]
-        self.wv = [tf.keras.layers.Dense(depth) for _ in range(num_heads)]
+        self.wq = [tf.keras.layers.Dense(self.query_depths[i]) for i in range(num_heads)]
+        self.wk = [tf.keras.layers.Dense(self.depth) for _ in range(num_heads)]
+        self.wv = [tf.keras.layers.Dense(self.depth) for _ in range(num_heads)]
         
         self.dense = tf.keras.layers.Dense(model_dim)
         self.resolutions = resolutions
@@ -288,20 +290,16 @@ class MultiResAttention(tf.keras.layers.Layer):
         heads = []
         weights = []
         batch_size = tf.shape(query)[0]
-        mask = mask[:, 0, :, :]
+        if mask is not None:
+            mask = tf.squeeze(mask, axis=1)  # remove head dimension used in normal MHA
         for i in range(self.num_heads):
             q = self.wq[i](query)
             k = self.wk[i](key_value)
             v = self.wv[i](key_value)
-            q = tf.reshape(q,
-                           (
-                               batch_size, int(tf.shape(q)[1] / self.resolutions[i]),
-                               tf.shape(q)[2] * self.resolutions[i]))
-            
+            q = tf.reshape(q, (batch_size, int(tf.shape(q)[1] / self.resolutions[i]), self.depth))
             attn_values, attn_weights = scaled_dot_product_attention(q, k, v, mask)
             attn_values = tf.reshape(attn_values, (
-                tf.shape(attn_values)[0], tf.shape(attn_values)[1] * self.resolutions[i],
-                tf.shape(attn_values)[2] // self.resolutions[i]))
+                tf.shape(attn_values)[0], tf.shape(attn_values)[1] * self.resolutions[i], self.query_depths[i]))
             # head has shape (batch, decoder_len, value_size)
             heads.append(attn_values)
             weights.append(attn_weights)
