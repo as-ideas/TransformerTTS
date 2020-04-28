@@ -79,10 +79,8 @@ class SummaryManager:
     def display_attention_heads(self, outputs, tag=''):
         for k in outputs['attention_weights'].keys():
             if k.endswith('block2'):
-                for i, attn_w in enumerate(outputs['attention_weights'][k][0]):
-                    image = norm_tensor(attn_w)
-                # image = tight_grid(norm_tensor(outputs['attention_weights'][k][0]))
-                # dim 0 of image_batch is now number of heads
+                for i, attn_w in enumerate(outputs['attention_weights'][k]):
+                    image = norm_tensor(attn_w[0])
                     batch_plot_path = f'{tag}/{k}/head_{i}'
                     self.add_image(str(batch_plot_path), tf.expand_dims(tf.expand_dims(image, 0), -1))
         
