@@ -42,7 +42,8 @@ class ConfigLoader:
                                          mel_start_value=self.config['mel_start_value'],
                                          mel_end_value=self.config['mel_end_value'],
                                          phoneme_language=self.config['phoneme_language'],
-                                         debug=self.config['debug'])
+                                         debug=self.config['debug'],
+                                         heads_resolutions=self.config['heads_resolutions'])
     
     def compile_model(self, model):
         model._compile(stop_scaling=self.stop_scaling, optimizer=self.new_adam(self.learning_rate))

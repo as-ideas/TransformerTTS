@@ -1,6 +1,5 @@
 import os
 from random import Random
-from typing import Union
 
 import numpy as np
 import tensorflow as tf
@@ -93,22 +92,26 @@ class DataPrepper:
     
     def __init__(self,
                  config,
-                 tokenizer: Tokenizer):
+                 tokenizer: Tokenizer,
+                 divisible_by: int, ):
         self.start_vec = np.ones((1, config['mel_channels'])) * config['mel_start_value']
         self.end_vec = np.ones((1, config['mel_channels'])) * config['mel_end_value']
         self.tokenizer = tokenizer
         self.mel_channels = config['mel_channels']
+        self.divisible_by = divisible_by
     
-    def __call__(self, sample, *,include_text=True, divisible_by):
+    def __call__(self, sample, include_text=True):
         phonemes, text, mel_path = sample
         mel = np.load(mel_path)
-        return self._run(phonemes, text, mel, include_text=include_text, divisible_by=divisible_by)
+        return self._run(phonemes, text, mel, include_text=include_text)
     
-    def _run(self, phonemes, text, mel, *, include_text, divisible_by):
+    def _run(self, phonemes, text, mel, *, include_text):
         encoded_phonemes = self.tokenizer.encode(phonemes)
+        # extra_end = (self.divisible_by - (len(encoded_phonemes) % self.divisible_by)) % self.divisible_by
+        # encoded_phonemes = encoded_phonemes + [0] * extra_end
         norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
         norm_mel_len = norm_mel.shape[-2]
-        extra_end = (divisible_by - ((norm_mel.shape[-2] + 2) % divisible_by)) % divisible_by
+        extra_end = (self.divisible_by - (norm_mel.shape[-2]+2 % self.divisible_by)) % self.divisible_by
         divisibility_pads = np.zeros(self.end_vec.shape)
         norm_mel = np.concatenate([self.start_vec, norm_mel, self.end_vec, np.tile(divisibility_pads, (extra_end, 1))],
                                   axis=0)

@@ -1,8 +1,9 @@
 # ARCHITECTURE
-decoder_model_dimension: 264
+decoder_model_dimension: 280
 encoder_model_dimension: 256
 decoder_num_heads: [4,4,4,4]
 encoder_num_heads: [4,4,4,4]
+heads_resolutions: [10, 5, 2, 1]
 encoder_feed_forward_dimension: 512
 decoder_feed_forward_dimension: 512
 decoder_prenet_dimension: 256
@@ -39,10 +40,7 @@ dropout_schedule:
 learning_rate_schedule:
   - [0, 1.0e-4]
 reduction_factor_schedule:
-  - [0, 10]
-  - [20_000, 5]
-  - [50_000, 2]
-  - [100_000, 1]
+  - [0, 1]
 max_steps: 900_000
 batch_size: 16
 debug: False
@@ -51,13 +49,14 @@ debug: False
 validation_frequency: 500
 prediction_frequency: 10_000
 weights_save_frequency: 10_000
-train_images_plotting_frequency: 1_000
+train_images_plotting_frequency: 1
 keep_n_weights: 5
 keep_checkpoint_every_n_hours: None
 n_steps_avg_losses: [100, 500, 1_000, 5_000]
 n_predictions: 5
 prediction_start_step: 10_000
 audio_start_step: 40_000
+use_block_attention: True
 
 # TOKENIZER
 phoneme_language: 'en'

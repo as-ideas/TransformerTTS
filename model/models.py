@@ -28,6 +28,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  dropout_rate: float,
                  mel_start_value: int,
                  mel_end_value: int,
+                 heads_resolutions: list,
                  max_r: int = 10,
                  phoneme_language: str = 'en',
                  debug=False,
@@ -60,6 +61,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                                dense_hidden_units=decoder_feed_forward_dimension,
                                maximum_position_encoding=max_position_encoding,
                                dropout_rate=dropout_rate,
+                               heads_resolutions=heads_resolutions,
                                name='Decoder')
         self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r, name='FinalProj')
         self.decoder_postnet = Postnet(mel_channels=mel_channels,
@@ -183,11 +185,13 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         return self._call_decoder(encoder_output, targets, encoder_padding_mask, training=False)
     
     def _gta_forward(self, inp, tar, stop_prob, training):
-        tar_inp = tar[:, :-1]
-        tar_real = tar[:, 1:]
-        # tar_real = tf.concat([tar[:, 1:, :], tf.cast(tf.zeros((tf.shape(tar)[0], 1, tf.shape(tar)[-1])), tf.float32)],
-        #                      axis=-2)  # shift target
-        tar_stop_prob = stop_prob[:, 1:]
+        # tar_inp = tar[:, :-1]
+        tar_inp = tar
+        # tar_real = tar[:, 1:]
+        tar_real = tf.concat([tar[:, 1:, :], tf.cast(tf.zeros((tf.shape(tar)[0], 1, tf.shape(tar)[-1])), tf.float32)],
+                             axis=-2)  # shift target
+        # tar_stop_prob = stop_prob[:, 1:]
+        tar_stop_prob = stop_prob
         
         mel_len = int(tf.shape(tar_inp)[1])
         tar_mel = tar_inp[:, 0::self.r, :]
