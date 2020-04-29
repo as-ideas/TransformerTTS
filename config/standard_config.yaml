@@ -35,23 +35,22 @@ max_norm: 4 # normalizes values between -max norm, max_norm
 
 # TRAINING
 dropout_schedule:
-  - [0, 0.5]
+  - [0, 0.9]
+  - [50_000, 0.5]
+  - [100_000, 0.]
 learning_rate_schedule:
   - [0, 1.0e-4]
 reduction_factor_schedule:
-  - [0, 10]
-  - [20_000, 5]
-  - [50_000, 2]
-  - [100_000, 1]
+  - [0, 1]
 max_steps: 900_000
 batch_size: 16
 debug: False
 
 # LOGGING
-validation_frequency: 500
+validation_frequency: 1_000
 prediction_frequency: 10_000
 weights_save_frequency: 10_000
-train_images_plotting_frequency: 1_000
+train_images_plotting_frequency: 500
 keep_n_weights: 5
 keep_checkpoint_every_n_hours: None
 n_steps_avg_losses: [100, 500, 1_000, 5_000]

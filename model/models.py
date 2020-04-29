@@ -30,6 +30,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  mel_end_value: int,
                  max_r: int = 10,
                  phoneme_language: str = 'en',
+                 decoder_prenet_dropout=0.,
                  debug=False,
                  **kwargs):
         super(AutoregressiveTransformer, self).__init__(**kwargs)
@@ -39,7 +40,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.max_r = max_r
         self.r = max_r
         self.mel_channels = mel_channels
-        self.decoder_prenet_dropout = 0.
+        self.decoder_prenet_dropout = decoder_prenet_dropout
         
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)))
         self.phonemizer = Phonemizer(language=phoneme_language)
