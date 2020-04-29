@@ -28,6 +28,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  dropout_rate: float,
                  mel_start_value: int,
                  mel_end_value: int,
+                 heads_resolutions: list,
                  max_r: int = 10,
                  phoneme_language: str = 'en',
                  decoder_prenet_dropout=0.,
@@ -61,6 +62,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                                dense_hidden_units=decoder_feed_forward_dimension,
                                maximum_position_encoding=max_position_encoding,
                                dropout_rate=dropout_rate,
+                               heads_resolutions=heads_resolutions,
                                name='Decoder')
         self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r, name='FinalProj')
         self.decoder_postnet = Postnet(mel_channels=mel_channels,

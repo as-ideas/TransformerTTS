@@ -152,10 +152,9 @@ class Encoder(tf.keras.layers.Layer):
 
 class CrossAttentionResnorm(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, num_heads: int, dropout_rate: float = 0.1, **kwargs):
+    def __init__(self, model_dim: int, num_heads: int, heads_resolutions: list, dropout_rate: float = 0.1, **kwargs):
         super(CrossAttentionResnorm, self).__init__(**kwargs)
-        # self.mha = MultiHeadAttention(model_dim, num_heads)
-        self.mha = ReducedAttention(model_dim, num_heads)
+        self.mha = ReducedAttention(model_dim, num_heads, resolutions=heads_resolutions)
         self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
@@ -168,10 +167,12 @@ class CrossAttentionResnorm(tf.keras.layers.Layer):
 
 class DecoderLayer(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, num_heads: int, dense_hidden_units: int, dropout_rate: float = 0.1, **kwargs):
+    def __init__(self, model_dim: int, num_heads: int, dense_hidden_units: int, heads_resolutions: list,
+                 dropout_rate: float = 0.1, **kwargs):
         super(DecoderLayer, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
-        self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate)
+        self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate,
+                                          heads_resolutions=heads_resolutions)
         self.ffn = FFNResNorm(model_dim, dense_hidden_units, dropout_rate=dropout_rate)
     
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
@@ -186,12 +187,13 @@ class DecoderLayer(tf.keras.layers.Layer):
 class Decoder(tf.keras.layers.Layer):
     
     def __init__(self, model_dim: int, num_heads: list, dense_hidden_units: int,
-                 maximum_position_encoding: int,
+                 maximum_position_encoding: int, heads_resolutions: list,
                  dropout_rate: float = 0.1, **kwargs):
         super(Decoder, self).__init__(**kwargs)
         self.model_dim = model_dim
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
-        self.dec_layers = [DecoderLayer(model_dim, heads, dense_hidden_units, dropout_rate) for heads in num_heads]
+        self.dec_layers = [DecoderLayer(model_dim, heads, dense_hidden_units, heads_resolutions, dropout_rate) for heads
+                           in num_heads]
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, inputs, enc_output, training, look_ahead_mask, padding_mask):
@@ -264,7 +266,7 @@ class PostnetConvLayers(tf.keras.layers.Layer):
 
 
 class ReducedAttention(tf.keras.layers.Layer):
-    def __init__(self, model_dim: int, num_heads: int, resolutions=[10, 5, 2, 1], **kwargs):
+    def __init__(self, model_dim: int, num_heads: int, resolutions: list, **kwargs):
         super(ReducedAttention, self).__init__(**kwargs)
         self.num_heads = num_heads
         self.model_dim = model_dim
@@ -302,7 +304,7 @@ class ReducedAttention(tf.keras.layers.Layer):
         
         # Concatenate all the attention heads
         # so that the last dimension summed up to model_size
-        heads = tf.concat([*heads], axis=-1)
+        heads = tf.concat(heads, axis=-1)
         heads = tf.concat([query, heads], axis=-1)
         heads = self.dense(heads)
         # heads has shape (batch, query_len, model_size)

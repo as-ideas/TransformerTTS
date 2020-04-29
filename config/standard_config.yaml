@@ -3,6 +3,7 @@ decoder_model_dimension: 264
 encoder_model_dimension: 256
 decoder_num_heads: [4,4,4,4]
 encoder_num_heads: [4,4,4,4]
+heads_resolutions: [10, 5, 2, 1]
 encoder_feed_forward_dimension: 512
 decoder_feed_forward_dimension: 512
 decoder_prenet_dimension: 256
@@ -35,14 +36,14 @@ max_norm: 4 # normalizes values between -max norm, max_norm
 
 # TRAINING
 dropout_schedule:
-  - [0, .5]
+  - [0, 0.5]
 learning_rate_schedule:
   - [0, 1.0e-4]
 reduction_factor_schedule:
   - [0, 10]
-  - [10_000, 5]
-  - [20_000, 2]
-  - [40_000, 1]
+  - [20_000, 5]
+  - [50_000, 2]
+  - [100_000, 1]
 max_steps: 900_000
 batch_size: 16
 debug: False
