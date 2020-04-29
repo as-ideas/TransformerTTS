@@ -147,8 +147,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             n_pad = (self.divisible_by - (tf.shape(output)[-2] % self.divisible_by)) % self.divisible_by
             output = tf.pad(output, [[0, 0], [0, n_pad], [0, 0]])
             model_out = self.forward_decoder(encoder_output, output, padding_mask)
-            unpad = model_out['final_output'][:, :-n_pad * self.r, :]
-            output = tf.concat([output[:, :-n_pad * self.r, :], unpad[:1, -1:, :]], axis=-2)
+            unpad = model_out['final_output'][:, :-n_pad*self.r, :]
+            output = tf.concat([output[:, :-n_pad*self.r, :], unpad[:1, -1:, :]], axis=-2)
             output_concat = tf.concat([tf.cast(output_concat, tf.float32), unpad[:1, -self.r:, :]],
                                       axis=-2)
             stop_pred = model_out['stop_prob'][:, -1]
