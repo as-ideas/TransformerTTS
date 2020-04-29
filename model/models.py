@@ -1,7 +1,6 @@
 import sys
 
 import tensorflow as tf
-import numpy as np
 
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses
@@ -90,7 +89,6 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             tf.TensorSpec(shape=(None, None, None, None), dtype=tf.float32),
         ]
         self.debug = debug
-        self.divisible_by = np.lcm.reduce(heads_resolutions)
         self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
         self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
@@ -144,12 +142,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         out_dict = {}
         encoder_output, padding_mask = self.forward_encoder(inp)
         for i in range(int(max_length // self.r) + 1):
-            n_pad = (self.divisible_by - (tf.shape(output)[-2] % self.divisible_by)) % self.divisible_by
-            output = tf.pad(output, [[0, 0], [0, n_pad], [0, 0]])
             model_out = self.forward_decoder(encoder_output, output, padding_mask)
-            unpad = model_out['final_output'][:, :-n_pad*self.r, :]
-            output = tf.concat([output[:, :-n_pad*self.r, :], unpad[:1, -1:, :]], axis=-2)
-            output_concat = tf.concat([tf.cast(output_concat, tf.float32), unpad[:1, -self.r:, :]],
+            output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
+            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.r:, :]],
                                       axis=-2)
             stop_pred = model_out['stop_prob'][:, -1]
             out_dict = {'mel': output_concat[0, 1:, :], 'attention_weights': model_out['attention_weights']}
@@ -191,13 +186,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         return self._call_decoder(encoder_output, targets, encoder_padding_mask, training=False)
     
     def _gta_forward(self, inp, tar, stop_prob, training):
-        # tar_inp = tar[:, :-1]
-        tar_inp = tar
-        # tar_real = tar[:, 1:]
-        tar_real = tf.concat([tar[:, 1:, :], tf.cast(tf.zeros((tf.shape(tar)[0], 1, tf.shape(tar)[-1])), tf.float32)],
-                             axis=-2)  # shift target
-        # tar_stop_prob = stop_prob[:, 1:]
-        tar_stop_prob = stop_prob
+        tar_inp = tar[:, :-1]
+        tar_real = tar[:, 1:]
+        tar_stop_prob = stop_prob[:, 1:]
         
         mel_len = int(tf.shape(tar_inp)[1])
         tar_mel = tar_inp[:, 0::self.r, :]

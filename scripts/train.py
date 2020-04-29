@@ -117,8 +117,8 @@ print_dictionary(config, recursion_level=1)
 model = config_loader.get_model()
 config_loader.compile_model(model)
 data_prep = DataPrepper(config=config,
-                        tokenizer=model.tokenizer,
-                        divisible_by=model.divisible_by)
+                        tokenizer=model.tokenizer)
+
 test_list = [data_prep(s, include_text=True) for s in val_samples]
 train_dataset = Dataset(samples=train_samples,
                         preprocessor=data_prep,

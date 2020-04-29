@@ -290,16 +290,19 @@ class MultiResAttention(tf.keras.layers.Layer):
         heads = []
         weights = []
         batch_size = tf.shape(query)[0]
+        query_length = tf.shape(query)[-2]
         if mask is not None:
             mask = tf.squeeze(mask, axis=1)  # remove head dimension used in normal MHA
         for i in range(self.num_heads):
-            q = self.wq[i](query)
+            extra_pad = (self.resolutions[i] - (query_length % self.resolutions[i])) % self.resolutions[i]
+            q = tf.pad(query, [[0, 0], [0, extra_pad], [0, 0]])
+            q = self.wq[i](q)
             k = self.wk[i](key_value)
             v = self.wv[i](key_value)
-            q = tf.reshape(q, (batch_size, int(tf.shape(q)[1] / self.resolutions[i]), self.depth))
+            q = tf.reshape(q, (batch_size, tf.cast(tf.shape(q)[1] / self.resolutions[i], tf.int32), self.depth))
             attn_values, attn_weights = scaled_dot_product_attention(q, k, v, mask)
-            attn_values = tf.reshape(attn_values, (
-                tf.shape(attn_values)[0], tf.shape(attn_values)[1] * self.resolutions[i], self.query_depths[i]))
+            attn_values = tf.reshape(attn_values, (tf.shape(attn_values)[0], tf.shape(attn_values)[1] * self.resolutions[i], self.query_depths[i]))
+            attn_values = attn_values[:, :query_length, :]
             # head has shape (batch, decoder_len, value_size)
             heads.append(attn_values)
             weights.append(attn_weights)
@@ -307,50 +310,6 @@ class MultiResAttention(tf.keras.layers.Layer):
         # Concatenate all the attention heads
         # so that the last dimension summed up to model_size
         heads = tf.concat(heads, axis=-1)
-        heads = tf.concat([query, heads], axis=-1)
-        heads = self.dense(heads)
-        # heads has shape (batch, query_len, model_size)
-        return heads, weights
-
-
-class ReducedAttention(tf.keras.layers.Layer):
-    def __init__(self, model_dim: int, num_heads: int, resolutions: list, **kwargs):
-        super(ReducedAttention, self).__init__(**kwargs)
-        self.num_heads = num_heads
-        self.model_dim = model_dim
-        
-        assert model_dim % self.num_heads == 0
-        self.depth = model_dim // self.num_heads
-        
-        self.wq = [tf.keras.layers.Dense(self.depth) for _ in range(num_heads)]
-        self.wk = [tf.keras.layers.Dense(self.depth) for _ in range(num_heads)]
-        self.wv = [tf.keras.layers.Dense(self.depth) for _ in range(num_heads)]
-        
-        self.dense = tf.keras.layers.Dense(model_dim)
-        self.resolutions = resolutions
-    
-    def call(self, query, key_value):
-        heads = []
-        weights = []
-        for i in range(self.num_heads):
-            red_query = query[:, ::self.resolutions[i], :]
-            red_q = self.wq[i](red_query)
-            k = self.wk[i](key_value)
-            v = self.wv[i](key_value)
-            attn_values, attn_weights = scaled_dot_product_attention(red_q, k, v, None)
-            attn_values = tf.expand_dims(attn_values, axis=2)
-            attn_values = tf.tile(attn_values, [1, 1, self.resolutions[i], 1])
-            extra = (self.resolutions[i] - tf.shape(q)[1] % self.resolutions[i]) % self.resolutions[i]
-            attn_values = tf.reshape(attn_values, (-1, tf.shape(q)[1] + extra, self.depth))
-            if extra > 0:  # filter extra
-                attn_values = attn_values[:, :-extra, :]
-            # head has shape (batch, decoder_len, value_size)
-            heads.append(attn_values)
-            weights.append(attn_weights)
-        
-        # Concatenate all the attention heads
-        # so that the last dimension summed up to model_size
-        heads = tf.concat([*heads], axis=-1)
         heads = tf.concat([query, heads], axis=-1)
         heads = self.dense(heads)
         # heads has shape (batch, query_len, model_size)
