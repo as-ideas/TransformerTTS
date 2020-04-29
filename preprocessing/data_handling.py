@@ -107,18 +107,13 @@ class DataPrepper:
     
     def _run(self, phonemes, text, mel, *, include_text):
         encoded_phonemes = self.tokenizer.encode(phonemes)
-        # extra_end = (self.divisible_by - (len(encoded_phonemes) % self.divisible_by)) % self.divisible_by
-        # encoded_phonemes = encoded_phonemes + [0] * extra_end
-        norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
-        norm_mel_len = norm_mel.shape[-2]
-        extra_end = (self.divisible_by - (norm_mel.shape[-2]+2 % self.divisible_by)) % self.divisible_by
+        extra_end = (self.divisible_by - (mel.shape[-2]+2 % self.divisible_by)) % self.divisible_by
         divisibility_pads = np.zeros(self.end_vec.shape)
-        norm_mel = np.concatenate([self.start_vec, norm_mel, self.end_vec, np.tile(divisibility_pads, (extra_end, 1))],
+        padded_mel = np.concatenate([self.start_vec, mel, self.end_vec, np.tile(divisibility_pads, (extra_end, 1))],
                                   axis=0)
-        stop_probs = np.ones((norm_mel.shape[0]))
-        # stop_probs[-1] = 2
-        stop_probs[norm_mel_len:] = 2
+        stop_probs = np.ones((padded_mel.shape[0]))
+        stop_probs[len(mel):] = 2
         if include_text:
-            return norm_mel, encoded_phonemes, stop_probs, text
+            return padded_mel, encoded_phonemes, stop_probs, text
         else:
-            return norm_mel, encoded_phonemes, stop_probs
+            return padded_mel, encoded_phonemes, stop_probs

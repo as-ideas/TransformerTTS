@@ -1,6 +1,7 @@
 import sys
 
 import tensorflow as tf
+import numpy as np
 
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses
@@ -31,6 +32,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  heads_resolutions: list,
                  max_r: int = 10,
                  phoneme_language: str = 'en',
+                 decoder_prenet_dropout=0.,
                  debug=False,
                  **kwargs):
         super(AutoregressiveTransformer, self).__init__(**kwargs)
@@ -40,7 +42,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.max_r = max_r
         self.r = max_r
         self.mel_channels = mel_channels
-        self.decoder_prenet_dropout = 0.
+        self.decoder_prenet_dropout = decoder_prenet_dropout
         
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)))
         self.phonemizer = Phonemizer(language=phoneme_language)
@@ -88,6 +90,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             tf.TensorSpec(shape=(None, None, None, None), dtype=tf.float32),
         ]
         self.debug = debug
+        self.divisible_by = np.lcm.reduce(heads_resolutions)
         self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
         self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
@@ -141,9 +144,12 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         out_dict = {}
         encoder_output, padding_mask = self.forward_encoder(inp)
         for i in range(int(max_length // self.r) + 1):
+            n_pad = (self.divisible_by - (tf.shape(output)[-2] % self.divisible_by)) % self.divisible_by
+            output = tf.pad(output, [[0, 0], [0, n_pad], [0, 0]])
             model_out = self.forward_decoder(encoder_output, output, padding_mask)
-            output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
-            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.r:, :]],
+            unpad = model_out['final_output'][:, :-n_pad * self.r, :]
+            output = tf.concat([output[:, :-n_pad * self.r, :], unpad[:1, -1:, :]], axis=-2)
+            output_concat = tf.concat([tf.cast(output_concat, tf.float32), unpad[:1, -self.r:, :]],
                                       axis=-2)
             stop_pred = model_out['stop_prob'][:, -1]
             out_dict = {'mel': output_concat[0, 1:, :], 'attention_weights': model_out['attention_weights']}

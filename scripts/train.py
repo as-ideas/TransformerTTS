@@ -101,10 +101,6 @@ config = config_loader.config
 weights_paths, log_dir, base_dir = create_dirs(args)
 config_loader.dump_config(os.path.join(base_dir, session_name + '.yaml'))
 
-divisible_by = 1
-if config['use_block_attention']:
-    divisible_by = np.lcm.reduce(config['heads_resolutions'])
-
 meldir = os.path.join(args.datadir, 'mels')
 train_meta = os.path.join(args.datadir, 'train_metafile.txt')
 test_meta = os.path.join(args.datadir, 'test_metafile.txt')
@@ -122,7 +118,7 @@ model = config_loader.get_model()
 config_loader.compile_model(model)
 data_prep = DataPrepper(config=config,
                         tokenizer=model.tokenizer,
-                        divisible_by=divisible_by)
+                        divisible_by=model.divisible_by)
 test_list = [data_prep(s, include_text=True) for s in val_samples]
 train_dataset = Dataset(samples=train_samples,
                         preprocessor=data_prep,
