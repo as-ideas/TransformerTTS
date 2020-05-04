@@ -86,6 +86,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             tf.TensorSpec(shape=(None, None, None, None), dtype=tf.float32),
         ]
         self.debug = debug
+        self.__apply_all_signatures()
+        
+    def __apply_all_signatures(self):
         self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
         self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
@@ -157,9 +160,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         if self.r == r:
             return
         self.r = r
-        self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
-        self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
-        self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
+        self.__apply_all_signatures()
     
     def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
                       reduction_factor: float = None):
