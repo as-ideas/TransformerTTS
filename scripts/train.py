@@ -96,7 +96,7 @@ session_name = args.session_name
 if not session_name:
     session_name = os.path.splitext(os.path.basename(args.config))[0]
 config_loader = ConfigLoader(config=args.config)
-config_loader.config['datadir'] = args.datadir
+config_loader.update_config(data_dir=args.datadir)
 config = config_loader.config
 weights_paths, log_dir, base_dir = create_dirs(args)
 config_loader.dump_config(os.path.join(base_dir, session_name + '.yaml'))

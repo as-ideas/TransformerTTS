@@ -1,4 +1,5 @@
 from typing import Union
+import subprocess
 
 import numpy as np
 import tensorflow as tf
@@ -22,7 +23,19 @@ class ConfigLoader:
     def _load_config(self, config_path):
         return self.yaml.load(open(config_path, 'rb'))
     
-    def get_model(self):
+    def update_config(self, data_dir):
+        git_hash = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
+        self.config['datadir'] = data_dir
+        self.config['git_hash'] = git_hash
+    
+    def _check_hash(self):
+        git_hash = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
+        if self.config['git_hash'] != git_hash:
+            print(f"WARNING: git hash mismatch. Current: {git_hash}. Config hash: {self.config['git_hash']}")
+    
+    def get_model(self, ignore_hash=False):
+        if not ignore_hash:
+            self._check_hash()
         return AutoregressiveTransformer(mel_channels=self.config['mel_channels'],
                                          encoder_model_dimension=self.config['encoder_model_dimension'],
                                          encoder_num_heads=self.config['encoder_num_heads'],
