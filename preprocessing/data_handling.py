@@ -1,6 +1,5 @@
 import os
 from random import Random
-from typing import Union
 
 import numpy as np
 import tensorflow as tf
