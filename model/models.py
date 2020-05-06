@@ -8,6 +8,7 @@ from model.layers import DecoderPrenet, Postnet, Decoder, Encoder
 from utils.losses import masked_mean_absolute_error, new_scaled_crossentropy
 from preprocessing.data_handling import Tokenizer
 from preprocessing.text_processing import _phonemes, Phonemizer, _punctuations
+from model.layers import EncoderLayer, DurationPredictor, Expand, SelfAttentionConvBlock
 
 
 class AutoregressiveTransformer(tf.keras.models.Model):
@@ -42,7 +43,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.mel_channels = mel_channels
         self.decoder_prenet_dropout = decoder_prenet_dropout
         
-        self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)))
+        self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=True)
         self.phonemizer = Phonemizer(language=phoneme_language)
         
         self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension,
@@ -88,7 +89,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         ]
         self.debug = debug
         self.__apply_all_signatures()
-        
+    
     def __apply_all_signatures(self):
         self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
         self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
@@ -255,4 +256,120 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     
     def encode_text(self, text):
         phons = self.phonemizer.encode(text, clean=True)
-        return self.tokenizer.encode(phons, add_start_end=True)
+        return self.tokenizer.encode(phons)
+
+
+class ForwardTransformer(tf.keras.models.Model):
+    def __init__(self, model_dim: int, dropout_rate: float, head_n: int, encoder_conv_blocks: int,
+                 decoder_blocks: int, encoder_feed_forward_dimension: int, encoder_dense_blocks=1,
+                 mel_channels=80, phoneme_language='en', debug=False, **kwargs):
+        super(ForwardTransformer, self).__init__(**kwargs)
+        self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=False)
+        self.phonemizer = Phonemizer(language=phoneme_language)
+        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, model_dim,
+                                                        name='Embedding')
+        self.encoder_SADB = [
+            EncoderLayer(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=head_n,
+                         dense_hidden_units=encoder_feed_forward_dimension, name=f'enc_SADB_{i}')
+            for i in range(encoder_dense_blocks)]
+        self.encoder_SACB = [
+            SelfAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=head_n,
+                                   name=f'enc_SACB_{i}')
+            for i in range(encoder_conv_blocks)]
+        self.dur_pred = DurationPredictor(model_dim=model_dim, dropout_rate=dropout_rate, name='dur_pred')
+        self.expand = Expand(name='expand')
+        self.decoder_SACB = [
+            SelfAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=head_n,
+                                   name=f'dec_SACB_{i}')
+            for i in range(decoder_blocks)]
+        self.out = tf.keras.layers.Dense(mel_channels, name='mel_out')
+        
+        self.training_input_signature = [
+            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None), dtype=tf.int32)
+        ]
+        self.forward_input_signature = [
+            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+        ]
+        self.debug = debug
+        self.__apply_all_signatures()
+    
+    def __apply_all_signatures(self):
+        # self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
+        self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
+        # self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
+    
+    def call(self, x, target_durations, training):
+        padding_mask = create_encoder_padding_mask(x)
+        x = self.encoder_prenet(x)
+        for block in self.encoder_SADB:
+            x = block(x, training=training, mask=padding_mask)
+        for block in self.encoder_SACB:
+            x = block(x, training=training, mask=padding_mask)
+        durations = self.dur_pred(x, training=training)
+        if target_durations is not None:
+            mels = self.expand(x, target_durations)
+        else:
+            mels = self.expand(x, durations)
+        expanded_mask = create_mel_padding_mask(mels)
+        for block in self.decoder_SACB:
+            mels = block(mels, training=training, mask=expanded_mask)
+        mels = self.out(mels)
+        return mels, durations, expanded_mask
+    
+    def _train_step(self, input_sequence, target_sequence, target_durations):
+        with tf.GradientTape() as tape:
+            mels, durations, expanded_mask = self.__call__(input_sequence, target_durations, training=True)
+            loss, loss_vals = weighted_sum_losses((target_sequence,
+                                                   target_durations),
+                                                  (mels,
+                                                   durations),
+                                                  self.loss,
+                                                  self.loss_weights)
+        model_out = {'mel': mels,
+                     'duration': durations,
+                     'expanded mask': expanded_mask,
+                     'loss': loss,
+                     'loss values': loss_vals}
+        gradients = tape.gradient(model_out['loss'], self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+        return model_out
+    
+    def build_graph(self):
+        try:
+            self.forward([0], output=[0], decoder_prenet_dropout=0)
+        except:
+            pass
+    
+    def load_weights(self, weights_path: str):
+        self.build_graph()
+        self.load_weights(weights_path)
+    
+    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None):
+        self.build_graph()
+        ckpt = tf.train.Checkpoint(net=self)
+        manager = tf.train.CheckpointManager(ckpt, checkpoint_dir,
+                                             max_to_keep=None)
+        if checkpoint_path:
+            ckpt.restore(checkpoint_path)
+        else:
+            ckpt.restore(manager.latest_checkpoint)
+        return ckpt, manager
+    
+    @property
+    def step(self):
+        return int(self.optimizer.iterations)
+    
+    def set_learning_rates(self, new_lr):
+        self.optimizer.lr.assign(new_lr)
+    
+    def __apply_signature(self, function, signature):
+        if self.debug:
+            return function
+        else:
+            return tf.function(input_signature=signature)(function)
+    
+    def encode_text(self, text):
+        phons = self.phonemizer.encode(text, clean=True)
+        return self.tokenizer.encode(phons)

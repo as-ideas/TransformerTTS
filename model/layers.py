@@ -260,3 +260,114 @@ class PostnetConvLayers(tf.keras.layers.Layer):
         x = self.last_conv(x)
         x = self.batch_norms[-1](x, training=training)
         return x
+
+
+class Conv1DResNorm(tf.keras.layers.Layer):
+    def __init__(self,
+                 model_dim: int,
+                 dropout_rate: float,
+                 kernel_size: int = 5,
+                 conv_padding: str = 'same',
+                 activation: str = 'relu',
+                 **kwargs):
+        super(Conv1DResNorm, self).__init__(**kwargs)
+        self.conv = tf.keras.layers.Conv1D(filters=model_dim,
+                                           kernel_size=kernel_size,
+                                           padding=conv_padding,
+                                           activation=activation)
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
+        self.layer_norm = tf.keras.layers.LayerNormalization()
+    
+    def call(self, x, training):
+        convs = self.conv(x)
+        convs = self.dropout(convs, training=training)
+        res_norm = self.layer_norm(x + convs)
+        return res_norm
+
+
+class SelfAttentionConvBlock(tf.keras.layers.Layer):
+    
+    def __init__(self,
+                 model_dim: int,
+                 num_heads: int,
+                 dropout_rate: float,
+                 kernel_size: int = 5,
+                 conv_padding: str = 'same',
+                 conv_activation: str = 'relu',
+                 **kwargs):
+        super(SelfAttentionConvBlock, self).__init__(**kwargs)
+        self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
+        self.conv = Conv1DResNorm(model_dim=model_dim, dropout_rate=dropout_rate, kernel_size=kernel_size,
+                                  conv_padding=conv_padding, activation=conv_activation)
+    
+    def call(self, x, training, mask):
+        attn_out, _ = self.sarn(x, mask=mask, training=training)
+        return self.conv(attn_out, training=training)
+
+
+class DurationPredictor(tf.keras.layers.Layer):
+    def __init__(self,
+                 model_dim: int,
+                 dropout_rate: float,
+                 kernel_size=5,
+                 conv_padding='same',
+                 conv_activation='relu',
+                 conv_block_n=2,
+                 dense_activation='relu',
+                 dense_scalar=1.,
+                 **kwargs):
+        super(DurationPredictor, self).__init__(**kwargs)
+        
+        self.conv_blocks = [Conv1DResNorm(model_dim=model_dim, dropout_rate=dropout_rate, kernel_size=kernel_size,
+                                          conv_padding=conv_padding, activation=conv_activation) for _ in
+                            range(conv_block_n)]
+        self.linear = tf.keras.layers.Dense(1, activation=dense_activation,
+                                            bias_initializer=tf.keras.initializers.Constant(value=1))
+        self.dense_scalar = dense_scalar
+    
+    def call(self, x, training):
+        for block in self.conv_blocks:
+            x = block(x, training=training)
+        x = self.linear(x) * self.dense_scalar
+        return x
+
+
+class Expand(tf.keras.layers.Layer):
+    """ Expands a 3D tensor on its second axis given a list of dimensions.
+        Tensor should be:
+            batch_size, seq_len, dimension
+        
+        E.g:
+        input = tf.Tensor([[[0.54710746 0.8943467 ]
+                          [0.7140938  0.97968304]
+                          [0.5347662  0.15213418]]], shape=(1, 3, 2), dtype=float32)
+        dimensions = tf.Tensor([1 3 2], shape=(3,), dtype=int32)
+        output = tf.Tensor([[[0.54710746 0.8943467 ]
+                           [0.7140938  0.97968304]
+                           [0.7140938  0.97968304]
+                           [0.7140938  0.97968304]
+                           [0.5347662  0.15213418]
+                           [0.5347662  0.15213418]]], shape=(1, 6, 2), dtype=float32)
+    """
+    
+    def __init__(self, **kwargs):
+        super(Expand, self).__init__(**kwargs)
+    
+    @staticmethod
+    def __get_tensor_slices(dimensions, max_dim):
+        size = tf.cast(tf.shape(dimensions)[-2], tf.int32)
+        tot_dim = tf.math.reduce_sum(dimensions)
+        index_masks = tf.RaggedTensor.from_row_lengths(tf.ones(tot_dim), tf.reshape(dimensions, [-1])).to_tensor()
+        index_masks = tf.cast(tf.reshape(index_masks, (tf.shape(dimensions)[0], size * max_dim)), tf.float32)
+        return index_masks
+    
+    def call(self, x, dimensions):
+        dimensions = tf.cast(tf.math.round(dimensions), tf.int32)
+        max_dim = tf.math.reduce_max(dimensions)
+        tensor_slices = self.__get_tensor_slices(dimensions, max_dim)
+        tiled = tf.tile(x, [1, 1, max_dim])
+        reshaped = tf.reshape(tiled, (tf.shape(x)[0], tf.shape(x)[1] * max_dim, tf.shape(x)[2]))
+        mask_reshape = tf.multiply(reshaped, tensor_slices[:, :, tf.newaxis])
+        non_zeros = tf.math.count_nonzero(mask_reshape, axis=1)[:, 0]
+        ragged = tf.RaggedTensor.from_row_lengths(mask_reshape[tensor_slices > 0], non_zeros)
+        return ragged.to_tensor()

@@ -68,20 +68,23 @@ def load_files(metafile,
 
 class Tokenizer:
     
-    def __init__(self, alphabet, start_token='>', end_token='<', pad_token='/'):
+    def __init__(self, alphabet, start_token='>', end_token='<', pad_token='/', add_start_end=True):
         self.alphabet = alphabet
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet, start=1)}
         self.idx_to_token[0] = pad_token
         self.token_to_idx = {s: i for i, s in self.idx_to_token.items()}
-        self.start_token_index = len(self.alphabet) + 1
-        self.end_token_index = len(self.alphabet) + 2
-        self.vocab_size = len(self.alphabet) + 3
-        self.idx_to_token[self.start_token_index] = start_token
-        self.idx_to_token[self.end_token_index] = end_token
-    
-    def encode(self, sentence, add_start_end=True):
-        sequence = [self.token_to_idx[c] for c in sentence if c in self.token_to_idx]
+        self.vocab_size = len(self.alphabet) + 1
+        self.add_start_end = add_start_end
         if add_start_end:
+            self.start_token_index = len(self.alphabet) + 1
+            self.end_token_index = len(self.alphabet) + 2
+            self.vocab_size += 2
+            self.idx_to_token[self.start_token_index] = start_token
+            self.idx_to_token[self.end_token_index] = end_token
+ 
+    def encode(self, sentence):
+        sequence = [self.token_to_idx[c] for c in sentence if c in self.token_to_idx]
+        if self.add_start_end:
             sequence = [self.start_token_index] + sequence + [self.end_token_index]
         return sequence
     
