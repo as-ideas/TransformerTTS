@@ -29,9 +29,12 @@ class ConfigLoader:
         self.config['git_hash'] = git_hash
     
     def _check_hash(self):
-        git_hash = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
-        if self.config['git_hash'] != git_hash:
-            print(f"WARNING: git hash mismatch. Current: {git_hash}. Config hash: {self.config['git_hash']}")
+        try:
+            git_hash = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
+            if self.config['git_hash'] != git_hash:
+                print(f"WARNING: git hash mismatch. Current: {git_hash}. Config hash: {self.config['git_hash']}")
+        except Exception as e:
+            print(f"WARNING: could not check git hash. {e}")
     
     def get_model(self, ignore_hash=False):
         if not ignore_hash:

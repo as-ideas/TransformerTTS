@@ -13,6 +13,7 @@ class Dataset:
                  preprocessor,
                  batch_size,
                  shuffle=True,
+                 drop_remainder=True,
                  seed=42):
         self._random = Random(seed)
         self._samples = samples[:]
@@ -23,7 +24,7 @@ class Dataset:
                                                  output_types=output_types)
         dataset = dataset.padded_batch(batch_size,
                                        padded_shapes=padded_shapes,
-                                       drop_remainder=True)
+                                       drop_remainder=drop_remainder)
         self.dataset = dataset
         self.data_iter = iter(dataset.repeat(-1))
     
