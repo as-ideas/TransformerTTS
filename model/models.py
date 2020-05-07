@@ -260,28 +260,28 @@ class AutoregressiveTransformer(tf.keras.models.Model):
 
 
 class ForwardTransformer(tf.keras.models.Model):
-    def __init__(self, model_dim: int, dropout_rate: float, head_n: int, encoder_conv_blocks: int,
-                 decoder_blocks: int, encoder_feed_forward_dimension: int, encoder_dense_blocks=1,
-                 mel_channels=80, phoneme_language='en', debug=False, **kwargs):
+    def __init__(self, model_dim: int, dropout_rate: float, decoder_num_heads: int,
+                 encoder_num_heads: int, encoder_feed_forward_dimension: int = None,
+                 encoder_dense_blocks=1, mel_channels=80, phoneme_language='en', debug=False, **kwargs):
         super(ForwardTransformer, self).__init__(**kwargs)
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=False)
         self.phonemizer = Phonemizer(language=phoneme_language)
         self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, model_dim,
                                                         name='Embedding')
         self.encoder_SADB = [
-            EncoderLayer(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=head_n,
+            EncoderLayer(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
                          dense_hidden_units=encoder_feed_forward_dimension, name=f'enc_SADB_{i}')
-            for i in range(encoder_dense_blocks)]
+            for i, n_heads in enumerate(encoder_num_heads[:encoder_dense_blocks])]
         self.encoder_SACB = [
-            SelfAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=head_n,
+            SelfAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
                                    name=f'enc_SACB_{i}')
-            for i in range(encoder_conv_blocks)]
+            for i, n_heads in enumerate(encoder_num_heads[encoder_dense_blocks:])]
         self.dur_pred = DurationPredictor(model_dim=model_dim, dropout_rate=dropout_rate, name='dur_pred')
-        self.expand = Expand(name='expand')
+        self.expand = Expand(name='expand', model_dim=model_dim)
         self.decoder_SACB = [
-            SelfAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=head_n,
+            SelfAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
                                    name=f'dec_SACB_{i}')
-            for i in range(decoder_blocks)]
+            for i, n_heads in enumerate(decoder_num_heads)]
         self.out = tf.keras.layers.Dense(mel_channels, name='mel_out')
         
         self.training_input_signature = [
@@ -319,6 +319,7 @@ class ForwardTransformer(tf.keras.models.Model):
         return mels, durations, expanded_mask
     
     def _train_step(self, input_sequence, target_sequence, target_durations):
+        target_durations = tf.expand_dims(target_durations, -1)
         with tf.GradientTape() as tape:
             mels, durations, expanded_mask = self.__call__(input_sequence, target_durations, training=True)
             loss, loss_vals = weighted_sum_losses((target_sequence,
@@ -330,8 +331,8 @@ class ForwardTransformer(tf.keras.models.Model):
         model_out = {'mel': mels,
                      'duration': durations,
                      'expanded mask': expanded_mask,
-                     'loss': loss,
-                     'loss values': loss_vals}
+                     'loss': loss}
+        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1]}})
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
@@ -360,9 +361,11 @@ class ForwardTransformer(tf.keras.models.Model):
     @property
     def step(self):
         return int(self.optimizer.iterations)
-    
-    def set_learning_rates(self, new_lr):
-        self.optimizer.lr.assign(new_lr)
+
+    def set_constants(self, learning_rate: float = None):
+        if learning_rate is not None:
+            self.optimizer.lr.assign(learning_rate)
+
     
     def __apply_signature(self, function, signature):
         if self.debug:
