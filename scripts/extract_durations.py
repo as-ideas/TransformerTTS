@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-
+import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
 
@@ -8,6 +8,19 @@ from utils.config_loader import ConfigLoader
 from preprocessing.data_handling import load_files, Dataset, DataPrepper
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.alignments import get_durations_from_alignment
+
+# dinamically allocate GPU
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        # Currently, memory growth needs to be the same across GPUs
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
+        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+    except RuntimeError as e:
+        # Memory growth must be set before GPUs have been initialized
+        print(e)
 
 # consuming CLI, creating paths and directories, load data
 
@@ -45,14 +58,15 @@ model = config_loader.get_model()
 config_loader.compile_model(model)
 data_prep = DataPrepper(config=config,
                         tokenizer=model.tokenizer)
+script_batch_size = 5 * config['batch_size']  # faster parallel computation
 train_dataset = Dataset(samples=train_samples,
                         preprocessor=data_prep,
-                        batch_size=config['batch_size'],
+                        batch_size=script_batch_size,
                         shuffle=False,
                         drop_remainder=False)
 val_dataset = Dataset(samples=val_samples,
                       preprocessor=data_prep,
-                      batch_size=config['batch_size'],
+                      batch_size=script_batch_size,
                       shuffle=False,
                       drop_remainder=False)
 
@@ -77,7 +91,7 @@ for c, (val_mel, val_text, val_stop) in iterator:
         PLOT_OUTLIERS=False,
         PLOT_ALL=False)
     for i in range(len(val_mel)):
-        sample_idx = c * config['batch_size'] + i
+        sample_idx = c * script_batch_size + i
         sample = (unpad_mels[i], unpad_phonemes[i], durations[i])
         np.save(str(val_target_dir / f'{sample_idx}_mel_phon_dur.npy'), sample)
 
@@ -95,7 +109,7 @@ for c, (train_mel, train_text, train_stop) in iterator:
         PLOT_OUTLIERS=False,
         PLOT_ALL=False)
     for i in range(len(train_mel)):
-        sample_idx = c * config['batch_size'] + i
+        sample_idx = c * script_batch_size + i
         sample = (unpad_mels[i], unpad_phonemes[i], durations[i])
         np.save(str(train_target_dir / f'{sample_idx}_mel_phon_dur.npy'), sample)
 print('Done.')
