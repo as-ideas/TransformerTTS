@@ -376,3 +376,9 @@ class ForwardTransformer(tf.keras.models.Model):
     def encode_text(self, text):
         phons = self.phonemizer.encode(text, clean=True)
         return self.tokenizer.encode(phons)
+    
+    def _compile(self, optimizer):
+        self.compile(loss=[masked_mean_absolute_error,
+                           masked_mean_absolute_error],
+                     loss_weights=[1., 1.],
+                     optimizer=optimizer)

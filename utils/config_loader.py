@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 import ruamel.yaml
 
-from model.models import AutoregressiveTransformer
+from model.models import AutoregressiveTransformer, ForwardTransformer
 
 
 class ConfigLoader:
@@ -60,8 +60,24 @@ class ConfigLoader:
                                          phoneme_language=self.config['phoneme_language'],
                                          debug=self.config['debug'])
     
+    def get_forward_model(self, ignore_hash=False):
+        if not ignore_hash:
+            self._check_hash()
+        return ForwardTransformer(model_dim=self.config['model_dimension'],
+                                  dropout_rate=self.config['dropout_rate'],
+                                  decoder_num_heads=self.config['decoder_num_heads'],
+                                  encoder_num_heads=self.config['encoder_num_heads'],
+                                  encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
+                                  mel_channels=self.config['mel_channels'],
+                                  encoder_dense_blocks=self.config['encoder_dense_blocks'],
+                                  phoneme_language=self.config['phoneme_language'],
+                                  debug=self.config['debug'], )
+    
     def compile_model(self, model):
         model._compile(stop_scaling=self.stop_scaling, optimizer=self.new_adam(self.learning_rate))
+        
+    def compile_forward_model(self, model):
+        model._compile(optimizer=self.new_adam(self.learning_rate))
     
     # TODO: move to model
     @staticmethod

@@ -14,13 +14,14 @@ class Dataset:
                  batch_size,
                  shuffle=True,
                  drop_remainder=True,
+                 mel_channels=80,
                  seed=42):
         self._random = Random(seed)
         self._samples = samples[:]
         self.preprocessor = preprocessor
         output_types = (tf.float32, tf.int32, tf.int32)
-        padded_shapes = ([-1, preprocessor.mel_channels], [-1], [-1])
-        dataset = tf.data.Dataset.from_generator(lambda: self._datagen(shuffle, include_text=False),
+        padded_shapes = ([-1, mel_channels], [-1], [-1])
+        dataset = tf.data.Dataset.from_generator(lambda: self._datagen(shuffle),
                                                  output_types=output_types)
         dataset = dataset.padded_batch(batch_size,
                                        padded_shapes=padded_shapes,
@@ -34,7 +35,7 @@ class Dataset:
     def all_batches(self):
         return iter(self.dataset)
     
-    def _datagen(self, shuffle, include_text):
+    def _datagen(self, shuffle):
         """
         Shuffle once before generating to avoid buffering
         """
@@ -42,7 +43,7 @@ class Dataset:
         if shuffle:
             # print(f'shuffling files')
             self._random.shuffle(samples)
-        return (self.preprocessor(s, include_text=include_text) for s in samples)
+        return (self.preprocessor(s) for s in samples)
 
 
 def load_files(metafile,
@@ -100,19 +101,25 @@ class DataPrepper:
         self.start_vec = np.ones((1, config['mel_channels'])) * config['mel_start_value']
         self.end_vec = np.ones((1, config['mel_channels'])) * config['mel_end_value']
         self.tokenizer = tokenizer
-        self.mel_channels = config['mel_channels']
     
-    def __call__(self, sample, include_text=True):
+    def __call__(self, sample):
         phonemes, text, mel_path = sample
         mel = np.load(mel_path)
-        return self._run(phonemes, text, mel, include_text=include_text)
+        return self._run(phonemes, text, mel)
     
-    def _run(self, phonemes, text, mel, *, include_text):
+    def _run(self, phonemes, text, mel):
         encoded_phonemes = self.tokenizer.encode(phonemes)
         norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
         stop_probs = np.ones((norm_mel.shape[0]))
         stop_probs[-1] = 2
-        if include_text:
-            return norm_mel, encoded_phonemes, stop_probs, text
-        else:
-            return norm_mel, encoded_phonemes, stop_probs
+        return norm_mel, encoded_phonemes, stop_probs
+
+
+class ForwardDataPrepper:
+    
+    def __init__(self):
+        pass
+    
+    def __call__(self, sample):
+        mel, encoded_phonemes, durations = np.load(str(sample), allow_pickle=True)
+        return mel, encoded_phonemes, durations

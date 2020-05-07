@@ -12,6 +12,10 @@ postnet_conv_layers: 5
 postnet_kernel_size: 5
 dropout_rate: 0.1
 
+# FORWARD ARCHITECTURE
+encoder_dense_blocks: 1
+model_dimension: 264
+
 # LOSSES
 stop_loss_scaling: 8
 
