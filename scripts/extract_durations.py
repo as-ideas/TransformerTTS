@@ -1,8 +1,8 @@
-import os
 import argparse
+from pathlib import Path
 
 import numpy as np
-from tqdm import trange, tqdm
+from tqdm import tqdm
 
 from utils.config_loader import ConfigLoader
 from preprocessing.data_handling import load_files, Dataset, DataPrepper
@@ -17,27 +17,27 @@ parser.add_argument('--logdir', dest='logdir', type=str)
 parser.add_argument('--reset_dir', dest='clear_dir', action='store_true',
                     help="deletes everything under this config's folder.")
 args = parser.parse_args()
-sess_name = os.path.basename(args.logdir)
-config_loader = ConfigLoader(config=os.path.join(args.logdir, sess_name + '.yaml'))
+logdir = Path(args.logdir)
+datadir = Path(args.datadir)
+sess_name = logdir.name
+config_name = sess_name + '.yaml'
+config_loader = ConfigLoader(config=str(logdir / config_name))
 config = config_loader.config
-meldir = os.path.join(args.datadir, 'mels')
-target_dir = os.path.join(args.datadir, 'forward_data')
-config_loader.dump_config(os.path.join(target_dir, sess_name + '.yaml'))
-train_target_dir = os.path.join(target_dir, 'train')
-val_target_dir = os.path.join(target_dir, 'val')
-if not os.path.exists(target_dir):
-    os.mkdir(target_dir)
-if not os.path.exists(train_target_dir):
-    os.mkdir(train_target_dir)
-if not os.path.exists(val_target_dir):
-    os.mkdir(val_target_dir)
-train_meta = os.path.join(args.datadir, 'train_metafile.txt')
-test_meta = os.path.join(args.datadir, 'test_metafile.txt')
-train_samples, _ = load_files(metafile=train_meta,
-                              meldir=meldir,
+meldir = datadir / 'mels'
+target_dir = datadir / 'forward_data'
+train_target_dir = target_dir / 'train'
+val_target_dir = target_dir / 'val'
+target_dir.mkdir(exist_ok=True)
+train_target_dir.mkdir(exist_ok=True)
+val_target_dir.mkdir(exist_ok=True)
+config_loader.dump_config(str(target_dir / config_name))
+train_meta = datadir / 'train_metafile.txt'
+test_meta = datadir / 'test_metafile.txt'
+train_samples, _ = load_files(metafile=str(train_meta),
+                              meldir=str(meldir),
                               num_samples=config['n_samples'])  # (phonemes, mel)
-val_samples, _ = load_files(metafile=test_meta,
-                            meldir=meldir,
+val_samples, _ = load_files(metafile=str(test_meta),
+                            meldir=str(meldir),
                             num_samples=config['n_samples'])  # (phonemes, text, mel)
 
 # get model, prepare data for model, create datasets
@@ -56,7 +56,7 @@ val_dataset = Dataset(samples=val_samples,
                       shuffle=False,
                       drop_remainder=False)
 
-model.load_checkpoint(args.logdir + '/weights', r=10)
+model.load_checkpoint(str(logdir / 'weights'), r=10)
 decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['dropout_schedule'])
 reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
 model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
@@ -77,9 +77,9 @@ for c, (val_mel, val_text, val_stop) in iterator:
         PLOT_OUTLIERS=False,
         PLOT_ALL=False)
     for i in range(len(val_mel)):
-        sample_idx = c*config['batch_size'] + i
+        sample_idx = c * config['batch_size'] + i
         sample = (unpad_mels[i], unpad_phonemes[i], durations[i])
-        np.save(os.path.join(val_target_dir, f'{sample_idx}_mel_phon_dur.npy'), sample)
+        np.save(str(val_target_dir / f'{sample_idx}_mel_phon_dur.npy'), sample)
 
 iterator = tqdm(enumerate(train_dataset.all_batches()))
 for c, (train_mel, train_text, train_stop) in iterator:
@@ -95,7 +95,7 @@ for c, (train_mel, train_text, train_stop) in iterator:
         PLOT_OUTLIERS=False,
         PLOT_ALL=False)
     for i in range(len(train_mel)):
-        sample_idx = c*config['batch_size'] + i
+        sample_idx = c * config['batch_size'] + i
         sample = (unpad_mels[i], unpad_phonemes[i], durations[i])
-        np.save(os.path.join(train_target_dir, f'{sample_idx}_mel_phon_dur.npy'), sample)
+        np.save(str(train_target_dir / f'{sample_idx}_mel_phon_dur.npy'), sample)
 print('Done.')
