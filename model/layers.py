@@ -355,23 +355,22 @@ class Expand(tf.keras.layers.Layer):
         super(Expand, self).__init__(**kwargs)
         self.model_dimension = model_dim
     
-    @staticmethod
-    def _get_tensor_slices(dimensions, max_dim):
-        size = tf.cast(tf.shape(dimensions)[-2], tf.int32)
+    def call(self, x, dimensions):
+        dimensions = tf.squeeze(dimensions)
+        dimensions = tf.cast(tf.math.round(dimensions), tf.int32)
+        seq_len = tf.shape(x)[1]
+        batch_size = tf.shape(x)[0]
+        # build masks from dimensions
+        max_dim = tf.math.reduce_max(dimensions)
         tot_dim = tf.math.reduce_sum(dimensions)
         index_masks = tf.RaggedTensor.from_row_lengths(tf.ones(tot_dim), tf.reshape(dimensions, [-1])).to_tensor()
-        index_masks = tf.cast(tf.reshape(index_masks, (tf.shape(dimensions)[0], size * max_dim)), tf.float32)
-        return index_masks
-    
-    def call(self, x, dimensions):
-        dimensions = tf.cast(tf.math.round(dimensions), tf.int32)
-        max_dim = tf.math.reduce_max(dimensions)
-        tensor_slices = self._get_tensor_slices(dimensions, max_dim)
+        index_masks = tf.cast(tf.reshape(index_masks, (batch_size, seq_len * max_dim)), tf.float32)
+        non_zeros = seq_len * max_dim - tf.reduce_sum(max_dim - dimensions, axis=1)
+        # stack and mask
         tiled = tf.tile(x, [1, 1, max_dim])
-        reshaped = tf.reshape(tiled, (tf.shape(x)[0], tf.shape(x)[1] * max_dim, self.model_dimension))
-        mask_reshape = tf.multiply(reshaped, tensor_slices[:, :, tf.newaxis])
-        non_zeros = tf.math.count_nonzero(mask_reshape, axis=1)[:, 0]
-        ragged = tf.RaggedTensor.from_row_lengths(mask_reshape[tensor_slices > 0], non_zeros)
+        reshaped = tf.reshape(tiled, (batch_size, seq_len * max_dim, self.model_dimension))
+        mask_reshape = tf.multiply(reshaped, index_masks[:, :, tf.newaxis])
+        ragged = tf.RaggedTensor.from_row_lengths(mask_reshape[index_masks > 0], non_zeros)
         return ragged.to_tensor()
 
 
