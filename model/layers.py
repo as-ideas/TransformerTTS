@@ -117,16 +117,16 @@ class FFNResNorm(tf.keras.layers.Layer):
         return out
 
 
-class EncoderLayer(tf.keras.layers.Layer):
+class SelfAttentionDenseBlock(tf.keras.layers.Layer):
     
     def __init__(self, model_dim: int, num_heads: int, dense_hidden_units: int, dropout_rate: float = 0.1, **kwargs):
-        super(EncoderLayer, self).__init__(**kwargs)
+        super(SelfAttentionDenseBlock, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.ffn = FFNResNorm(model_dim, dense_hidden_units)
     
     def call(self, x, training, mask):
-        attn_out, _ = self.sarn(x, mask=mask, training=training)
-        return self.ffn(attn_out, training=training)
+        attn_out, attn_weights = self.sarn(x, mask=mask, training=training)
+        return self.ffn(attn_out, training=training), attn_weights
 
 
 class Encoder(tf.keras.layers.Layer):
@@ -137,7 +137,8 @@ class Encoder(tf.keras.layers.Layer):
         super(Encoder, self).__init__(**kwargs)
         self.model_dim = model_dim
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
-        self.enc_layers = [EncoderLayer(model_dim, heads, dense_hidden_units, dropout_rate) for heads in num_heads]
+        self.enc_layers = [SelfAttentionDenseBlock(model_dim, heads, dense_hidden_units, dropout_rate) for heads in
+                           num_heads]
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, inputs, training, mask):
@@ -146,7 +147,7 @@ class Encoder(tf.keras.layers.Layer):
         x += self.pos_encoding[:, :seq_len, :]
         x = self.dropout(x, training=training)
         for layer in self.enc_layers:
-            x = layer(x, training, mask)
+            x, _ = layer(x, training, mask)
         return x
 
 
@@ -301,8 +302,8 @@ class SelfAttentionConvBlock(tf.keras.layers.Layer):
                                   conv_padding=conv_padding, activation=conv_activation)
     
     def call(self, x, training, mask):
-        attn_out, _ = self.sarn(x, mask=mask, training=training)
-        return self.conv(attn_out, training=training)
+        attn_out, attn_weights = self.sarn(x, mask=mask, training=training)
+        return self.conv(attn_out, training=training), attn_weights
 
 
 class DurationPredictor(tf.keras.layers.Layer):
@@ -385,23 +386,27 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
                  **kwargs):
         super(SelfAttentionBlocks, self).__init__(**kwargs)
         self.model_dim = model_dim
+        self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
         self.encoder_SADB = [
-            EncoderLayer(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
-                         dense_hidden_units=feed_forward_dimension, name=f'SADB_{i}')
+            SelfAttentionDenseBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
+                                    dense_hidden_units=feed_forward_dimension, name=f'{self.name}_SADB_{i}')
             for i, n_heads in enumerate(num_heads[:dense_blocks])]
         self.encoder_SACB = [
             SelfAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
-                                   name=f'SACB_{i}')
+                                   name=f'{self.name}_SACB_{i}')
             for i, n_heads in enumerate(num_heads[dense_blocks:])]
-        self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
     
     def call(self, inputs, training, padding_mask):
         seq_len = tf.shape(inputs)[1]
         x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
         x += self.pos_encoding[:, :seq_len, :]
-        for block in self.encoder_SADB:
-            x = block(x, training=training, mask=padding_mask)
-        for block in self.encoder_SACB:
-            x = block(x, training=training, mask=padding_mask)
-        return x
+        attention_weights = {}
+        for i, block in enumerate(self.encoder_SADB):
+            x, attn_weights = block(x, training=training, mask=padding_mask)
+            attention_weights[f'{self.name}_DenseBlock{i + 1}_SelfAttention'] = attn_weights
+        for i, block in enumerate(self.encoder_SACB):
+            x, attn_weights = block(x, training=training, mask=padding_mask)
+            attention_weights[f'{self.name}_ConvBlock{i + 1}_SelfAttention'] = attn_weights
+        
+        return x, attention_weights

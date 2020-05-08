@@ -71,6 +71,9 @@ def validate(model,
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
     summary_manager.display_loss(model_out, tag='Validation', plot_all=True)
+    summary_manager.display_forward_heads(model_out, tag='ValidationAttentionHeads')
+    summary_manager.add_histogram(tag=f'Validation/Predicted durations', values=model_out['duration'])
+    summary_manager.add_histogram(tag=f'Validation/Target durations', values=durations)
     summary_manager.display_mel(mel=model_out['mel'][0], tag=f'Validation/linear_mel_out')
     summary_manager.display_mel(mel=mel[0], tag=f'Validation/target_mel')
     return val_loss['loss']
@@ -181,9 +184,8 @@ for _ in t:
     summary_manager.display_loss(output, tag='Train')
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     if model.step % config['train_images_plotting_frequency'] == 0:
-        # summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
+        summary_manager.display_forward_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/linear_mel_out')
-        # summary_manager.display_mel(mel=output['final_output'][0], tag=f'Train/predicted_mel')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
         summary_manager.add_histogram(tag=f'Train/Predicted durations', values=output['duration'])
         summary_manager.add_histogram(tag=f'Train/Target durations', values=durations)
@@ -205,15 +207,18 @@ for _ in t:
         t.display(f'Predicting', pos=len(config['n_steps_avg_losses']) + 4)
         timed_pred = time_it(model.predict)
         model_out, time_taken = timed_pred(phonemes, encode=False)
-        pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded mask'], axis=-1), tf.int32)
+        summary_manager.display_forward_heads(model_out, tag='TestAttentionHeads')
+        summary_manager.add_histogram(tag=f'Test/Predicted durations', values=model_out['duration'])
+        summary_manager.add_histogram(tag=f'Test/Target durations', values=durs)
+        pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
         tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(tar_mel), axis=-1), tf.int32)
         display_start = time()
         for j, pred_mel in enumerate(model_out['mel']):
             predval = pred_mel[:pred_lengths[j, 0, 0], :]
             tar_value = tar_mel[j, :tar_lengths[j, 0, 0], :]
+            summary_manager.display_mel(mel=predval, tag=f'Test/sample {j}/predicted_mel')
+            summary_manager.display_mel(mel=tar_value, tag=f'Test/sample {j}/target_mel')
             if j < config['n_predictions']:
-                summary_manager.display_mel(mel=predval, tag=f'Test/sample {j}/predicted_mel')
-                summary_manager.display_mel(mel=tar_value, tag=f'Test/sample {j}/target_mel')
                 if model.step >= config['audio_start_step'] and (model.step % config['audio_prediction_frequency'] == 0 ):
                     summary_manager.display_audio(tag=f'Target/sample {j}', mel=tar_value)
                     summary_manager.display_audio(tag=f'Prediction/sample {j}', mel=predval)

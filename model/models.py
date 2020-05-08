@@ -309,18 +309,20 @@ class ForwardTransformer(tf.keras.models.Model):
     def call(self, x, target_durations, training):
         padding_mask = create_encoder_padding_mask(x)
         x = self.encoder_prenet(x)
-        x = self.encoder(x, training=training, padding_mask=padding_mask)
+        x, encoder_attention = self.encoder(x, training=training, padding_mask=padding_mask)
         durations = self.dur_pred(x, training=training)
         if target_durations is not None:
             mels = self.expand(x, target_durations)
         else:
             mels = self.expand(x, durations)
         expanded_mask = create_mel_padding_mask(mels)
-        mels = self.decoder(mels, training=training, padding_mask=expanded_mask)
+        mels, decoder_attention = self.decoder(mels, training=training, padding_mask=expanded_mask)
         mels = self.out(mels)
         model_out = {'mel': mels,
                      'duration': durations,
-                     'expanded mask': expanded_mask}
+                     'expanded_mask': expanded_mask,
+                     'encoder_attention': encoder_attention,
+                     'decoder_attention': decoder_attention}
         return model_out
     
     def _train_step(self, input_sequence, target_sequence, target_durations):

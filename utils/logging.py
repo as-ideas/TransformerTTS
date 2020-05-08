@@ -80,6 +80,15 @@ class SummaryManager:
                              step=self.global_step)
     
     @ignore_exception
+    def display_forward_heads(self, outputs, tag=''):
+        for layer in ['encoder_attention', 'decoder_attention']:
+            for k in outputs[layer].keys():
+                image = tight_grid(norm_tensor(outputs[layer][k][0]))
+                # dim 0 of image_batch is now number of heads
+                batch_plot_path = f'{tag}/{layer}/{k}'
+                self.add_image(str(batch_plot_path), tf.expand_dims(tf.expand_dims(image, 0), -1))
+    
+    @ignore_exception
     def display_attention_heads(self, outputs, tag=''):
         for k in outputs['attention_weights'].keys():
             if k.endswith('block2'):
