@@ -374,7 +374,7 @@ class Expand(tf.keras.layers.Layer):
         return ragged.to_tensor()
 
 
-class ConvEncoder(tf.keras.layers.Layer):
+class SelfAttentionBlocks(tf.keras.layers.Layer):
     def __init__(self,
                  model_dim: int,
                  feed_forward_dimension: int,
@@ -383,16 +383,16 @@ class ConvEncoder(tf.keras.layers.Layer):
                  dropout_rate=0.1,
                  dense_blocks=1,
                  **kwargs):
-        super(ConvEncoder, self).__init__(**kwargs)
+        super(SelfAttentionBlocks, self).__init__(**kwargs)
         self.model_dim = model_dim
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
         self.encoder_SADB = [
             EncoderLayer(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
-                         dense_hidden_units=feed_forward_dimension, name=f'enc_SADB_{i}')
+                         dense_hidden_units=feed_forward_dimension, name=f'SADB_{i}')
             for i, n_heads in enumerate(num_heads[:dense_blocks])]
         self.encoder_SACB = [
             SelfAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
-                                   name=f'enc_SACB_{i}')
+                                   name=f'SACB_{i}')
             for i, n_heads in enumerate(num_heads[dense_blocks:])]
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
     
@@ -405,31 +405,3 @@ class ConvEncoder(tf.keras.layers.Layer):
         for block in self.encoder_SACB:
             x = block(x, training=training, mask=padding_mask)
         return x
-
-
-class ConvDecoder(tf.keras.layers.Layer):
-    def __init__(self,
-                 model_dim: int,
-                 num_heads: list,
-                 mel_channels: int,
-                 maximum_position_encoding: int,
-                 dropout_rate=0.1,
-                 **kwargs):
-        super(ConvDecoder, self).__init__(**kwargs)
-        self.model_dim = model_dim
-        self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
-        self.dropout = tf.keras.layers.Dropout(dropout_rate)
-        self.decoder_SACB = [
-            SelfAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
-                                   name=f'dec_SACB_{i}')
-            for i, n_heads in enumerate(num_heads)]
-        self.out = tf.keras.layers.Dense(mel_channels, name='mel_out')
-    
-    def call(self, inputs, training, padding_mask):
-        seq_len = tf.shape(inputs)[1]
-        x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
-        x += self.pos_encoding[:, :seq_len, :]
-        x = self.dropout(x, training=training)
-        for block in self.decoder_SACB:
-            x = block(x, training=training, mask=padding_mask)
-        return self.out(x)

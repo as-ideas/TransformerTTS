@@ -6,8 +6,8 @@ encoder_num_heads: [4,4,4,4]
 encoder_feed_forward_dimension: 512
 decoder_feed_forward_dimension: 512
 decoder_prenet_dimension: 256
-encoder_max_position_encoding: 500
-decoder_max_position_encoding: 2000
+encoder_max_position_encoding: 1000
+decoder_max_position_encoding: 10000
 postnet_conv_filters: 256
 postnet_conv_layers: 5
 postnet_kernel_size: 5
@@ -15,6 +15,7 @@ dropout_rate: 0.1
 
 # FORWARD ARCHITECTURE
 encoder_dense_blocks: 1
+decoder_dense_blocks: 0
 model_dimension: 264
 
 # LOSSES
@@ -62,10 +63,10 @@ train_images_plotting_frequency: 1_000
 keep_n_weights: 5
 keep_checkpoint_every_n_hours: 12
 n_steps_avg_losses: [100, 500, 1_000, 5_000]
-n_predictions: 5
+n_predictions: 2
 prediction_start_step: 1_000
-audio_start_step: 1_000
-audio_frequency: 5_000 # converting glim takes time
+audio_start_step: 5_000
+audio_prediction_frequency: 5_000 # converting glim takes time
 
 # TOKENIZER
 phoneme_language: 'en'

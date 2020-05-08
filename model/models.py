@@ -8,7 +8,7 @@ from model.layers import DecoderPrenet, Postnet, Decoder, Encoder
 from utils.losses import masked_mean_absolute_error, new_scaled_crossentropy
 from preprocessing.data_handling import Tokenizer
 from preprocessing.text_processing import _phonemes, Phonemizer, _punctuations
-from model.layers import DurationPredictor, Expand, ConvEncoder, ConvDecoder
+from model.layers import DurationPredictor, Expand, SelfAttentionBlocks
 
 
 class AutoregressiveTransformer(tf.keras.models.Model):
@@ -260,24 +260,36 @@ class AutoregressiveTransformer(tf.keras.models.Model):
 
 
 class ForwardTransformer(tf.keras.models.Model):
-    def __init__(self, model_dim: int, dropout_rate: float, decoder_num_heads: list,
-                 encoder_num_heads: list, encoder_maximum_postion_encoding: int, decoder_maximum_position_encoding: int,
+    def __init__(self, model_dim: int,
+                 dropout_rate: float,
+                 decoder_num_heads: list,
+                 encoder_num_heads: list,
+                 encoder_maximum_position_encoding: int,
+                 decoder_maximum_position_encoding: int,
                  encoder_feed_forward_dimension: int = None,
-                 encoder_dense_blocks=1, mel_channels=80, phoneme_language='en', debug=False, **kwargs):
+                 decoder_feed_forward_dimension: int = None,
+                 encoder_dense_blocks=1,
+                 decoder_dense_blocks=0,
+                 mel_channels=80,
+                 phoneme_language='en',
+                 debug=False,
+                 **kwargs):
         super(ForwardTransformer, self).__init__(**kwargs)
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=False)
         self.phonemizer = Phonemizer(language=phoneme_language)
         self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, model_dim,
                                                         name='Embedding')
-        self.encoder = ConvEncoder(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=encoder_num_heads,
-                                   feed_forward_dimension=encoder_feed_forward_dimension,
-                                   maximum_position_encoding=encoder_maximum_postion_encoding,
-                                   dense_blocks=encoder_dense_blocks)
+        self.encoder = SelfAttentionBlocks(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=encoder_num_heads,
+                                           feed_forward_dimension=encoder_feed_forward_dimension,
+                                           maximum_position_encoding=encoder_maximum_position_encoding,
+                                           dense_blocks=encoder_dense_blocks)
         self.dur_pred = DurationPredictor(model_dim=model_dim, dropout_rate=dropout_rate, name='dur_pred')
         self.expand = Expand(name='expand', model_dim=model_dim)
-        self.decoder = ConvDecoder(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=decoder_num_heads,
-                                   maximum_position_encoding=decoder_maximum_position_encoding,
-                                   mel_channels=mel_channels)
+        self.decoder = SelfAttentionBlocks(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=decoder_num_heads,
+                                           feed_forward_dimension=decoder_feed_forward_dimension,
+                                           maximum_position_encoding=decoder_maximum_position_encoding,
+                                           dense_blocks=decoder_dense_blocks)
+        self.out = tf.keras.layers.Dense(mel_channels)
         self.training_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
@@ -305,6 +317,7 @@ class ForwardTransformer(tf.keras.models.Model):
             mels = self.expand(x, durations)
         expanded_mask = create_mel_padding_mask(mels)
         mels = self.decoder(mels, training=training, padding_mask=expanded_mask)
+        mels = self.out(mels)
         model_out = {'mel': mels,
                      'duration': durations,
                      'expanded mask': expanded_mask}
@@ -368,7 +381,7 @@ class ForwardTransformer(tf.keras.models.Model):
     def _compile(self, optimizer):
         self.compile(loss=[masked_mean_absolute_error,
                            masked_mean_absolute_error],
-                     loss_weights=[1., 1.],
+                     loss_weights=[3., 1.],
                      optimizer=optimizer)
     
     def _val_step(self, input_sequence, target_sequence, target_durations):

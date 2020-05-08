@@ -67,11 +67,13 @@ class ConfigLoader:
                                   dropout_rate=self.config['dropout_rate'],
                                   decoder_num_heads=self.config['decoder_num_heads'],
                                   encoder_num_heads=self.config['encoder_num_heads'],
-                                  encoder_maximum_postion_encoding=self.config['encoder_max_position_encoding'],
+                                  encoder_maximum_position_encoding=self.config['encoder_max_position_encoding'],
                                   decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
                                   encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
+                                  decoder_feed_forward_dimension=self.config['decoder_feed_forward_dimension'],
                                   mel_channels=self.config['mel_channels'],
                                   encoder_dense_blocks=self.config['encoder_dense_blocks'],
+                                  decoder_dense_blocks=self.config['decoder_dense_blocks'],
                                   phoneme_language=self.config['phoneme_language'],
                                   debug=self.config['debug'], )
     

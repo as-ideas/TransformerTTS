@@ -214,7 +214,7 @@ for _ in t:
             if j < config['n_predictions']:
                 summary_manager.display_mel(mel=predval, tag=f'Test/sample {j}/predicted_mel')
                 summary_manager.display_mel(mel=tar_value, tag=f'Test/sample {j}/target_mel')
-                if model.step >= config['audio_start_step']:
+                if model.step >= config['audio_start_step'] and (model.step % config['audio_prediction_frequency'] == 0 ):
                     summary_manager.display_audio(tag=f'Target/sample {j}', mel=tar_value)
                     summary_manager.display_audio(tag=f'Prediction/sample {j}', mel=predval)
             else:
