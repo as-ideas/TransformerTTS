@@ -296,9 +296,9 @@ class ForwardTransformer(tf.keras.models.Model):
         self.__apply_all_signatures()
     
     def __apply_all_signatures(self):
-        # self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
+        self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
         self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
-        # self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
+        self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
     
     def call(self, x, target_durations, training):
         padding_mask = create_encoder_padding_mask(x)
@@ -316,22 +316,22 @@ class ForwardTransformer(tf.keras.models.Model):
         for block in self.decoder_SACB:
             mels = block(mels, training=training, mask=expanded_mask)
         mels = self.out(mels)
-        return mels, durations, expanded_mask
+        model_out = {'mel': mels,
+                     'duration': durations,
+                     'expanded mask': expanded_mask}
+        return model_out
     
     def _train_step(self, input_sequence, target_sequence, target_durations):
         target_durations = tf.expand_dims(target_durations, -1)
         with tf.GradientTape() as tape:
-            mels, durations, expanded_mask = self.__call__(input_sequence, target_durations, training=True)
+            model_out = self.__call__(input_sequence, target_durations, training=True)
             loss, loss_vals = weighted_sum_losses((target_sequence,
                                                    target_durations),
-                                                  (mels,
-                                                   durations),
+                                                  (model_out['mel'],
+                                                   model_out['duration']),
                                                   self.loss,
                                                   self.loss_weights)
-        model_out = {'mel': mels,
-                     'duration': durations,
-                     'expanded mask': expanded_mask,
-                     'loss': loss}
+        model_out.update({'loss': loss})
         model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1]}})
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
@@ -361,11 +361,10 @@ class ForwardTransformer(tf.keras.models.Model):
     @property
     def step(self):
         return int(self.optimizer.iterations)
-
+    
     def set_constants(self, learning_rate: float = None):
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
-
     
     def __apply_signature(self, function, signature):
         if self.debug:
@@ -382,3 +381,25 @@ class ForwardTransformer(tf.keras.models.Model):
                            masked_mean_absolute_error],
                      loss_weights=[1., 1.],
                      optimizer=optimizer)
+    
+    def _val_step(self, input_sequence, target_sequence, target_durations):
+        target_durations = tf.expand_dims(target_durations, -1)
+        model_out = self.__call__(input_sequence, target_durations, training=False)
+        loss, loss_vals = weighted_sum_losses((target_sequence,
+                                               target_durations),
+                                              (model_out['mel'],
+                                               model_out['duration']),
+                                              self.loss,
+                                              self.loss_weights)
+        model_out.update({'loss': loss})
+        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1]}})
+        return model_out
+    
+    def _forward(self, input_sequence):
+        return self.__call__(input_sequence, target_durations=None, training=False)
+    
+    def predict(self, inp, encode=True):
+        if encode:
+            inp = self.encode_text(inp)
+            inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
+        return self.forward(inp)

@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import shutil
 import argparse
+from time import time
 
 import tensorflow as tf
 import numpy as np
@@ -12,6 +13,7 @@ from preprocessing.data_handling import Dataset, ForwardDataPrepper
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule
 from utils.logging import SummaryManager
+from model.transformer_utils import create_mel_padding_mask
 
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -37,9 +39,18 @@ def create_dirs(args):
     log_dir = os.path.join(base_dir, f'forward_logs/')
     weights_dir = os.path.join(base_dir, f'forward_weights/')
     if args.clear_dir:
-        delete = input('Delete current logs and weights? (y/[n])')
+        delete = input(f'Delete {log_dir} AND {weights_dir}? (y/[n])')
         if delete == 'y':
             shutil.rmtree(log_dir, ignore_errors=True)
+            shutil.rmtree(weights_dir, ignore_errors=True)
+    if args.clear_logs:
+        delete = input(f'Delete {log_dir}? (y/[n])')
+        if delete == 'y':
+            shutil.rmtree(log_dir, ignore_errors=True)
+    if args.clear_weights:
+        delete = input(f'Delete {weights_dir}? (y/[n])')
+        if delete == 'y':
+            shutil.rmtree(weights_dir   , ignore_errors=True)
     os.makedirs(log_dir, exist_ok=True)
     os.makedirs(weights_dir, exist_ok=True)
     return weights_dir, log_dir, base_dir
@@ -52,20 +63,16 @@ def validate(model,
              summary_manager):
     val_loss = {'loss': 0.}
     norm = 0.
-    for val_mel, val_text, val_stop in val_dataset.all_batches():
-        model_out = model.val_step(inp=val_text,
-                                   tar=val_mel,
-                                   stop_prob=val_stop)
+    for mel, phonemes, durations in val_dataset.all_batches():
+        model_out = model.val_step(input_sequence=phonemes,
+                                   target_sequence=mel,
+                                   target_durations=durations)
         norm += 1
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
     summary_manager.display_loss(model_out, tag='Validation', plot_all=True)
-    summary_manager.display_attention_heads(model_out, tag='ValidationAttentionHeads')
-    summary_manager.display_mel(mel=model_out['mel_linear'][0], tag=f'Validation/linear_mel_out')
-    summary_manager.display_mel(mel=model_out['final_output'][0], tag=f'Validation/predicted_mel')
-    residual = abs(model_out['mel_linear'] - model_out['final_output'])
-    summary_manager.display_mel(mel=residual[0], tag=f'Validation/conv-linear_residual')
-    summary_manager.display_mel(mel=val_mel[0], tag=f'Validation/target_mel')
+    summary_manager.display_mel(mel=model_out['mel'][0], tag=f'Validation/linear_mel_out')
+    summary_manager.display_mel(mel=mel[0], tag=f'Validation/target_mel')
     return val_loss['loss']
 
 
@@ -91,6 +98,10 @@ parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=s
 parser.add_argument('--config', dest='config', type=str)
 parser.add_argument('--reset_dir', dest='clear_dir', action='store_true',
                     help="deletes everything under this config's folder.")
+parser.add_argument('--reset_logs', dest='clear_logs', action='store_true',
+                    help="deletes logs under this config's folder.")
+parser.add_argument('--reset_weights', dest='clear_weights', action='store_true',
+                    help="deletes weights under this config's folder.")
 parser.add_argument('--session_name', dest='session_name', default=None)
 args = parser.parse_args()
 session_name = args.session_name
@@ -103,7 +114,7 @@ weights_paths, log_dir, base_dir = create_dirs(args)
 config_loader.dump_config(os.path.join(base_dir, session_name + '.yaml'))
 
 train_data_dir = Path(args.datadir) / 'forward_data/train'
-val_data_dir = Path(args.datadir) / 'forward_data/train'
+val_data_dir = Path(args.datadir) / 'forward_data/val'
 
 
 def build_file_list(data_dir: Path):
@@ -150,7 +161,7 @@ else:
 # main event
 print('\nTRAINING')
 losses = []
-_ = train_dataset.next_batch()
+test_batch = val_dataset.next_batch()
 t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
@@ -169,38 +180,43 @@ for _ in t:
     
     summary_manager.display_loss(output, tag='Train')
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
-    if (model.step + 1) % config['train_images_plotting_frequency'] == 0:
+    if model.step % config['train_images_plotting_frequency'] == 0:
         # summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/linear_mel_out')
         # summary_manager.display_mel(mel=output['final_output'][0], tag=f'Train/predicted_mel')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
     
-    if (model.step + 1) % config['weights_save_frequency'] == 0:
+    if model.step % config['weights_save_frequency'] == 0:
         save_path = manager.save()
         t.display(f'checkpoint at step {model.step}: {save_path}', pos=len(config['n_steps_avg_losses']) + 2)
     
-    # if (model.step + 1) % config['validation_frequency'] == 0:
-    #     val_loss, time_taken = validate(model=model,
-    #                                     val_dataset=val_dataset,
-    #                                     summary_manager=summary_manager)
-    #     t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
-    #               pos=len(config['n_steps_avg_losses']) + 3)
-    #
-    # if (model.step + 1) % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
-    #     for j in range(config['n_predictions']):
-    #         mel, phonemes, stop, text_seq = test_list[j]
-    #         t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
-    #         pred = model.predict(phonemes,
-    #                              max_length=mel.shape[0] + 50,
-    #                              encode=False,
-    #                              verbose=False)
-    #         pred_mel = pred['mel']
-    #         target_mel = mel
-    #         summary_manager.display_attention_heads(outputs=pred, tag=f'TestAttentionHeads/sample {j}')
-    #         summary_manager.display_mel(mel=pred_mel, tag=f'Test/sample {j}/predicted_mel')
-    #         summary_manager.display_mel(mel=target_mel, tag=f'Test/sample {j}/target_mel')
-    #         if model.step > config['audio_start_step']:
-    #             summary_manager.display_audio(tag=f'Target/sample {j}', mel=target_mel)
-    #             summary_manager.display_audio(tag=f'Prediction/sample {j}', mel=pred_mel)
-
+    if model.step % config['validation_frequency'] == 0:
+        t.display(f'Validating', pos=len(config['n_steps_avg_losses']) + 3)
+        val_loss, time_taken = validate(model=model,
+                                        val_dataset=val_dataset,
+                                        summary_manager=summary_manager)
+        t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
+                  pos=len(config['n_steps_avg_losses']) + 3)
+    
+    if model.step % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
+        tar_mel, phonemes, durs = test_batch
+        t.display(f'Predicting', pos=len(config['n_steps_avg_losses']) + 4)
+        timed_pred = time_it(model.predict)
+        model_out, time_taken = timed_pred(phonemes, encode=False)
+        pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded mask'], axis=-1), tf.int32)
+        tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(tar_mel), axis=-1), tf.int32)
+        display_start = time()
+        for j, pred_mel in enumerate(model_out['mel']):
+            predval = pred_mel[:pred_lengths[j, 0, 0], :]
+            tar_value = tar_mel[j, :tar_lengths[j, 0, 0], :]
+            if j < config['n_predictions']:
+                summary_manager.display_mel(mel=predval, tag=f'Test/sample {j}/predicted_mel')
+                summary_manager.display_mel(mel=tar_value, tag=f'Test/sample {j}/target_mel')
+                if model.step >= config['audio_start_step']:
+                    summary_manager.display_audio(tag=f'Target/sample {j}', mel=tar_value)
+                    summary_manager.display_audio(tag=f'Prediction/sample {j}', mel=predval)
+            else:
+                break
+        display_end = time()
+        t.display(f'Predictions took {time_taken}. Displaying took {display_end-display_start}.', pos=len(config['n_steps_avg_losses']) + 4)
 print('Done.')
