@@ -6,7 +6,8 @@ encoder_num_heads: [4,4,4,4]
 encoder_feed_forward_dimension: 512
 decoder_feed_forward_dimension: 512
 decoder_prenet_dimension: 256
-max_position_encoding: 100000
+encoder_max_position_encoding: 500
+decoder_max_position_encoding: 2000
 postnet_conv_filters: 256
 postnet_conv_layers: 5
 postnet_kernel_size: 5

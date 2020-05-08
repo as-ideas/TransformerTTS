@@ -52,7 +52,7 @@ class ConfigLoader:
                                          postnet_conv_filters=self.config['postnet_conv_filters'],
                                          postnet_conv_layers=self.config['postnet_conv_layers'],
                                          postnet_kernel_size=self.config['postnet_kernel_size'],
-                                         max_position_encoding=self.config['max_position_encoding'],
+                                         max_position_encoding=self.config['decoder_max_position_encoding'],
                                          dropout_rate=self.config['dropout_rate'],
                                          max_r=self.max_r,
                                          mel_start_value=self.config['mel_start_value'],
@@ -67,6 +67,8 @@ class ConfigLoader:
                                   dropout_rate=self.config['dropout_rate'],
                                   decoder_num_heads=self.config['decoder_num_heads'],
                                   encoder_num_heads=self.config['encoder_num_heads'],
+                                  encoder_maximum_postion_encoding=self.config['encoder_max_position_encoding'],
+                                  decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
                                   encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
                                   mel_channels=self.config['mel_channels'],
                                   encoder_dense_blocks=self.config['encoder_dense_blocks'],
@@ -75,7 +77,7 @@ class ConfigLoader:
     
     def compile_model(self, model):
         model._compile(stop_scaling=self.stop_scaling, optimizer=self.new_adam(self.learning_rate))
-        
+    
     def compile_forward_model(self, model):
         model._compile(optimizer=self.new_adam(self.learning_rate))
     
@@ -91,7 +93,8 @@ class ConfigLoader:
         key_list = ['mel_channels', 'decoder_model_dimension',
                     'encoder_model_dimension', 'decoder_num_heads', 'encoder_num_heads',
                     'encoder_feed_forward_dimension', 'decoder_feed_forward_dimension',
-                    'decoder_prenet_dimension', 'max_position_encoding', 'postnet_conv_filters',
+                    'decoder_prenet_dimension', 'encoder_max_position_encoding', 'decoder_max_position_encoding',
+                    'postnet_conv_filters',
                     'postnet_conv_layers', 'postnet_kernel_size', 'dropout_rate', 'debug',
                     'mel_start_value', 'mel_end_value']
         config_keys = set(self.config.keys())
