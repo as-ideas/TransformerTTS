@@ -68,6 +68,10 @@ class SummaryManager:
         with self.writers['log_dir'].as_default():
             tf.summary.image(name=tag, data=image, step=self.global_step, max_outputs=4)
     
+    def add_histogram(self, tag, values):
+        with self.writers['log_dir'].as_default():
+            tf.summary.histogram(name=tag, data=values, step=self.global_step)
+    
     def add_audio(self, tag, wav, sr):
         with self.writers['log_dir'].as_default():
             tf.summary.audio(name=tag,

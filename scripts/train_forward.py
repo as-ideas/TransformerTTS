@@ -185,6 +185,8 @@ for _ in t:
         summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/linear_mel_out')
         # summary_manager.display_mel(mel=output['final_output'][0], tag=f'Train/predicted_mel')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
+        summary_manager.add_histogram(tag=f'Train/Predicted durations', values=output['duration'])
+        summary_manager.add_histogram(tag=f'Train/Target durations', values=durations)
     
     if model.step % config['weights_save_frequency'] == 0:
         save_path = manager.save()
