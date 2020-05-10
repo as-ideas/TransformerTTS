@@ -311,6 +311,7 @@ class ForwardTransformer(tf.keras.models.Model):
         x = self.encoder_prenet(x)
         x, encoder_attention = self.encoder(x, training=training, padding_mask=padding_mask)
         durations = self.dur_pred(x, training=training)
+        durations = (1.-tf.reshape(padding_mask, tf.shape(durations)))*durations
         if target_durations is not None:
             mels = self.expand(x, target_durations)
         else:
