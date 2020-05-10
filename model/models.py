@@ -326,6 +326,7 @@ class ForwardTransformer(tf.keras.models.Model):
         return model_out
     
     def _train_step(self, input_sequence, target_sequence, target_durations):
+        target_durations = tf.expand_dims(target_durations, -1)
         with tf.GradientTape() as tape:
             model_out = self.__call__(input_sequence, target_durations, training=True)
             loss, loss_vals = weighted_sum_losses((target_sequence,
