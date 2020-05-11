@@ -4,11 +4,11 @@ import tensorflow as tf
 
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses
-from model.layers import DecoderPrenet, Postnet, Decoder, Encoder
+from model.layers import DecoderPrenet, Postnet
 from utils.losses import masked_mean_absolute_error, new_scaled_crossentropy
 from preprocessing.data_handling import Tokenizer
 from preprocessing.text_processing import _phonemes, Phonemizer, _punctuations
-from model.layers import DurationPredictor, Expand, SelfAttentionBlocks
+from model.layers import DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
 
 
 class AutoregressiveTransformer(tf.keras.models.Model):
@@ -25,10 +25,13 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  postnet_conv_filters: int,
                  postnet_conv_layers: int,
                  postnet_kernel_size: int,
-                 max_position_encoding: int,
+                 encoder_maximum_position_encoding: int,
+                 decoder_maximum_position_encoding: int,
                  dropout_rate: float,
                  mel_start_value: int,
                  mel_end_value: int,
+                 encoder_dense_blocks: int,
+                 decoder_dense_blocks: int,
                  max_r: int = 10,
                  phoneme_language: str = 'en',
                  decoder_prenet_dropout=0.,
@@ -48,21 +51,23 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         
         self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension,
                                                         name='Embedding')
-        self.encoder = Encoder(model_dim=encoder_model_dimension,
-                               num_heads=encoder_num_heads,
-                               dense_hidden_units=encoder_feed_forward_dimension,
-                               maximum_position_encoding=max_position_encoding,
-                               dropout_rate=dropout_rate,
-                               name='Encoder')
+        self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dimension,
+                                           dropout_rate=dropout_rate,
+                                           num_heads=encoder_num_heads,
+                                           feed_forward_dimension=encoder_feed_forward_dimension,
+                                           maximum_position_encoding=encoder_maximum_position_encoding,
+                                           dense_blocks=encoder_dense_blocks,
+                                           name='Encoder')
         self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
                                             dense_hidden_units=decoder_prenet_dimension,
                                             name='DecoderPrenet')
-        self.decoder = Decoder(model_dim=decoder_model_dimension,
-                               num_heads=decoder_num_heads,
-                               dense_hidden_units=decoder_feed_forward_dimension,
-                               maximum_position_encoding=max_position_encoding,
-                               dropout_rate=dropout_rate,
-                               name='Decoder')
+        self.decoder = CrossAttentionBlocks(model_dim=decoder_model_dimension,
+                                            dropout_rate=dropout_rate,
+                                            num_heads=decoder_num_heads,
+                                            feed_forward_dimension=decoder_feed_forward_dimension,
+                                            maximum_position_encoding=decoder_maximum_position_encoding,
+                                            dense_blocks=decoder_dense_blocks,
+                                            name='Decoder')
         self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r, name='FinalProj')
         self.decoder_postnet = Postnet(mel_channels=mel_channels,
                                        conv_filters=postnet_conv_filters,
@@ -106,9 +111,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     def _call_encoder(self, inputs, training):
         padding_mask = create_encoder_padding_mask(inputs)
         enc_input = self.encoder_prenet(inputs)
-        enc_output = self.encoder(inputs=enc_input,
-                                  training=training,
-                                  mask=padding_mask)
+        enc_output, _ = self.encoder(enc_input,
+                                     training=training,
+                                     padding_mask=padding_mask)
         return enc_output, padding_mask
     
     def _call_decoder(self, encoder_output, targets, encoder_padding_mask, training):
@@ -119,8 +124,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         dec_output, attention_weights = self.decoder(inputs=dec_input,
                                                      enc_output=encoder_output,
                                                      training=training,
-                                                     look_ahead_mask=combined_mask,
-                                                     padding_mask=encoder_padding_mask)
+                                                     decoder_padding_mask=combined_mask,
+                                                     encoder_padding_mask=encoder_padding_mask)
         out_proj = self.final_proj_mel(dec_output)[:, :, :self.r * self.mel_channels]
         b = int(tf.shape(out_proj)[0])
         t = int(tf.shape(out_proj)[1])
@@ -311,7 +316,7 @@ class ForwardTransformer(tf.keras.models.Model):
         x = self.encoder_prenet(x)
         x, encoder_attention = self.encoder(x, training=training, padding_mask=padding_mask)
         durations = self.dur_pred(x, training=training)
-        durations = (1.-tf.reshape(padding_mask, tf.shape(durations)))*durations
+        durations = (1. - tf.reshape(padding_mask, tf.shape(durations))) * durations
         if target_durations is not None:
             mels = self.expand(x, target_durations)
         else:
