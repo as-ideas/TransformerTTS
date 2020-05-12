@@ -71,7 +71,7 @@ def validate(model,
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
     summary_manager.display_loss(model_out, tag='Validation', plot_all=True)
-    summary_manager.display_forward_heads(model_out, tag='ValidationAttentionHeads')
+    summary_manager.display_attention_heads(model_out, tag='ValidationAttentionHeads')
     summary_manager.add_histogram(tag=f'Validation/Predicted durations', values=model_out['duration'])
     summary_manager.add_histogram(tag=f'Validation/Target durations', values=durations)
     summary_manager.display_mel(mel=model_out['mel'][0], tag=f'Validation/linear_mel_out')
@@ -173,12 +173,12 @@ for _ in t:
     decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['dropout_schedule'])
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     drop_n_heads = tf.cast(reduction_schedule(model.step, config['head_drop_schedule']), tf.int32)
-    # reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
-    # t.display(f'reduction factor {reduction_factor}', pos=10)
+    reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
+    t.display(f'reduction factor {reduction_factor}', pos=10)
     model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
                         learning_rate=learning_rate,
-                        drop_n_heads=drop_n_heads)
-                        # reduction_factor=reduction_factor)
+                        drop_n_heads=drop_n_heads,
+                        reduction_factor=reduction_factor)
     output = model.train_step(input_sequence=phonemes,
                               target_sequence=mel,
                               target_durations=durations)
@@ -194,7 +194,7 @@ for _ in t:
     summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet_dropout)
     summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
     if model.step % config['train_images_plotting_frequency'] == 0:
-        summary_manager.display_forward_heads(output, tag='TrainAttentionHeads')
+        summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/linear_mel_out')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
         summary_manager.add_histogram(tag=f'Train/Predicted durations', values=output['duration'])
@@ -217,15 +217,21 @@ for _ in t:
         t.display(f'Predicting', pos=len(config['n_steps_avg_losses']) + 4)
         timed_pred = time_it(model.predict)
         model_out, time_taken = timed_pred(phonemes, encode=False)
-        summary_manager.display_forward_heads(model_out, tag='TestAttentionHeads')
+        summary_manager.display_attention_heads(model_out, tag='TestAttentionHeads')
         summary_manager.add_histogram(tag=f'Test/Predicted durations', values=model_out['duration'])
         summary_manager.add_histogram(tag=f'Test/Target durations', values=durs)
-        pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
+        if model.r > 1:
+            pred_lengths = tf.cast(tf.math.round(model_out['duration']), tf.int32)
+            pred_lengths = tf.reduce_sum(pred_lengths, axis=1)
+        else:
+            pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
+        pred_lengths = tf.squeeze(pred_lengths)
         tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(tar_mel), axis=-1), tf.int32)
+        tar_lengths = tf.squeeze(tar_lengths)
         display_start = time()
         for j, pred_mel in enumerate(model_out['mel']):
-            predval = pred_mel[:pred_lengths[j, 0, 0], :]
-            tar_value = tar_mel[j, :tar_lengths[j, 0, 0], :]
+            predval = pred_mel[:pred_lengths[j], :]
+            tar_value = tar_mel[j, :tar_lengths[j], :]
             summary_manager.display_mel(mel=predval, tag=f'Test/sample {j}/predicted_mel')
             summary_manager.display_mel(mel=tar_value, tag=f'Test/sample {j}/target_mel')
             if j < config['n_predictions']:

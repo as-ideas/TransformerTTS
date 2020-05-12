@@ -177,7 +177,7 @@ for _ in t:
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=model.r)
     summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
-    if (model.step + 1) % config['train_images_plotting_frequency'] == 0:
+    if model.step % config['train_images_plotting_frequency'] == 0:
         summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel_linear'][0], tag=f'Train/linear_mel_out')
         summary_manager.display_mel(mel=output['final_output'][0], tag=f'Train/predicted_mel')
@@ -185,18 +185,18 @@ for _ in t:
         summary_manager.display_mel(mel=residual[0], tag=f'Train/conv-linear_residual')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
     
-    if (model.step + 1) % config['weights_save_frequency'] == 0:
+    if model.step % config['weights_save_frequency'] == 0:
         save_path = manager.save()
         t.display(f'checkpoint at step {model.step}: {save_path}', pos=len(config['n_steps_avg_losses']) + 2)
     
-    if (model.step + 1) % config['validation_frequency'] == 0:
+    if model.step % config['validation_frequency'] == 0:
         val_loss, time_taken = validate(model=model,
                                         val_dataset=val_dataset,
                                         summary_manager=summary_manager)
         t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
                   pos=len(config['n_steps_avg_losses']) + 3)
     
-    if (model.step + 1) % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
+    if model.step % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
         for j in range(config['n_predictions']):
             mel, phonemes, stop = test_list[j]
             t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)

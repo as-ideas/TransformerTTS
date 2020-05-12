@@ -199,10 +199,10 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
                                    name=f'{self.name}_SACB_{i}')
             for i, n_heads in enumerate(num_heads[dense_blocks:])]
     
-    def call(self, inputs, training, padding_mask, drop_n_heads):
+    def call(self, inputs, training, padding_mask, drop_n_heads, reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
         x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
-        x += self.pos_encoding[:, :seq_len, :]
+        x += self.pos_encoding[:, :seq_len*reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}
         for i, block in enumerate(self.encoder_SADB):
@@ -295,10 +295,10 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
                                     name=f'{self.name}_CACB_{i}')
             for i, n_heads in enumerate(num_heads[dense_blocks:])]
     
-    def call(self, inputs, enc_output, training, decoder_padding_mask, encoder_padding_mask, drop_n_heads):
+    def call(self, inputs, enc_output, training, decoder_padding_mask, encoder_padding_mask, drop_n_heads, reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
         x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
-        x += self.pos_encoding[:, :seq_len, :]
+        x += self.pos_encoding[:, :seq_len*reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}
         for i, block in enumerate(self.CADB):
