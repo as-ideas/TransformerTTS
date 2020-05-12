@@ -134,7 +134,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         b = int(tf.shape(out_proj)[0])
         t = int(tf.shape(out_proj)[1])
         mel = tf.reshape(out_proj, (b, t * self.r, self.mel_channels))
-        model_output = self.decoder_postnet(inputs=mel, training=training)
+        model_output = self.decoder_postnet(mel, training=training)
         model_output.update(
             {'decoder_attention': attention_weights, 'decoder_output': dec_output, 'out_proj': out_proj})
         return model_output
@@ -239,10 +239,11 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         return int(self.optimizer.iterations)
     
     def _compile(self, stop_scaling, optimizer):
+        self.loss_weights = [1., 1., 1.]
         self.compile(loss=[masked_mean_absolute_error,
                            new_scaled_crossentropy(index=2, scaling=stop_scaling),
                            masked_mean_absolute_error],
-                     loss_weights=[1., 1., 1.],
+                     loss_weights=self.loss_weights,
                      optimizer=optimizer)
     
     def build_graph(self, r: int):
@@ -434,9 +435,10 @@ class ForwardTransformer(tf.keras.models.Model):
         return self.tokenizer.encode(phons)
     
     def _compile(self, optimizer):
+        self.loss_weights = [3., 1.]
         self.compile(loss=[masked_mean_absolute_error,
                            masked_mean_absolute_error],
-                     loss_weights=[3., 1.],
+                     loss_weights=self.loss_weights,
                      optimizer=optimizer)
     
     def _val_step(self, input_sequence, target_sequence, target_durations):
