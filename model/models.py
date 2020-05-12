@@ -142,7 +142,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     def call(self, inputs, targets, training):
         encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)
         model_out = self._call_decoder(encoder_output, targets, padding_mask, training)
-        model_out.update({'encoder_attention':encoder_attention})
+        model_out.update({'encoder_attention': encoder_attention})
         return model_out
     
     def predict(self, inp, max_length=1000, encode=True, verbose=True):
@@ -152,14 +152,16 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         output = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
         output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
         out_dict = {}
-        encoder_output, padding_mask, _ = self.forward_encoder(inp)
+        encoder_output, padding_mask, encoder_attention = self.forward_encoder(inp)
         for i in range(int(max_length // self.r) + 1):
             model_out = self.forward_decoder(encoder_output, output, padding_mask)
             output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
             output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.r:, :]],
                                       axis=-2)
             stop_pred = model_out['stop_prob'][:, -1]
-            out_dict = {'mel': output_concat[0, 1:, :], 'decoder_attention_weights': model_out['decoder_attention']}
+            out_dict = {'mel': output_concat[0, 1:, :],
+                        'decoder_attention': model_out['decoder_attention'],
+                        'encoder_attention': encoder_attention}
             if verbose:
                 sys.stdout.write(f'\rpred text mel: {i} stop out: {float(stop_pred[0, 2])}')
             if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:

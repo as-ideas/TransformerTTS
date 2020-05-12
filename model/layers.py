@@ -72,11 +72,14 @@ class HeadDrop(tf.keras.layers.Layer):
         if head_n == 1:
             return batch
         # assert drop_n_heads < head_n, 'drop_n_heads must less than number of heads'
-        keep_head_mask = tf.concat([tf.ones(head_n - drop_n_heads), tf.zeros(drop_n_heads)], axis=0)
-        keep_head_mask = tf.tile(keep_head_mask[tf.newaxis], [batch_size, 1])
-        keep_head_mask = tf.map_fn(tf.random.shuffle, keep_head_mask, dtype=batch.dtype)
-        keep_head_mask = keep_head_mask[:, :, tf.newaxis, tf.newaxis]
-        return batch * keep_head_mask * tf.cast(head_n / (head_n - drop_n_heads), tf.float32)
+        keep_head_batch = tf.TensorArray(tf.float32, size=batch_size)
+        keep_mask = tf.concat([tf.ones(head_n - drop_n_heads), tf.zeros(drop_n_heads)], axis=0)
+        for i in range(batch_size):
+            t = tf.random.shuffle(keep_mask)
+            keep_head_batch = keep_head_batch.write(i, t)
+        keep_head_batch = keep_head_batch.stack()
+        keep_head_batch = keep_head_batch[:, :, tf.newaxis, tf.newaxis]
+        return batch * keep_head_batch * tf.cast(head_n / (head_n - drop_n_heads), tf.float32)
 
 
 class MultiHeadAttention(tf.keras.layers.Layer):
