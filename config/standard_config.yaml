@@ -45,6 +45,9 @@ dropout_schedule:
   - [50_000, 0.]
 learning_rate_schedule:
   - [0, 1.0e-4]
+head_drop_schedule:
+  - [0, 3]
+  - [50_000, 1]
 reduction_factor_schedule:
   - [0, 10]
   - [20_000, 5]

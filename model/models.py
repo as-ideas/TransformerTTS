@@ -45,6 +45,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.r = max_r
         self.mel_channels = mel_channels
         self.decoder_prenet_dropout = decoder_prenet_dropout
+        self.drop_n_heads = 0
         
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=True)
         self.phonemizer = Phonemizer(language=phoneme_language)
@@ -113,7 +114,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         enc_input = self.encoder_prenet(inputs)
         enc_output, _ = self.encoder(enc_input,
                                      training=training,
-                                     padding_mask=padding_mask)
+                                     padding_mask=padding_mask,
+                                     drop_n_heads=self.drop_n_heads)
         return enc_output, padding_mask
     
     def _call_decoder(self, encoder_output, targets, encoder_padding_mask, training):
@@ -125,7 +127,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                                                      enc_output=encoder_output,
                                                      training=training,
                                                      decoder_padding_mask=combined_mask,
-                                                     encoder_padding_mask=encoder_padding_mask)
+                                                     encoder_padding_mask=encoder_padding_mask,
+                                                     drop_n_heads=self.drop_n_heads)
         out_proj = self.final_proj_mel(dec_output)[:, :, :self.r * self.mel_channels]
         b = int(tf.shape(out_proj)[0])
         t = int(tf.shape(out_proj)[1])
@@ -170,13 +173,15 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.__apply_all_signatures()
     
     def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
-                      reduction_factor: float = None):
+                      reduction_factor: float = None, drop_n_heads: int = None):
         if decoder_prenet_dropout is not None:
             self.decoder_prenet_dropout = decoder_prenet_dropout
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
         if reduction_factor is not None:
             self._set_r(reduction_factor)
+        if drop_n_heads is not None:
+            self.drop_n_heads = drop_n_heads
     
     def _forward(self, inp, output):
         model_out = self.__call__(inputs=inp,
@@ -284,6 +289,7 @@ class ForwardTransformer(tf.keras.models.Model):
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=False)
         self.phonemizer = Phonemizer(language=phoneme_language)
         self.decoder_prenet_dropout = 0.
+        self.drop_n_heads = 0
         # self.max_r = max_r
         # self.r = max_r
         self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, model_dim,
@@ -322,7 +328,8 @@ class ForwardTransformer(tf.keras.models.Model):
     def call(self, x, target_durations, training):
         padding_mask = create_encoder_padding_mask(x)
         x = self.encoder_prenet(x)
-        x, encoder_attention = self.encoder(x, training=training, padding_mask=padding_mask)
+        x, encoder_attention = self.encoder(x, training=training, padding_mask=padding_mask,
+                                            drop_n_heads=self.drop_n_heads)
         durations = self.dur_pred(x, training=training)
         durations = (1. - tf.reshape(padding_mask, tf.shape(durations))) * durations
         if target_durations is not None:
@@ -331,7 +338,8 @@ class ForwardTransformer(tf.keras.models.Model):
             mels = self.expand(x, durations)
         expanded_mask = create_mel_padding_mask(mels)
         mels = self.decoder_prenet(mels, training=training, dropout_rate=self.decoder_prenet_dropout)
-        mels, decoder_attention = self.decoder(mels, training=training, padding_mask=expanded_mask)
+        mels, decoder_attention = self.decoder(mels, training=training, padding_mask=expanded_mask,
+                                               drop_n_heads=self.drop_n_heads)
         mels = self.out(mels)
         # out_proj = self.final_proj_mel(mels)[:, :, :self.r * self.mel_channels]
         # b = int(tf.shape(out_proj)[0])
@@ -366,7 +374,7 @@ class ForwardTransformer(tf.keras.models.Model):
     #     self.r = r
     #     self.__apply_all_signatures()
     
-    def build_graph(self):#, r: int):
+    def build_graph(self):  # , r: int):
         # self._set_r(r)
         try:
             self.forward([0], output=[0], decoder_prenet_dropout=0)
@@ -395,14 +403,17 @@ class ForwardTransformer(tf.keras.models.Model):
     def step(self):
         return int(self.optimizer.iterations)
     
-    def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,):
-                      # reduction_factor: float = None):
+    def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
+                      drop_n_heads: int = None):
+        # reduction_factor: float = None):
         if decoder_prenet_dropout is not None:
             self.decoder_prenet_dropout = decoder_prenet_dropout
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
         # if reduction_factor is not None:
         #     self._set_r(reduction_factor)
+        if drop_n_heads is not None:
+            self.drop_n_heads = drop_n_heads
     
     def __apply_signature(self, function, signature):
         if self.debug:
