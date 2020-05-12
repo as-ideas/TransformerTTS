@@ -278,10 +278,14 @@ class ForwardTransformer(tf.keras.models.Model):
                  mel_channels=80,
                  phoneme_language='en',
                  debug=False,
+                 max_r=10.,
                  **kwargs):
         super(ForwardTransformer, self).__init__(**kwargs)
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=False)
         self.phonemizer = Phonemizer(language=phoneme_language)
+        self.decoder_prenet_dropout = 0.
+        # self.max_r = max_r
+        # self.r = max_r
         self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, model_dim,
                                                         name='Embedding')
         self.encoder = SelfAttentionBlocks(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=encoder_num_heads,
@@ -290,10 +294,14 @@ class ForwardTransformer(tf.keras.models.Model):
                                            dense_blocks=encoder_dense_blocks)
         self.dur_pred = DurationPredictor(model_dim=model_dim, dropout_rate=dropout_rate, name='dur_pred')
         self.expand = Expand(name='expand', model_dim=model_dim)
+        self.decoder_prenet = DecoderPrenet(model_dim=model_dim,
+                                            dense_hidden_units=model_dim,
+                                            name='DecoderPrenet')
         self.decoder = SelfAttentionBlocks(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=decoder_num_heads,
                                            feed_forward_dimension=decoder_feed_forward_dimension,
                                            maximum_position_encoding=decoder_maximum_position_encoding,
                                            dense_blocks=decoder_dense_blocks)
+        # self.proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r, name='Project')
         self.out = tf.keras.layers.Dense(mel_channels)
         self.training_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
@@ -322,8 +330,13 @@ class ForwardTransformer(tf.keras.models.Model):
         else:
             mels = self.expand(x, durations)
         expanded_mask = create_mel_padding_mask(mels)
+        mels = self.decoder_prenet(mels, training=training, dropout_rate=self.decoder_prenet_dropout)
         mels, decoder_attention = self.decoder(mels, training=training, padding_mask=expanded_mask)
         mels = self.out(mels)
+        # out_proj = self.final_proj_mel(mels)[:, :, :self.r * self.mel_channels]
+        # b = int(tf.shape(out_proj)[0])
+        # t = int(tf.shape(out_proj)[1])
+        # mels = tf.reshape(out_proj, (b, t * self.r, self.mel_channels))
         model_out = {'mel': mels,
                      'duration': durations,
                      'expanded_mask': expanded_mask,
@@ -347,17 +360,26 @@ class ForwardTransformer(tf.keras.models.Model):
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
     
-    def build_graph(self):
+    # def _set_r(self, r):
+    #     if self.r == r:
+    #         return
+    #     self.r = r
+    #     self.__apply_all_signatures()
+    
+    def build_graph(self):#, r: int):
+        # self._set_r(r)
         try:
             self.forward([0], output=[0], decoder_prenet_dropout=0)
         except:
             pass
     
-    def load_weights(self, weights_path: str):
+    def load_weights(self, weights_path: str, r: int = 1):
+        # self.build_graph(r)
         self.build_graph()
-        self.load_weights(weights_path)
+        super(ForwardTransformer, self).load_weights(weights_path)
     
-    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None):
+    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None, r: int = 1):
+        # self.build_graph(self.max_r)
         self.build_graph()
         ckpt = tf.train.Checkpoint(net=self)
         manager = tf.train.CheckpointManager(ckpt, checkpoint_dir,
@@ -366,15 +388,21 @@ class ForwardTransformer(tf.keras.models.Model):
             ckpt.restore(checkpoint_path)
         else:
             ckpt.restore(manager.latest_checkpoint)
+        # self._set_r(r)
         return ckpt, manager
     
     @property
     def step(self):
         return int(self.optimizer.iterations)
     
-    def set_constants(self, learning_rate: float = None):
+    def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,):
+                      # reduction_factor: float = None):
+        if decoder_prenet_dropout is not None:
+            self.decoder_prenet_dropout = decoder_prenet_dropout
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
+        # if reduction_factor is not None:
+        #     self._set_r(reduction_factor)
     
     def __apply_signature(self, function, signature):
         if self.debug:

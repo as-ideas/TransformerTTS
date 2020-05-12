@@ -11,7 +11,7 @@ from tqdm import trange
 from utils.config_loader import ConfigLoader
 from preprocessing.data_handling import Dataset, ForwardDataPrepper
 from utils.decorators import ignore_exception, time_it
-from utils.scheduling import piecewise_linear_schedule
+from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging import SummaryManager
 from model.transformer_utils import create_mel_padding_mask
 
@@ -170,7 +170,13 @@ for _ in t:
     t.set_description(f'step {model.step}')
     mel, phonemes, durations = train_dataset.next_batch()
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
-    model.set_constants(learning_rate=learning_rate)
+    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['dropout_schedule'])
+    learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
+    # reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
+    # t.display(f'reduction factor {reduction_factor}', pos=10)
+    model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
+                        learning_rate=learning_rate,)
+                        # reduction_factor=reduction_factor)
     output = model.train_step(input_sequence=phonemes,
                               target_sequence=mel,
                               target_durations=durations)
@@ -183,6 +189,7 @@ for _ in t:
     
     summary_manager.display_loss(output, tag='Train')
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
+    summary_manager.display_scalar(tag='Meta/dropout', scalar_value=model.decoder_prenet_dropout)
     if model.step % config['train_images_plotting_frequency'] == 0:
         summary_manager.display_forward_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/linear_mel_out')
