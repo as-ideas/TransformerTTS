@@ -113,9 +113,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         padding_mask = create_encoder_padding_mask(inputs)
         enc_input = self.encoder_prenet(inputs)
         enc_output, attn_weights = self.encoder(enc_input,
-                                     training=training,
-                                     padding_mask=padding_mask,
-                                     drop_n_heads=self.drop_n_heads)
+                                                training=training,
+                                                padding_mask=padding_mask,
+                                                drop_n_heads=self.drop_n_heads)
         return enc_output, padding_mask, attn_weights
     
     def _call_decoder(self, encoder_output, targets, encoder_padding_mask, training):

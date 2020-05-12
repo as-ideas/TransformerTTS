@@ -173,7 +173,7 @@ for _ in t:
             t.display(f'{n_steps}-steps average loss: {sum(losses[-n_steps:]) / n_steps}', pos=pos + 2)
     
     summary_manager.display_loss(output, tag='Train')
-    summary_manager.display_scalar(tag='Meta/dropout', scalar_value=decoder_prenet_dropout)
+    summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet_dropout)
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=model.r)
     summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
