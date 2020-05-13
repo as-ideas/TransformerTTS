@@ -11,8 +11,7 @@ from preprocessing.text_processing import Phonemizer, TextCleaner
 from utils.audio import melspectrogram
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--metafile', dest='META_FILE', type=str, required=True)
-parser.add_argument('--wavdir', dest='WAV_DIR', type=str, required=True)
+parser.add_argument('--datadir', dest='DATA_DIR', type=str, required=True)
 parser.add_argument('--targetdir', dest='TARGET_DIR', type=str, required=True)
 parser.add_argument('--config', dest='CONFIG', type=str, required=True)
 parser.add_argument('--dont_cache_phonemes', dest='CACHE_PHON', action='store_false')
@@ -23,8 +22,9 @@ args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 
+args.META_FILE = os.path.join(args.DATA_DIR, 'metadata.csv')
+args.WAV_DIR = os.path.join(args.DATA_DIR, 'wavs')
 yaml = ruamel.yaml.YAML()
-
 config = yaml.load(open(str(Path(args.CONFIG) / 'data_config.yaml'), 'rb'))
 mel_dir = os.path.join(args.TARGET_DIR, 'mels')
 if not os.path.exists(mel_dir):

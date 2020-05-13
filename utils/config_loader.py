@@ -100,8 +100,8 @@ class ConfigLoader:
                                         beta_2=0.98,
                                         epsilon=1e-9)
 
-    def dump_config(self, config_path: str):
-        config_path = Path(config_path)
-        config_path.mkdir(exist_ok=True)
-        self.yaml.dump(self.model_config, open(config_path / 'model_config.yaml', 'w'))
-        self.yaml.dump(self.data_config, open(config_path / 'data_config.yaml', 'w'))
+    def dump_config(self, log_dir: str):
+        log_dir = Path(log_dir) / 'config'
+        log_dir.mkdir(exist_ok=True)
+        self.yaml.dump(self.model_config, open(log_dir / f'{self.model_kind}_config.yaml', 'w'))
+        self.yaml.dump(self.data_config, open(log_dir / 'data_config.yaml', 'w'))

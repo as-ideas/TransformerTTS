@@ -114,7 +114,7 @@ config_loader = ConfigLoader(config_path=args.config, model_kind='forward')
 config_loader.update_config(data_dir=args.datadir)
 config = config_loader.config
 weights_paths, log_dir, base_dir = create_dirs(args)
-config_loader.dump_config(os.path.join(base_dir, session_name))
+config_loader.dump_config(str(base_dir))
 
 train_data_dir = Path(args.datadir) / 'forward_data/train'
 val_data_dir = Path(args.datadir) / 'forward_data/val'

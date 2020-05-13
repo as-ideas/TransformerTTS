@@ -99,7 +99,7 @@ config_loader = ConfigLoader(config_path=args.config, model_kind='autoregressive
 config_loader.update_config(data_dir=args.datadir)
 config = config_loader.config
 weights_paths, log_dir, base_dir = create_dirs(args)
-config_loader.dump_config(os.path.join(base_dir, session_name))
+config_loader.dump_config(str(base_dir))
 
 meldir = os.path.join(args.datadir, 'mels')
 train_meta = os.path.join(args.datadir, 'train_metafile.txt')

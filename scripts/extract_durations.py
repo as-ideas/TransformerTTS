@@ -34,7 +34,7 @@ logdir = Path(args.logdir)
 datadir = Path(args.datadir)
 sess_name = logdir.name
 config_name = sess_name
-config_loader = ConfigLoader(config_path=str(logdir / config_name), model_kind='autoregressive')
+config_loader = ConfigLoader(config_path=str(logdir/'config'), model_kind='autoregressive')
 config = config_loader.config
 meldir = datadir / 'mels'
 target_dir = datadir / 'forward_data'
@@ -43,7 +43,7 @@ val_target_dir = target_dir / 'val'
 target_dir.mkdir(exist_ok=True)
 train_target_dir.mkdir(exist_ok=True)
 val_target_dir.mkdir(exist_ok=True)
-config_loader.dump_config(str(target_dir / config_name))
+config_loader.dump_config(str(target_dir))
 train_meta = datadir / 'train_metafile.txt'
 test_meta = datadir / 'test_metafile.txt'
 train_samples, _ = load_files(metafile=str(train_meta),
@@ -75,7 +75,16 @@ decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_d
 reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
 model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
                     reduction_factor=reduction_factor)
+# identify last decoder block
+n_layers = len(config_loader.config['decoder_num_heads'])
+n_dense = int(config_loader.config['decoder_dense_blocks'])
+n_convs = int(n_layers - n_dense)
+if n_convs > 0:
+    last_layer_key = f'Decoder_ConvBlock{n_convs}_CrossfAttention'
+else:
+    last_layer_key = f'Decoder_DenseBlock{n_dense}_CrossAttention'
 
+print(f'Extracting attention from layer {last_layer_key}')
 # 'log_dir': tf.summary.create_file_writer(str(self.log_dir)) #TODO: log plots in TB
 iterator = tqdm(enumerate(val_dataset.all_batches()))
 for c, (val_mel, val_text, val_stop) in iterator:
@@ -84,7 +93,7 @@ for c, (val_mel, val_text, val_stop) in iterator:
                              tar=val_mel,
                              stop_prob=val_stop)
     durations, unpad_mels, unpad_phonemes = get_durations_from_alignment(
-        batch_alignments=outputs['attention_weights']['decoder_layer4_block2'].numpy(),
+        batch_alignments=outputs['decoder_attention'][last_layer_key].numpy(),
         mels=val_mel.numpy(),
         phonemes=val_text.numpy(),
         weighted=True,
@@ -102,7 +111,7 @@ for c, (train_mel, train_text, train_stop) in iterator:
                              tar=train_mel,
                              stop_prob=train_stop)
     durations, unpad_mels, unpad_phonemes = get_durations_from_alignment(
-        batch_alignments=outputs['attention_weights']['decoder_layer4_block2'].numpy(),
+        batch_alignments=outputs['decoder_attention'][last_layer_key].numpy(),
         mels=train_mel.numpy(),
         phonemes=train_text.numpy(),
         weighted=True,
