@@ -1,4 +1,4 @@
-from typing import Union
+from pathlib import Path
 import subprocess
 
 import numpy as np
@@ -10,23 +10,31 @@ from model.models import AutoregressiveTransformer, ForwardTransformer
 
 class ConfigLoader:
     
-    def __init__(self, config: Union[dict, str]):
+    def __init__(self, config_path: str, model_kind: str):
+        if model_kind not in ['autoregressive', 'forward']:
+            raise TypeError(f"model_kind must be in {['autoregressive', 'forward']}")
+        self.model_kind = model_kind
         self.yaml = ruamel.yaml.YAML()
-        if isinstance(config, str):
-            config = self._load_config(config)
-        self.config = config
-        self._check_config()
+        self.config, self.data_config, self.model_config = self._load_config(Path(config_path))
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         self.max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
-        self.stop_scaling = config.get('stop_loss_scaling', 1.)
+        if model_kind == 'autoregressive':
+            self.stop_scaling = self.config.get('stop_loss_scaling', 1.)
     
-    def _load_config(self, config_path):
-        return self.yaml.load(open(config_path, 'rb'))
+    def _load_config(self, config_path: Path):
+        data_config = self.yaml.load(open(str(config_path / 'data_config.yaml'), 'rb'))
+        model_config = self.yaml.load(open(str(config_path / f'{self.model_kind}_config.yaml'), 'rb'))
+        all_config = {}
+        all_config.update(model_config)
+        all_config.update(data_config)
+        return all_config, data_config, model_config
     
     def update_config(self, data_dir):
         git_hash = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
         self.config['datadir'] = data_dir
         self.config['git_hash'] = git_hash
+        self.data_config['datadir'] = data_dir
+        self.model_config['git_hash'] = git_hash
     
     def _check_hash(self):
         try:
@@ -91,18 +99,9 @@ class ConfigLoader:
                                         beta_1=0.9,
                                         beta_2=0.98,
                                         epsilon=1e-9)
-    
-    def _check_config(self):
-        key_list = ['mel_channels', 'decoder_model_dimension',
-                    'encoder_model_dimension', 'decoder_num_heads', 'encoder_num_heads',
-                    'encoder_feed_forward_dimension', 'decoder_feed_forward_dimension',
-                    'decoder_prenet_dimension', 'encoder_max_position_encoding', 'decoder_max_position_encoding',
-                    'postnet_conv_filters',
-                    'postnet_conv_layers', 'postnet_kernel_size', 'dropout_rate', 'debug',
-                    'mel_start_value', 'mel_end_value']
-        config_keys = set(self.config.keys())
-        missing = [key for key in key_list if key not in config_keys]
-        assert len(missing) == 0, 'Configuration file error. Missing keys {}'.format(missing)
-    
-    def dump_config(self, config_path):
-        self.yaml.dump(self.config, open(config_path, 'w'))
+
+    def dump_config(self, config_path: str):
+        config_path = Path(config_path)
+        config_path.mkdir(exist_ok=True)
+        self.yaml.dump(self.model_config, open(config_path / 'model_config.yaml', 'w'))
+        self.yaml.dump(self.data_config, open(config_path / 'data_config.yaml', 'w'))

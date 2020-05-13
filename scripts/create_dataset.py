@@ -1,5 +1,6 @@
 import argparse
 import os
+from pathlib import Path
 
 import librosa
 import numpy as np
@@ -7,7 +8,6 @@ import tqdm
 import ruamel.yaml
 
 from preprocessing.text_processing import Phonemizer, TextCleaner
-from utils.config_loader import ConfigLoader
 from utils.audio import melspectrogram
 
 parser = argparse.ArgumentParser()
@@ -24,8 +24,8 @@ for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 
 yaml = ruamel.yaml.YAML()
-configloader = ConfigLoader(args.CONFIG)
-config = configloader.config
+
+config = yaml.load(open(str(Path(args.CONFIG) / 'data_config.yaml'), 'rb'))
 mel_dir = os.path.join(args.TARGET_DIR, 'mels')
 if not os.path.exists(mel_dir):
     os.makedirs(mel_dir)

@@ -33,8 +33,8 @@ args = parser.parse_args()
 logdir = Path(args.logdir)
 datadir = Path(args.datadir)
 sess_name = logdir.name
-config_name = sess_name + '.yaml'
-config_loader = ConfigLoader(config=str(logdir / config_name))
+config_name = sess_name
+config_loader = ConfigLoader(config_path=str(logdir / config_name), model_kind='autoregressive')
 config = config_loader.config
 meldir = datadir / 'mels'
 target_dir = datadir / 'forward_data'
@@ -71,7 +71,7 @@ val_dataset = Dataset(samples=val_samples,
                       drop_remainder=False)
 
 model.load_checkpoint(str(logdir / 'weights'), r=10)
-decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['dropout_schedule'])
+decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_dropout_schedule'])
 reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
 model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
                     reduction_factor=reduction_factor)

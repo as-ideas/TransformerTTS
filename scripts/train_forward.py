@@ -50,7 +50,7 @@ def create_dirs(args):
     if args.clear_weights:
         delete = input(f'Delete {weights_dir}? (y/[n])')
         if delete == 'y':
-            shutil.rmtree(weights_dir   , ignore_errors=True)
+            shutil.rmtree(weights_dir, ignore_errors=True)
     os.makedirs(log_dir, exist_ok=True)
     os.makedirs(weights_dir, exist_ok=True)
     return weights_dir, log_dir, base_dir
@@ -110,11 +110,11 @@ args = parser.parse_args()
 session_name = args.session_name
 if not session_name:
     session_name = os.path.splitext(os.path.basename(args.config))[0]
-config_loader = ConfigLoader(config=args.config)
+config_loader = ConfigLoader(config_path=args.config, model_kind='forward')
 config_loader.update_config(data_dir=args.datadir)
 config = config_loader.config
 weights_paths, log_dir, base_dir = create_dirs(args)
-config_loader.dump_config(os.path.join(base_dir, session_name + '.yaml'))
+config_loader.dump_config(os.path.join(base_dir, session_name))
 
 train_data_dir = Path(args.datadir) / 'forward_data/train'
 val_data_dir = Path(args.datadir) / 'forward_data/val'
@@ -170,8 +170,7 @@ for _ in t:
     t.set_description(f'step {model.step}')
     mel, phonemes, durations = train_dataset.next_batch()
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
-    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['dropout_schedule'])
-    learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
+    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_dropout_schedule'])
     drop_n_heads = tf.cast(reduction_schedule(model.step, config['head_drop_schedule']), tf.int32)
     reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
     t.display(f'reduction factor {reduction_factor}', pos=10)
@@ -235,11 +234,13 @@ for _ in t:
             summary_manager.display_mel(mel=predval, tag=f'Test/sample {j}/predicted_mel')
             summary_manager.display_mel(mel=tar_value, tag=f'Test/sample {j}/target_mel')
             if j < config['n_predictions']:
-                if model.step >= config['audio_start_step'] and (model.step % config['audio_prediction_frequency'] == 0 ):
+                if model.step >= config['audio_start_step'] and (
+                        model.step % config['audio_prediction_frequency'] == 0):
                     summary_manager.display_audio(tag=f'Target/sample {j}', mel=tar_value)
                     summary_manager.display_audio(tag=f'Prediction/sample {j}', mel=predval)
             else:
                 break
         display_end = time()
-        t.display(f'Predictions took {time_taken}. Displaying took {display_end-display_start}.', pos=len(config['n_steps_avg_losses']) + 4)
+        t.display(f'Predictions took {time_taken}. Displaying took {display_end - display_start}.',
+                  pos=len(config['n_steps_avg_losses']) + 4)
 print('Done.')

@@ -95,11 +95,11 @@ args = parser.parse_args()
 session_name = args.session_name
 if not session_name:
     session_name = os.path.splitext(os.path.basename(args.config))[0]
-config_loader = ConfigLoader(config=args.config)
+config_loader = ConfigLoader(config_path=args.config, model_kind='autoregressive')
 config_loader.update_config(data_dir=args.datadir)
 config = config_loader.config
 weights_paths, log_dir, base_dir = create_dirs(args)
-config_loader.dump_config(os.path.join(base_dir, session_name + '.yaml'))
+config_loader.dump_config(os.path.join(base_dir, session_name))
 
 meldir = os.path.join(args.datadir, 'mels')
 train_meta = os.path.join(args.datadir, 'train_metafile.txt')
@@ -153,7 +153,7 @@ t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
     mel, phonemes, stop = train_dataset.next_batch()
-    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['dropout_schedule'])
+    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_dropout_schedule'])
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
     drop_n_heads = tf.cast(reduction_schedule(model.step, config['head_drop_schedule']), tf.int32)
