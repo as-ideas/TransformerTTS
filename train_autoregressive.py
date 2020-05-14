@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import shutil
 import argparse
 
@@ -31,17 +31,23 @@ if gpus:
 
 # aux functions declaration
 
-def create_dirs(args):
-    base_dir = os.path.join(args.log_dir, session_name)
-    log_dir = os.path.join(base_dir, f'logs/')
-    weights_dir = os.path.join(base_dir, f'weights/')
+def create_remove_dirs(base_dir: Path, log_dir: Path, weights_dir: Path):
+    base_dir.mkdir(exist_ok=True)
     if args.clear_dir:
-        delete = input('Delete current logs and weights? (y/[n])')
+        delete = input(f'Delete {log_dir} AND {weights_dir}? (y/[n])')
         if delete == 'y':
-            shutil.rmtree(base_dir, ignore_errors=True)
-    os.makedirs(log_dir, exist_ok=True)
-    os.makedirs(weights_dir, exist_ok=True)
-    return weights_dir, log_dir, base_dir
+            shutil.rmtree(log_dir, ignore_errors=True)
+            shutil.rmtree(weights_dir, ignore_errors=True)
+    if args.clear_logs:
+        delete = input(f'Delete {log_dir}? (y/[n])')
+        if delete == 'y':
+            shutil.rmtree(log_dir, ignore_errors=True)
+    if args.clear_weights:
+        delete = input(f'Delete {weights_dir}? (y/[n])')
+        if delete == 'y':
+            shutil.rmtree(weights_dir, ignore_errors=True)
+    log_dir.mkdir(exist_ok=True)
+    weights_dir.mkdir(exist_ok=True)
 
 
 @ignore_exception
@@ -68,50 +74,31 @@ def validate(model,
     return val_loss['loss']
 
 
-def print_dict_values(values, key_name, level=0, tab_size=2):
-    tab = level * tab_size * ' '
-    print(tab + '-', key_name, ':', values)
-
-
-def print_dictionary(config, recursion_level=0):
-    for key in config.keys():
-        if isinstance(key, dict):
-            recursion_level += 1
-            print_dictionary(config[key], recursion_level)
-        else:
-            print_dict_values(config[key], key_name=key, level=recursion_level)
-
-
 # consuming CLI, creating paths and directories, load data
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--datadir', dest='datadir', type=str)
-parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
 parser.add_argument('--config', dest='config', type=str)
 parser.add_argument('--reset_dir', dest='clear_dir', action='store_true',
                     help="deletes everything under this config's folder.")
+parser.add_argument('--reset_logs', dest='clear_logs', action='store_true',
+                    help="deletes logs under this config's folder.")
+parser.add_argument('--reset_weights', dest='clear_weights', action='store_true',
+                    help="deletes weights under this config's folder.")
 parser.add_argument('--session_name', dest='session_name', default=None)
 args = parser.parse_args()
-session_name = args.session_name
-if not session_name:
-    session_name = os.path.splitext(os.path.basename(args.config))[0]
-config_loader = ConfigLoader(config_path=args.config, model_kind='autoregressive')
-config_loader.update_config(data_dir=args.datadir)
+config_loader = ConfigLoader(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
 config = config_loader.config
-weights_paths, log_dir, base_dir = create_dirs(args)
+base_dir, log_dir, train_datadir, weights_dir = config_loader.make_folder_paths()
+create_remove_dirs(base_dir, log_dir, weights_dir)
 config_loader.dump_config(str(base_dir))
+config_loader.print_config()
 
-meldir = os.path.join(args.datadir, 'mels')
-train_meta = os.path.join(args.datadir, 'train_metafile.txt')
-test_meta = os.path.join(args.datadir, 'test_metafile.txt')
-train_samples, _ = load_files(metafile=train_meta,
-                              meldir=meldir,
+train_samples, _ = load_files(metafile=str(train_datadir / 'train_metafile.txt'),
+                              meldir=str(train_datadir / 'mels'),
                               num_samples=config['n_samples'])  # (phonemes, mel)
-val_samples, _ = load_files(metafile=test_meta,
-                            meldir=meldir,
+val_samples, _ = load_files(metafile=str(train_datadir / 'test_metafile.txt'),
+                            meldir=str(train_datadir / 'mels'),
                             num_samples=config['n_samples'])  # (phonemes, text, mel)
-print('\nCONFIGURATION', session_name)
-print_dictionary(config, recursion_level=1)
 
 # get model, prepare data for model, create datasets
 model = config_loader.get_model()
@@ -137,7 +124,7 @@ summary_manager = SummaryManager(model=model, log_dir=log_dir, config=config)
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
                                  optimizer=model.optimizer,
                                  net=model)
-manager = tf.train.CheckpointManager(checkpoint, weights_paths,
+manager = tf.train.CheckpointManager(checkpoint, str(weights_dir),
                                      max_to_keep=config['keep_n_weights'],
                                      keep_checkpoint_every_n_hours=config['keep_checkpoint_every_n_hours'])
 checkpoint.restore(manager.latest_checkpoint)

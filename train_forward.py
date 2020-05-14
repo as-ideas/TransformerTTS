@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 import shutil
 import argparse
@@ -33,11 +32,8 @@ if gpus:
 
 
 # aux functions declaration
-
-def create_dirs(args):
-    base_dir = os.path.join(args.log_dir, session_name)
-    log_dir = os.path.join(base_dir, f'forward_logs/')
-    weights_dir = os.path.join(base_dir, f'forward_weights/')
+def create_remove_dirs(base_dir: Path, log_dir: Path, weights_dir: Path):
+    base_dir.mkdir(exist_ok=True)
     if args.clear_dir:
         delete = input(f'Delete {log_dir} AND {weights_dir}? (y/[n])')
         if delete == 'y':
@@ -51,9 +47,16 @@ def create_dirs(args):
         delete = input(f'Delete {weights_dir}? (y/[n])')
         if delete == 'y':
             shutil.rmtree(weights_dir, ignore_errors=True)
-    os.makedirs(log_dir, exist_ok=True)
-    os.makedirs(weights_dir, exist_ok=True)
-    return weights_dir, log_dir, base_dir
+    log_dir.mkdir(exist_ok=True)
+    weights_dir.mkdir(exist_ok=True)
+
+
+def build_file_list(data_dir: Path):
+    sample_paths = []
+    for item in data_dir.iterdir():
+        if item.suffix == '.npy':
+            sample_paths.append(str(item))
+    return sample_paths
 
 
 @ignore_exception
@@ -79,25 +82,9 @@ def validate(model,
     return val_loss['loss']
 
 
-def print_dict_values(values, key_name, level=0, tab_size=2):
-    tab = level * tab_size * ' '
-    print(tab + '-', key_name, ':', values)
-
-
-def print_dictionary(config, recursion_level=0):
-    for key in config.keys():
-        if isinstance(key, dict):
-            recursion_level += 1
-            print_dictionary(config[key], recursion_level)
-        else:
-            print_dict_values(config[key], key_name=key, level=recursion_level)
-
-
 # consuming CLI, creating paths and directories, load data
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--datadir', dest='datadir', type=str)
-parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
 parser.add_argument('--config', dest='config', type=str)
 parser.add_argument('--reset_dir', dest='clear_dir', action='store_true',
                     help="deletes everything under this config's folder.")
@@ -107,53 +94,38 @@ parser.add_argument('--reset_weights', dest='clear_weights', action='store_true'
                     help="deletes weights under this config's folder.")
 parser.add_argument('--session_name', dest='session_name', default=None)
 args = parser.parse_args()
-session_name = args.session_name
-if not session_name:
-    session_name = os.path.splitext(os.path.basename(args.config))[0]
-config_loader = ConfigLoader(config_path=args.config, model_kind='forward')
-config_loader.update_config(data_dir=args.datadir)
+
+config_loader = ConfigLoader(config_path=args.config, model_kind='forward', session_name=args.session_name)
 config = config_loader.config
-weights_paths, log_dir, base_dir = create_dirs(args)
+base_dir, log_dir, train_datadir, weights_dir = config_loader.make_folder_paths()
+create_remove_dirs(base_dir, log_dir, weights_dir)
 config_loader.dump_config(str(base_dir))
+config_loader.print_config()
 
-train_data_dir = Path(args.datadir) / 'forward_data/train'
-val_data_dir = Path(args.datadir) / 'forward_data/val'
-
-
-def build_file_list(data_dir: Path):
-    sample_paths = []
-    for item in data_dir.iterdir():
-        if item.suffix == '.npy':
-            sample_paths.append(str(item))
-    return sample_paths
-
-
-train_data_list = build_file_list(train_data_dir)
+train_data_list = build_file_list(train_datadir / 'forward_data/train')
 dataprep = ForwardDataPrepper()
 train_dataset = Dataset(samples=train_data_list,
                         mel_channels=config['mel_channels'],
                         preprocessor=dataprep,
                         batch_size=config['batch_size'],
                         shuffle=True)
-val_data_list = build_file_list(val_data_dir)
+val_data_list = build_file_list(train_datadir / 'forward_data/val')
 val_dataset = Dataset(samples=val_data_list,
                       mel_channels=config['mel_channels'],
                       preprocessor=dataprep,
                       batch_size=config['batch_size'],
                       shuffle=False)
-print('\nCONFIGURATION', session_name)
-print_dictionary(config, recursion_level=1)
 
 # get model, prepare data for model, create datasets
 model = config_loader.get_forward_model()
 config_loader.compile_forward_model(model)
-# create logger and checkpointer and restore latest model
 
+# create logger and checkpointer and restore latest model
 summary_manager = SummaryManager(model=model, log_dir=log_dir, config=config)
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
                                  optimizer=model.optimizer,
                                  net=model)
-manager = tf.train.CheckpointManager(checkpoint, weights_paths,
+manager = tf.train.CheckpointManager(checkpoint, weights_dir,
                                      max_to_keep=config['keep_n_weights'],
                                      keep_checkpoint_every_n_hours=config['keep_checkpoint_every_n_hours'])
 checkpoint.restore(manager.latest_checkpoint)

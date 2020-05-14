@@ -10,31 +10,54 @@ from model.models import AutoregressiveTransformer, ForwardTransformer
 
 class ConfigLoader:
     
-    def __init__(self, config_path: str, model_kind: str):
+    def __init__(self, config_path: str, model_kind: str, session_name: str = None):
         if model_kind not in ['autoregressive', 'forward']:
             raise TypeError(f"model_kind must be in {['autoregressive', 'forward']}")
+        self.config_path = Path(config_path)
         self.model_kind = model_kind
         self.yaml = ruamel.yaml.YAML()
-        self.config, self.data_config, self.model_config = self._load_config(Path(config_path))
+        self.config, self.data_config, self.model_config = self._load_config()
+        self.git_hash = self._get_git_hash()
+        if session_name is None:
+            if self.config['session_name'] is None:
+                session_name = self.git_hash
+        self.session_name = '_'.join(filter(None, [self.config_path.name, session_name]))
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         self.max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
         if model_kind == 'autoregressive':
             self.stop_scaling = self.config.get('stop_loss_scaling', 1.)
     
-    def _load_config(self, config_path: Path):
-        data_config = self.yaml.load(open(str(config_path / 'data_config.yaml'), 'rb'))
-        model_config = self.yaml.load(open(str(config_path / f'{self.model_kind}_config.yaml'), 'rb'))
+    def _load_config(self):
+        data_config = self.yaml.load(open(str(self.config_path / 'data_config.yaml'), 'rb'))
+        model_config = self.yaml.load(open(str(self.config_path / f'{self.model_kind}_config.yaml'), 'rb'))
         all_config = {}
         all_config.update(model_config)
         all_config.update(data_config)
         return all_config, data_config, model_config
     
-    def update_config(self, data_dir):
-        git_hash = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
-        self.config['datadir'] = data_dir
-        self.config['git_hash'] = git_hash
-        self.data_config['datadir'] = data_dir
-        self.model_config['git_hash'] = git_hash
+    @staticmethod
+    def _get_git_hash():
+        try:
+            return subprocess.check_output(["git", "describe", "--always"]).strip().decode()
+        except Exception as e:
+            print(f"WARNING: could not retrieve git hash. {e}")
+    
+    def update_config(self):
+        self.config['git_hash'] = self.git_hash
+        self.model_config['git_hash'] = self.git_hash
+        self.data_config['session_name'] = self.session_name
+        self.model_config['session_name'] = self.session_name
+        self.config['session_name'] = self.session_name
+    
+    def make_folder_paths(self):
+        base_dir = Path(self.config['log_directory']) / self.session_name
+        log_dir = base_dir / f'{self.model_kind}_logs'
+        weights_dir = base_dir / f'{self.model_kind}_weights'
+        train_datadir = self.config['train_data_directory']
+        if train_datadir is None:
+            train_datadir = self.config['data_directory']
+        train_datadir = Path(train_datadir)
+        return base_dir, log_dir, train_datadir, weights_dir
     
     def _check_hash(self):
         try:
@@ -99,9 +122,27 @@ class ConfigLoader:
                                         beta_1=0.9,
                                         beta_2=0.98,
                                         epsilon=1e-9)
-
+    
     def dump_config(self, log_dir: str):
+        self.update_config()
         log_dir = Path(log_dir) / 'config'
         log_dir.mkdir(exist_ok=True)
         self.yaml.dump(self.model_config, open(log_dir / f'{self.model_kind}_config.yaml', 'w'))
         self.yaml.dump(self.data_config, open(log_dir / 'data_config.yaml', 'w'))
+    
+    @staticmethod
+    def _print_dict_values(values, key_name, level=0, tab_size=2):
+        tab = level * tab_size * ' '
+        print(tab + '-', key_name, ':', values)
+    
+    def _print_dictionary(self, dictionary, recursion_level=0):
+        for key in dictionary.keys():
+            if isinstance(key, dict):
+                recursion_level += 1
+                self._print_dictionary(dictionary[key], recursion_level)
+            else:
+                self._print_dict_values(dictionary[key], key_name=key, level=recursion_level)
+    
+    def print_config(self):
+        print('\nCONFIGURATION', self.session_name)
+        self._print_dictionary(self.config)

@@ -42,78 +42,41 @@ The dataset [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) is in this forma
 
 ### Prepare configuration folder
 To train on LJSpeech, or if unsure, simply use ```config/standard```.<br>
+**EDIT PATHS**: in `data_config.yaml` edit the paths to point at the desired folders.<br>
+
 Alternatively create 3 ```yaml``` configuration files:
  - `autoregressive_config.yaml` contains the settings for creating and training the AutoRegressive model;
  - `forward_config.yaml` contains the settings for creating and training the Forward model;
  - `data_config.yaml` contains the settings processing the data, it's sued by both models.
 
 Note: configurations files are dataset dependent, ```config/standard``` is tuned for LJSpeech v1.1.
-
 ### Process dataset
 From the root folder run
 
 ```bash
-python scripts/create_dataset.py \
-    --datadir /path/to/dataset/ \
-    --targetdir /directory/to/store/spectrograms/ \
-    --config /path/to/config/folder/ 
-```
-for instance:
-```bash
-python scripts/create_dataset.py \
-    --datadir /home/user/LJSpeech-1.1 \
-    --targetdir /home/user/data_folder \
-    --config config/standard 
+python scripts/create_dataset.py --config /path/to/config/folder/ 
 ```
 ## Training
 ### Train Autoregressive Model
 From the root folder run
 ```bash
-python scripts/train.py
-    --datadir /path/to/spectrograms/
-    --logdir /logs/directory/
-    --config /path/to/config_folder/
-    [--reset_dir | optional flag, deletes all logs and weights from previous sessions]
-```
-for instance:
-```bash
-python scripts/train.py
-    --datadir /home/user/data_folder
-    --logdir /home/user/logs
-    --config config/standard
+python scripts/train.py --config /path/to/config_folder/
 ```
 ### Train Forward Model
 #### Compute alignment dataset
 In order to train the model to predict the phoneme durations, first use the autoregressive model to create the durations dataset
 ```bash
-python scripts/extract_durations.py 
-    --datadir /path/to/spectrograms/
-    --logdir /logs/directory/from/training/
-```
-for instance:
-```bash
-python scripts/extract_durations.py 
-    --datadir /home/user/data_folder
-    --logdir /home/user/logs/standard
+python scripts/extract_durations.py --config /path/to/config_folder/
 ```
 this will add an additional folder to the dataset folder containing the new datasets for validation and training of the forward model.
 #### Training
 ```bash
-python scripts/train_forward.py
-    --datadir /path/to/spectrograms/
-    --logdir /logs/directory/
-    --config /path/to/config_folder/
-```
-for instance:
-```bash
-python scripts/train_forward.py
-    --datadir /home/user/data_folder
-    --logdir /home/user/logs
-    --config config/standard
+python scripts/train_forward.py  --config /path/to/config_folder/
 ```
 
-#### Resume training
-Simply target an existing log directory with ```--logdir``` to resume training.
+#### Resume or restart training
+To resume training simply use the same configuration files AND `--session_name` flag, if any. <br>
+To restart training, delete the weights and/or the logs from the logs folder with the training flag `--reset_dir` (both) or `--reset_logs`, `--reset_weights`. 
 #### Monitor training
 We log some information that can be visualized with TensorBoard:
 ```bash
@@ -123,20 +86,16 @@ tensorboard --logdir /logs/directory/
 ## Prediction
 Predict with either the Forward or AutoRegressive model
 ```python
-import IPython.display as ipd
 from utils.config_loader import ConfigLoader
 from utils.audio import reconstruct_waveform
 
-# Create a `ConfigLoader` object using a config file and restore a checkpoint or directly load a weights file
 config_loader = ConfigLoader('/path/to/config.yaml', model_kind='forward')
 model = config_loader.get_model()
 model.load_checkpoint('/path/to/checkpoint/forward_weights/', checkpoint_path=None) # optional: specify checkpoint file
-# Run predictions
 out = model.predict("Please, say something.")
 
-# Convert spectrogram to wav (with griffin lim) and display
+# Convert spectrogram to wav (with griffin lim)
 wav= reconstruct_waveform(out['mel'].numpy().T, config=config_loader.config)
-ipd.display(ipd.Audio(wav, rate=config_loader.config['sampling_rate']))
 ```
 
 ## Maintainers

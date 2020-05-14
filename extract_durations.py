@@ -1,5 +1,5 @@
 import argparse
-from pathlib import Path
+
 import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
@@ -25,27 +25,23 @@ if gpus:
 # consuming CLI, creating paths and directories, load data
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--datadir', dest='datadir', type=str)
-parser.add_argument('--logdir', dest='logdir', type=str)
-parser.add_argument('--reset_dir', dest='clear_dir', action='store_true',
-                    help="deletes everything under this config's folder.")
+parser.add_argument('--config', dest='config', type=str)
+parser.add_argument('--session_name', dest='session_name', default=None)
 args = parser.parse_args()
-logdir = Path(args.logdir)
-datadir = Path(args.datadir)
-sess_name = logdir.name
-config_name = sess_name
-config_loader = ConfigLoader(config_path=str(logdir/'config'), model_kind='autoregressive')
+config_loader = ConfigLoader(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
 config = config_loader.config
-meldir = datadir / 'mels'
-target_dir = datadir / 'forward_data'
+_, _, train_datadir, weights_dir = config_loader.make_folder_paths()
+
+meldir = train_datadir / 'mels'
+target_dir = train_datadir / 'forward_data'
 train_target_dir = target_dir / 'train'
 val_target_dir = target_dir / 'val'
 target_dir.mkdir(exist_ok=True)
 train_target_dir.mkdir(exist_ok=True)
 val_target_dir.mkdir(exist_ok=True)
 config_loader.dump_config(str(target_dir))
-train_meta = datadir / 'train_metafile.txt'
-test_meta = datadir / 'test_metafile.txt'
+train_meta = train_datadir / 'train_metafile.txt'
+test_meta = train_datadir / 'test_metafile.txt'
 train_samples, _ = load_files(metafile=str(train_meta),
                               meldir=str(meldir),
                               num_samples=config['n_samples'])  # (phonemes, mel)
@@ -70,11 +66,13 @@ val_dataset = Dataset(samples=val_samples,
                       shuffle=False,
                       drop_remainder=False)
 
-model.load_checkpoint(str(logdir / 'weights'), r=10)
+model.load_checkpoint(str(weights_dir), r=10)
 decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_dropout_schedule'])
 reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
 model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
                     reduction_factor=reduction_factor)
+if model.r != 1:
+    print(f"ERROR: model's reduction factor is greater than 1, check config. (r={model.r}")
 # identify last decoder block
 n_layers = len(config_loader.config['decoder_num_heads'])
 n_dense = int(config_loader.config['decoder_dense_blocks'])

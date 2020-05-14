@@ -257,15 +257,19 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.build_graph(r)
         super(AutoregressiveTransformer, self).load_weights(weights_path)
     
-    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None, r: int = 1):
+    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None, r: int = 1, verbose=True):
         self.build_graph(self.max_r)
         ckpt = tf.train.Checkpoint(net=self)
         manager = tf.train.CheckpointManager(ckpt, checkpoint_dir,
                                              max_to_keep=None)
         if checkpoint_path:
             ckpt.restore(checkpoint_path)
+            if verbose:
+                print(f'restored weights from {checkpoint_path}')
         else:
             ckpt.restore(manager.latest_checkpoint)
+            if verbose:
+                print(f'restored weights from {manager.latest_checkpoint}')
         self._set_r(r)
         return ckpt, manager
     
@@ -396,7 +400,7 @@ class ForwardTransformer(tf.keras.models.Model):
         # self.build_graph()
         super(ForwardTransformer, self).load_weights(weights_path)
     
-    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None, r: int = 1):
+    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None, r: int = 1, verbose=True):
         self.build_graph(self.max_r)
         # self.build_graph()
         ckpt = tf.train.Checkpoint(net=self)
@@ -404,8 +408,12 @@ class ForwardTransformer(tf.keras.models.Model):
                                              max_to_keep=None)
         if checkpoint_path:
             ckpt.restore(checkpoint_path)
+            if verbose:
+                print(f'restored weights from {checkpoint_path}')
         else:
             ckpt.restore(manager.latest_checkpoint)
+            if verbose:
+                print(f'restored weights from {manager.latest_checkpoint}')
         self._set_r(r)
         return ckpt, manager
     
