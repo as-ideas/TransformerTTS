@@ -21,10 +21,7 @@ Install espeak as described [here](https://github.com/bootphon/phonemizer), then
 ```bash
 pip install -r requirements.txt
 ```
-add the project to the paths
-```bash
-export PYTHONPATH='.'
-```
+
 Read the individual scripts for more command line arguments.
 ### Prepare dataset folder
 Prepare a dataset in the following format:
@@ -54,24 +51,24 @@ Note: configurations files are dataset dependent, ```config/standard``` is tuned
 From the root folder run
 
 ```bash
-python scripts/create_dataset.py --config /path/to/config/folder/ 
+python create_dataset.py --config /path/to/config/folder/ 
 ```
 ## Training
 ### Train Autoregressive Model
 From the root folder run
 ```bash
-python scripts/train.py --config /path/to/config_folder/
+python train.py --config /path/to/config_folder/
 ```
 ### Train Forward Model
 #### Compute alignment dataset
 In order to train the model to predict the phoneme durations, first use the autoregressive model to create the durations dataset
 ```bash
-python scripts/extract_durations.py --config /path/to/config_folder/
+python extract_durations.py --config /path/to/config_folder/
 ```
 this will add an additional folder to the dataset folder containing the new datasets for validation and training of the forward model.
 #### Training
 ```bash
-python scripts/train_forward.py  --config /path/to/config_folder/
+python train_forward.py  --config /path/to/config_folder/
 ```
 
 #### Resume or restart training
