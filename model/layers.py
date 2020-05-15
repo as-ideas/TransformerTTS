@@ -368,23 +368,6 @@ class ConvBatchNormBlock(tf.keras.layers.Layer):
         return x
 
 
-# class EncoderPrenet(tf.keras.layers.Layer):
-#     def __init__(self, vocab_size: int, prenet_size: int, out_size: int, conv_layers: int = 3, kernel_size: int = 5,
-#                  dropout_rate: float = 0.1, **kwargs):
-#         super(EncoderPrenet, self).__init__(**kwargs)
-#         self.embedding = tf.keras.layers.Embedding(input_dim=vocab_size, output_dim=prenet_size)
-#         self.conv_blocks = ConvBatchNormBlock(out_size=prenet_size, n_filters=prenet_size, n_layers=conv_layers,
-#                                               kernel_size=kernel_size, dropout_prob=dropout_rate, padding='causal',
-#                                               inner_activation='relu', last_activation='relu')
-#         self.out = tf.keras.layers.Dense(out_size, activation='linear')
-#         self.dropout = tf.keras.layers.Dropout(dropout_rate)
-#
-#     def call(self, inputs, training):
-#         x = self.embedding(inputs)
-#         x = self.conv_blocks(x, training=training)
-#         x = self.out(x)
-#         return self.dropout(x)
-
 class Postnet(tf.keras.layers.Layer):
     
     def __init__(self, mel_channels: int, conv_filters: int = 256, conv_layers: int = 5, kernel_size: int = 5,
@@ -410,71 +393,3 @@ class Postnet(tf.keras.layers.Layer):
         conv_out = self.postnet_conv_layers(x, training)
         x = self.add_layer([conv_out, x])
         return x
-
-
-class DurationPredictor(tf.keras.layers.Layer):
-    def __init__(self,
-                 model_dim: int,
-                 dropout_rate: float,
-                 kernel_size=5,
-                 conv_padding='same',
-                 conv_activation='relu',
-                 conv_block_n=2,
-                 dense_activation='relu',
-                 dense_scalar=1.,
-                 **kwargs):
-        super(DurationPredictor, self).__init__(**kwargs)
-        
-        self.conv_blocks = [Conv1DResNorm(model_dim=model_dim, dropout_rate=dropout_rate, kernel_size=kernel_size,
-                                          conv_padding=conv_padding, activation=conv_activation) for _ in
-                            range(conv_block_n)]
-        self.linear = tf.keras.layers.Dense(1, activation=dense_activation,
-                                            bias_initializer=tf.keras.initializers.Constant(value=1))
-        self.dense_scalar = dense_scalar
-    
-    def call(self, x, training):
-        for block in self.conv_blocks:
-            x = block(x, training=training)
-        x = self.linear(x) * self.dense_scalar
-        return x
-
-
-class Expand(tf.keras.layers.Layer):
-    """ Expands a 3D tensor on its second axis given a list of dimensions.
-        Tensor should be:
-            batch_size, seq_len, dimension
-        
-        E.g:
-        input = tf.Tensor([[[0.54710746 0.8943467 ]
-                          [0.7140938  0.97968304]
-                          [0.5347662  0.15213418]]], shape=(1, 3, 2), dtype=float32)
-        dimensions = tf.Tensor([1 3 2], shape=(3,), dtype=int32)
-        output = tf.Tensor([[[0.54710746 0.8943467 ]
-                           [0.7140938  0.97968304]
-                           [0.7140938  0.97968304]
-                           [0.7140938  0.97968304]
-                           [0.5347662  0.15213418]
-                           [0.5347662  0.15213418]]], shape=(1, 6, 2), dtype=float32)
-    """
-    
-    def __init__(self, model_dim, **kwargs):
-        super(Expand, self).__init__(**kwargs)
-        self.model_dimension = model_dim
-    
-    def call(self, x, dimensions):
-        dimensions = tf.squeeze(dimensions)
-        dimensions = tf.cast(tf.math.round(dimensions), tf.int32)
-        seq_len = tf.shape(x)[1]
-        batch_size = tf.shape(x)[0]
-        # build masks from dimensions
-        max_dim = tf.math.reduce_max(dimensions)
-        tot_dim = tf.math.reduce_sum(dimensions)
-        index_masks = tf.RaggedTensor.from_row_lengths(tf.ones(tot_dim), tf.reshape(dimensions, [-1])).to_tensor()
-        index_masks = tf.cast(tf.reshape(index_masks, (batch_size, seq_len * max_dim)), tf.float32)
-        non_zeros = seq_len * max_dim - tf.reduce_sum(max_dim - dimensions, axis=1)
-        # stack and mask
-        tiled = tf.tile(x, [1, 1, max_dim])
-        reshaped = tf.reshape(tiled, (batch_size, seq_len * max_dim, self.model_dimension))
-        mask_reshape = tf.multiply(reshaped, index_masks[:, :, tf.newaxis])
-        ragged = tf.RaggedTensor.from_row_lengths(mask_reshape[index_masks > 0], non_zeros)
-        return ragged.to_tensor()

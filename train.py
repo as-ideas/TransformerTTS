@@ -1,12 +1,10 @@
-from pathlib import Path
-import shutil
 import argparse
 
 import tensorflow as tf
 import numpy as np
 from tqdm import trange
 
-from utils.config_loader import ConfigLoader
+from utils.config_manager import ConfigManager
 from preprocessing.data_handling import load_files, Dataset, DataPrepper
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
@@ -27,28 +25,7 @@ if gpus:
     except RuntimeError as e:
         # Memory growth must be set before GPUs have been initialized
         print(e)
-
-
-# aux functions declaration
-
-def create_remove_dirs(base_dir: Path, log_dir: Path, weights_dir: Path):
-    base_dir.mkdir(exist_ok=True)
-    if args.clear_dir:
-        delete = input(f'Delete {log_dir} AND {weights_dir}? (y/[n])')
-        if delete == 'y':
-            shutil.rmtree(log_dir, ignore_errors=True)
-            shutil.rmtree(weights_dir, ignore_errors=True)
-    if args.clear_logs:
-        delete = input(f'Delete {log_dir}? (y/[n])')
-        if delete == 'y':
-            shutil.rmtree(log_dir, ignore_errors=True)
-    if args.clear_weights:
-        delete = input(f'Delete {weights_dir}? (y/[n])')
-        if delete == 'y':
-            shutil.rmtree(weights_dir, ignore_errors=True)
-    log_dir.mkdir(exist_ok=True)
-    weights_dir.mkdir(exist_ok=True)
-
+        
 
 @ignore_exception
 @time_it
@@ -86,23 +63,24 @@ parser.add_argument('--reset_weights', dest='clear_weights', action='store_true'
                     help="deletes weights under this config's folder.")
 parser.add_argument('--session_name', dest='session_name', default=None)
 args = parser.parse_args()
-config_loader = ConfigLoader(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
-config = config_loader.config
-base_dir, log_dir, train_datadir, weights_dir = config_loader.make_folder_paths()
-create_remove_dirs(base_dir, log_dir, weights_dir)
-config_loader.dump_config(str(base_dir))
-config_loader.print_config()
+config_manager = ConfigManager(config_path=args.config, session_name=args.session_name)
+config = config_manager.config
+config_manager.create_remove_dirs(clear_dir=args.clear_dir,
+                                  clear_logs=args.clear_logs,
+                                  clear_weights=args.clear_weights)
+config_manager.dump_config(str(config_manager.base_dir))
+config_manager.print_config()
 
-train_samples, _ = load_files(metafile=str(train_datadir / 'train_metafile.txt'),
-                              meldir=str(train_datadir / 'mels'),
+train_samples, _ = load_files(metafile=str(config_manager.train_datadir / 'train_metafile.txt'),
+                              meldir=str(config_manager.train_datadir / 'mels'),
                               num_samples=config['n_samples'])  # (phonemes, mel)
-val_samples, _ = load_files(metafile=str(train_datadir / 'test_metafile.txt'),
-                            meldir=str(train_datadir / 'mels'),
+val_samples, _ = load_files(metafile=str(config_manager.train_datadir / 'test_metafile.txt'),
+                            meldir=str(config_manager.train_datadir / 'mels'),
                             num_samples=config['n_samples'])  # (phonemes, text, mel)
 
 # get model, prepare data for model, create datasets
-model = config_loader.get_model()
-config_loader.compile_model(model)
+model = config_manager.get_model()
+config_manager.compile_model(model)
 data_prep = DataPrepper(config=config,
                         tokenizer=model.tokenizer)
 
@@ -120,11 +98,11 @@ val_dataset = Dataset(samples=val_samples,
 
 # create logger and checkpointer and restore latest model
 
-summary_manager = SummaryManager(model=model, log_dir=log_dir, config=config)
+summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir, config=config)
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
                                  optimizer=model.optimizer,
                                  net=model)
-manager = tf.train.CheckpointManager(checkpoint, str(weights_dir),
+manager = tf.train.CheckpointManager(checkpoint, str(config_manager.weights_dir),
                                      max_to_keep=config['keep_n_weights'],
                                      keep_checkpoint_every_n_hours=config['keep_checkpoint_every_n_hours'])
 checkpoint.restore(manager.latest_checkpoint)

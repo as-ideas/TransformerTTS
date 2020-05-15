@@ -82,7 +82,7 @@ class Tokenizer:
             self.vocab_size += 2
             self.idx_to_token[self.start_token_index] = start_token
             self.idx_to_token[self.end_token_index] = end_token
- 
+    
     def encode(self, sentence):
         sequence = [self.token_to_idx[c] for c in sentence if c in self.token_to_idx]
         if self.add_start_end:
@@ -113,13 +113,3 @@ class DataPrepper:
         stop_probs = np.ones((norm_mel.shape[0]))
         stop_probs[-1] = 2
         return norm_mel, encoded_phonemes, stop_probs
-
-
-class ForwardDataPrepper:
-    
-    def __init__(self):
-        pass
-    
-    def __call__(self, sample):
-        mel, encoded_phonemes, durations = np.load(str(sample), allow_pickle=True)
-        return mel, encoded_phonemes, durations

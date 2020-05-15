@@ -8,7 +8,7 @@ from model.layers import DecoderPrenet, Postnet
 from utils.losses import masked_mean_absolute_error, new_scaled_crossentropy
 from preprocessing.data_handling import Tokenizer
 from preprocessing.text_processing import _phonemes, Phonemizer, _punctuations
-from model.layers import DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
+from model.layers import SelfAttentionBlocks, CrossAttentionBlocks
 
 
 class AutoregressiveTransformer(tf.keras.models.Model):
@@ -50,11 +50,6 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=True)
         self.phonemizer = Phonemizer(language=phoneme_language)
-        
-        # self.encoder_prenet = EncoderPrenet(vocab_size=self.tokenizer.vocab_size,
-        #                                     out_size=encoder_model_dimension,
-        #                                     prenet_size=encoder_prenet_dimension,
-        #                                     dropout_rate=dropout_rate)
         self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_prenet_dimension,
                                                         name='Embedding')
         self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dimension,
@@ -101,6 +96,10 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.debug = debug
         self.__apply_all_signatures()
     
+    @property
+    def step(self):
+        return int(self.optimizer.iterations)
+    
     def __apply_all_signatures(self):
         self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
         self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
@@ -143,54 +142,6 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         model_output.update(
             {'decoder_attention': attention_weights, 'decoder_output': dec_output, 'out_proj': out_proj})
         return model_output
-    
-    def call(self, inputs, targets, training):
-        encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)
-        model_out = self._call_decoder(encoder_output, targets, padding_mask, training)
-        model_out.update({'encoder_attention': encoder_attention})
-        return model_out
-    
-    def predict(self, inp, max_length=1000, encode=True, verbose=True):
-        if encode:
-            inp = self.encode_text(inp)
-        inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
-        output = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
-        output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
-        out_dict = {}
-        encoder_output, padding_mask, encoder_attention = self.forward_encoder(inp)
-        for i in range(int(max_length // self.r) + 1):
-            model_out = self.forward_decoder(encoder_output, output, padding_mask)
-            output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
-            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.r:, :]],
-                                      axis=-2)
-            stop_pred = model_out['stop_prob'][:, -1]
-            out_dict = {'mel': output_concat[0, 1:, :],
-                        'decoder_attention': model_out['decoder_attention'],
-                        'encoder_attention': encoder_attention}
-            if verbose:
-                sys.stdout.write(f'\rpred text mel: {i} stop out: {float(stop_pred[0, 2])}')
-            if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
-                if verbose:
-                    print('Stopping')
-                break
-        return out_dict
-    
-    def _set_r(self, r):
-        if self.r == r:
-            return
-        self.r = r
-        self.__apply_all_signatures()
-    
-    def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
-                      reduction_factor: float = None, drop_n_heads: int = None):
-        if decoder_prenet_dropout is not None:
-            self.decoder_prenet_dropout = decoder_prenet_dropout
-        if learning_rate is not None:
-            self.optimizer.lr.assign(learning_rate)
-        if reduction_factor is not None:
-            self._set_r(reduction_factor)
-        if drop_n_heads is not None:
-            self.drop_n_heads = drop_n_heads
     
     def _forward(self, inp, output):
         model_out = self.__call__(inputs=inp,
@@ -239,10 +190,6 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         model_out, _ = self._gta_forward(inp, tar, stop_prob, training=False)
         return model_out
     
-    @property
-    def step(self):
-        return int(self.optimizer.iterations)
-    
     def _compile(self, stop_scaling, optimizer):
         self.loss_weights = [1., 1., 1.]
         self.compile(loss=[masked_mean_absolute_error,
@@ -251,12 +198,60 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                      loss_weights=self.loss_weights,
                      optimizer=optimizer)
     
+    def _set_r(self, r):
+        if self.r == r:
+            return
+        self.r = r
+        self.__apply_all_signatures()
+    
     def build_graph(self, r: int):
         self._set_r(r)
         try:
             self.forward([0], output=[0], decoder_prenet_dropout=0)
         except:
             pass
+    
+    def call(self, inputs, targets, training):
+        encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)
+        model_out = self._call_decoder(encoder_output, targets, padding_mask, training)
+        model_out.update({'encoder_attention': encoder_attention})
+        return model_out
+    
+    def predict(self, inp, max_length=1000, encode=True, verbose=True):
+        if encode:
+            inp = self.encode_text(inp)
+        inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
+        output = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
+        output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
+        out_dict = {}
+        encoder_output, padding_mask, encoder_attention = self.forward_encoder(inp)
+        for i in range(int(max_length // self.r) + 1):
+            model_out = self.forward_decoder(encoder_output, output, padding_mask)
+            output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
+            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.r:, :]],
+                                      axis=-2)
+            stop_pred = model_out['stop_prob'][:, -1]
+            out_dict = {'mel': output_concat[0, 1:, :],
+                        'decoder_attention': model_out['decoder_attention'],
+                        'encoder_attention': encoder_attention}
+            if verbose:
+                sys.stdout.write(f'\rpred text mel: {i} stop out: {float(stop_pred[0, 2])}')
+            if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
+                if verbose:
+                    print('Stopping')
+                break
+        return out_dict
+    
+    def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
+                      reduction_factor: float = None, drop_n_heads: int = None):
+        if decoder_prenet_dropout is not None:
+            self.decoder_prenet_dropout = decoder_prenet_dropout
+        if learning_rate is not None:
+            self.optimizer.lr.assign(learning_rate)
+        if reduction_factor is not None:
+            self._set_r(reduction_factor)
+        if drop_n_heads is not None:
+            self.drop_n_heads = drop_n_heads
     
     def load_weights(self, weights_path: str, r: int = 1):
         self.build_graph(r)
@@ -281,198 +276,3 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     def encode_text(self, text):
         phons = self.phonemizer.encode(text, clean=True)
         return self.tokenizer.encode(phons)
-
-
-class ForwardTransformer(tf.keras.models.Model):
-    def __init__(self, model_dim: int,
-                 dropout_rate: float,
-                 decoder_num_heads: list,
-                 encoder_num_heads: list,
-                 encoder_maximum_position_encoding: int,
-                 decoder_maximum_position_encoding: int,
-                 encoder_feed_forward_dimension: int = None,
-                 decoder_feed_forward_dimension: int = None,
-                 encoder_dense_blocks=1,
-                 decoder_dense_blocks=0,
-                 mel_channels=80,
-                 phoneme_language='en',
-                 debug=False,
-                 max_r=10,
-                 **kwargs):
-        super(ForwardTransformer, self).__init__(**kwargs)
-        self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=False)
-        self.phonemizer = Phonemizer(language=phoneme_language)
-        self.decoder_prenet_dropout = 0.
-        self.drop_n_heads = 0
-        self.max_r = max_r
-        self.r = max_r
-        self.mel_channels = mel_channels
-        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, model_dim,
-                                                        name='Embedding')
-        self.encoder = SelfAttentionBlocks(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=encoder_num_heads,
-                                           feed_forward_dimension=encoder_feed_forward_dimension,
-                                           maximum_position_encoding=encoder_maximum_position_encoding,
-                                           dense_blocks=encoder_dense_blocks,
-                                           name='Encoder')
-        self.dur_pred = DurationPredictor(model_dim=model_dim, dropout_rate=dropout_rate, name='dur_pred')
-        self.expand = Expand(name='expand', model_dim=model_dim)
-        self.decoder_prenet = DecoderPrenet(model_dim=model_dim,
-                                            dense_hidden_units=model_dim,
-                                            name='DecoderPrenet')
-        self.decoder = SelfAttentionBlocks(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=decoder_num_heads,
-                                           feed_forward_dimension=decoder_feed_forward_dimension,
-                                           maximum_position_encoding=decoder_maximum_position_encoding,
-                                           dense_blocks=decoder_dense_blocks,
-                                           name='Decoder')
-        self.project_reduced = tf.keras.layers.Dense(self.mel_channels * self.max_r, name='Project')
-        # self.out = tf.keras.layers.Dense(mel_channels)
-        self.training_input_signature = [
-            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
-            tf.TensorSpec(shape=(None, None), dtype=tf.int32)
-        ]
-        self.forward_input_signature = [
-            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-        ]
-        self.debug = debug
-        self.__apply_all_signatures()
-    
-    def __apply_all_signatures(self):
-        self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
-        self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
-        self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
-    
-    def call(self, x, target_durations, training):
-        padding_mask = create_encoder_padding_mask(x)
-        x = self.encoder_prenet(x)
-        x, encoder_attention = self.encoder(x, training=training, padding_mask=padding_mask,
-                                            drop_n_heads=self.drop_n_heads)
-        durations = self.dur_pred(x, training=training)
-        durations = (1. - tf.reshape(padding_mask, tf.shape(durations))) * durations
-        if target_durations is not None:
-            mels = self.expand(x, target_durations)
-        else:
-            mels = self.expand(x, durations)
-        mels = mels[:, 0::self.r, :]
-        expanded_mask = create_mel_padding_mask(mels)
-        mels = self.decoder_prenet(mels, training=training, dropout_rate=self.decoder_prenet_dropout)
-        mels, decoder_attention = self.decoder(mels, training=training, padding_mask=expanded_mask,
-                                               drop_n_heads=self.drop_n_heads, reduction_factor=self.r)
-        # mels = self.out(mels)
-        out_proj = self.project_reduced(mels)[:, :, :self.r * self.mel_channels]
-        b = int(tf.shape(out_proj)[0])
-        t = int(tf.shape(out_proj)[1])
-        mels = tf.reshape(out_proj, (b, t * self.r, self.mel_channels))
-        model_out = {'mel': mels,
-                     'duration': durations,
-                     'expanded_mask': expanded_mask,
-                     'encoder_attention': encoder_attention,
-                     'decoder_attention': decoder_attention}
-        return model_out
-    
-    def _train_step(self, input_sequence, target_sequence, target_durations):
-        target_durations = tf.expand_dims(target_durations, -1)
-        mel_len = int(tf.shape(target_sequence)[1])
-        with tf.GradientTape() as tape:
-            model_out = self.__call__(input_sequence, target_durations, training=True)
-            loss, loss_vals = weighted_sum_losses((target_sequence,
-                                                   target_durations),
-                                                  (model_out['mel'][:, :mel_len, :],
-                                                   model_out['duration']),
-                                                  self.loss,
-                                                  self.loss_weights)
-        model_out.update({'loss': loss})
-        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1]}})
-        gradients = tape.gradient(model_out['loss'], self.trainable_variables)
-        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
-        return model_out
-    
-    def _set_r(self, r):
-        if self.r == r:
-            return
-        self.r = r
-        self.__apply_all_signatures()
-    
-    def build_graph(self, r: int):
-        self._set_r(r)
-        try:
-            self.forward([0], output=[0], decoder_prenet_dropout=0)
-        except:
-            pass
-    
-    def load_weights(self, weights_path: str, r: int = 1):
-        self.build_graph(r)
-        # self.build_graph()
-        super(ForwardTransformer, self).load_weights(weights_path)
-    
-    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None, r: int = 1, verbose=True):
-        self.build_graph(self.max_r)
-        # self.build_graph()
-        ckpt = tf.train.Checkpoint(net=self)
-        manager = tf.train.CheckpointManager(ckpt, checkpoint_dir,
-                                             max_to_keep=None)
-        if checkpoint_path:
-            ckpt.restore(checkpoint_path)
-            if verbose:
-                print(f'restored weights from {checkpoint_path}')
-        else:
-            ckpt.restore(manager.latest_checkpoint)
-            if verbose:
-                print(f'restored weights from {manager.latest_checkpoint}')
-        self._set_r(r)
-        return ckpt, manager
-    
-    @property
-    def step(self):
-        return int(self.optimizer.iterations)
-    
-    def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
-                      drop_n_heads: int = None, reduction_factor: float = None):
-        if decoder_prenet_dropout is not None:
-            self.decoder_prenet_dropout = decoder_prenet_dropout
-        if learning_rate is not None:
-            self.optimizer.lr.assign(learning_rate)
-        if reduction_factor is not None:
-            self._set_r(reduction_factor)
-        if drop_n_heads is not None:
-            self.drop_n_heads = drop_n_heads
-    
-    def __apply_signature(self, function, signature):
-        if self.debug:
-            return function
-        else:
-            return tf.function(input_signature=signature)(function)
-    
-    def encode_text(self, text):
-        phons = self.phonemizer.encode(text, clean=True)
-        return self.tokenizer.encode(phons)
-    
-    def _compile(self, optimizer):
-        self.loss_weights = [3., 1.]
-        self.compile(loss=[masked_mean_absolute_error,
-                           masked_mean_absolute_error],
-                     loss_weights=self.loss_weights,
-                     optimizer=optimizer)
-    
-    def _val_step(self, input_sequence, target_sequence, target_durations):
-        target_durations = tf.expand_dims(target_durations, -1)
-        mel_len = int(tf.shape(target_sequence)[1])
-        model_out = self.__call__(input_sequence, target_durations, training=False)
-        loss, loss_vals = weighted_sum_losses((target_sequence,
-                                               target_durations),
-                                              (model_out['mel'][:, :mel_len, :],
-                                               model_out['duration']),
-                                              self.loss,
-                                              self.loss_weights)
-        model_out.update({'loss': loss})
-        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1]}})
-        return model_out
-    
-    def _forward(self, input_sequence):
-        return self.__call__(input_sequence, target_durations=None, training=False)
-    
-    def predict(self, inp, encode=True):
-        if encode:
-            inp = self.encode_text(inp)
-            inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
-        return self.forward(inp)
