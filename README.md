@@ -20,7 +20,9 @@ pip install -r requirements.txt
 ```
 
 Read the individual scripts for more command line arguments.
-### Prepare dataset folder
+### Dataset
+You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/).
+#### Custom dataset
 Prepare a dataset in the following format:
 ```
 |- dataset_folder/
@@ -32,17 +34,15 @@ Prepare a dataset in the following format:
 where `metadata.csv` has the following format: 
 ``` wav_file_name|trascription ```
 
-The dataset [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) is in this format.
-
-### Prepare configuration folder
+### Configuration
 To train on LJSpeech, or if unsure, simply use ```config/standard```.<br>
 **EDIT PATHS**: in `data_config.yaml` edit the paths to point at the desired folders.<br>
+#### Custom configuration
+Configurations files are dataset dependent, you will need to tune```config/standard``` if using a different dataset.<br>
+The configuration files are:
+ - `model_config.yaml`: training and model settings;
+ - `data_config.yaml`: data processing settings.
 
-Alternatively create the following ```yaml``` configuration files:
- - `autoregressive_config.yaml` contains the settings for creating and training the transformer model;
- - `data_config.yaml` contains the settings processing the data, it's sued by both models.
-
-Note: configurations files are dataset dependent, ```config/standard``` is tuned for LJSpeech v1.1.
 ### Process dataset
 ```bash
 python create_dataset.py --config /path/to/config/folder/ 
