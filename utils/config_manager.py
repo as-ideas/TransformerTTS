@@ -1,5 +1,6 @@
-from pathlib import Path
 import subprocess
+import shutil
+from pathlib import Path
 
 import numpy as np
 import tensorflow as tf
@@ -8,7 +9,7 @@ import ruamel.yaml
 from model.models import AutoregressiveTransformer, ForwardTransformer
 
 
-class ConfigLoader:
+class ConfigManager:
     
     def __init__(self, config_path: str, model_kind: str, session_name: str = None):
         if model_kind not in ['autoregressive', 'forward']:
@@ -22,6 +23,7 @@ class ConfigLoader:
             if self.config['session_name'] is None:
                 session_name = self.git_hash
         self.session_name = '_'.join(filter(None, [self.config_path.name, session_name]))
+        self.base_dir, self.log_dir, self.train_datadir, self.weights_dir = self._make_folder_paths()
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         self.max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
         if model_kind == 'autoregressive':
@@ -42,14 +44,15 @@ class ConfigLoader:
         except Exception as e:
             print(f"WARNING: could not retrieve git hash. {e}")
     
-    def update_config(self):
-        self.config['git_hash'] = self.git_hash
-        self.model_config['git_hash'] = self.git_hash
-        self.data_config['session_name'] = self.session_name
-        self.model_config['session_name'] = self.session_name
-        self.config['session_name'] = self.session_name
+    def _check_hash(self):
+        try:
+            git_hash = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
+            if self.config['git_hash'] != git_hash:
+                print(f"WARNING: git hash mismatch. Current: {git_hash}. Config hash: {self.config['git_hash']}")
+        except Exception as e:
+            print(f"WARNING: could not check git hash. {e}")
     
-    def make_folder_paths(self):
+    def _make_folder_paths(self):
         base_dir = Path(self.config['log_directory']) / self.session_name
         log_dir = base_dir / f'{self.model_kind}_logs'
         weights_dir = base_dir / f'{self.model_kind}_weights'
@@ -59,13 +62,29 @@ class ConfigLoader:
         train_datadir = Path(train_datadir)
         return base_dir, log_dir, train_datadir, weights_dir
     
-    def _check_hash(self):
-        try:
-            git_hash = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
-            if self.config['git_hash'] != git_hash:
-                print(f"WARNING: git hash mismatch. Current: {git_hash}. Config hash: {self.config['git_hash']}")
-        except Exception as e:
-            print(f"WARNING: could not check git hash. {e}")
+    @staticmethod
+    def _print_dict_values(values, key_name, level=0, tab_size=2):
+        tab = level * tab_size * ' '
+        print(tab + '-', key_name, ':', values)
+    
+    def _print_dictionary(self, dictionary, recursion_level=0):
+        for key in dictionary.keys():
+            if isinstance(key, dict):
+                recursion_level += 1
+                self._print_dictionary(dictionary[key], recursion_level)
+            else:
+                self._print_dict_values(dictionary[key], key_name=key, level=recursion_level)
+    
+    def print_config(self):
+        print('\nCONFIGURATION', self.session_name)
+        self._print_dictionary(self.config)
+    
+    def update_config(self):
+        self.config['git_hash'] = self.git_hash
+        self.model_config['git_hash'] = self.git_hash
+        self.data_config['session_name'] = self.session_name
+        self.model_config['session_name'] = self.session_name
+        self.config['session_name'] = self.session_name
     
     def get_model(self, ignore_hash=False):
         if not ignore_hash:
@@ -131,19 +150,20 @@ class ConfigLoader:
         self.yaml.dump(self.model_config, open(log_dir / f'{self.model_kind}_config.yaml', 'w'))
         self.yaml.dump(self.data_config, open(log_dir / 'data_config.yaml', 'w'))
     
-    @staticmethod
-    def _print_dict_values(values, key_name, level=0, tab_size=2):
-        tab = level * tab_size * ' '
-        print(tab + '-', key_name, ':', values)
-    
-    def _print_dictionary(self, dictionary, recursion_level=0):
-        for key in dictionary.keys():
-            if isinstance(key, dict):
-                recursion_level += 1
-                self._print_dictionary(dictionary[key], recursion_level)
-            else:
-                self._print_dict_values(dictionary[key], key_name=key, level=recursion_level)
-    
-    def print_config(self):
-        print('\nCONFIGURATION', self.session_name)
-        self._print_dictionary(self.config)
+    def create_remove_dirs(self, clear_dir: False, clear_logs: False, clear_weights: False):
+        self.base_dir.mkdir(exist_ok=True)
+        if clear_dir:
+            delete = input(f'Delete {self.log_dir} AND {self.weights_dir}? (y/[n])')
+            if delete == 'y':
+                shutil.rmtree(self.log_dir, ignore_errors=True)
+                shutil.rmtree(self.weights_dir, ignore_errors=True)
+        if clear_logs:
+            delete = input(f'Delete {self.log_dir}? (y/[n])')
+            if delete == 'y':
+                shutil.rmtree(self.log_dir, ignore_errors=True)
+        if clear_weights:
+            delete = input(f'Delete {self.weights_dir}? (y/[n])')
+            if delete == 'y':
+                shutil.rmtree(self.weights_dir, ignore_errors=True)
+        self.log_dir.mkdir(exist_ok=True)
+        self.weights_dir.mkdir(exist_ok=True)

@@ -82,7 +82,7 @@ class Tokenizer:
             self.vocab_size += 2
             self.idx_to_token[self.start_token_index] = start_token
             self.idx_to_token[self.end_token_index] = end_token
- 
+    
     def encode(self, sentence):
         sequence = [self.token_to_idx[c] for c in sentence if c in self.token_to_idx]
         if self.add_start_end:

@@ -3,7 +3,6 @@ import tensorflow as tf
 
 
 def get_angles(pos, i, model_dim):
-    # angle_rates = 1 / np.power(10000, (2 * (i // 2)) / np.float32(model_dim))
     angle_rates = 1 / np.power(10000, (2 * i) / np.float32(model_dim))
     return pos * angle_rates
 

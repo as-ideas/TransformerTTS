@@ -15,12 +15,12 @@ model_dimension: 264
 
 # TRAINING
 dropout_rate: 0.1
-decoder_dropout_schedule:
+decoder_dropout_schedule:  # dropout scheduling for the decoder status
   - [0, 0.9]
   - [50_000, 0.]
 learning_rate_schedule:
   - [0, 1.0e-4]
-head_drop_schedule:
+head_drop_schedule:  # head-level dropout: how many heads to set to zero at training time
   - [0, 0]
   - [10_000, 1]
   - [20_000, 2]

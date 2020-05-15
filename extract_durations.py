@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
 
-from utils.config_loader import ConfigLoader
+from utils.config_manager import ConfigManager
 from preprocessing.data_handling import load_files, Dataset, DataPrepper
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.alignments import get_durations_from_alignment
@@ -28,7 +28,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--config', dest='config', type=str)
 parser.add_argument('--session_name', dest='session_name', default=None)
 args = parser.parse_args()
-config_loader = ConfigLoader(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
+config_loader = ConfigManager(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
 config = config_loader.config
 _, _, train_datadir, weights_dir = config_loader.make_folder_paths()
 

@@ -368,23 +368,6 @@ class ConvBatchNormBlock(tf.keras.layers.Layer):
         return x
 
 
-# class EncoderPrenet(tf.keras.layers.Layer):
-#     def __init__(self, vocab_size: int, prenet_size: int, out_size: int, conv_layers: int = 3, kernel_size: int = 5,
-#                  dropout_rate: float = 0.1, **kwargs):
-#         super(EncoderPrenet, self).__init__(**kwargs)
-#         self.embedding = tf.keras.layers.Embedding(input_dim=vocab_size, output_dim=prenet_size)
-#         self.conv_blocks = ConvBatchNormBlock(out_size=prenet_size, n_filters=prenet_size, n_layers=conv_layers,
-#                                               kernel_size=kernel_size, dropout_prob=dropout_rate, padding='causal',
-#                                               inner_activation='relu', last_activation='relu')
-#         self.out = tf.keras.layers.Dense(out_size, activation='linear')
-#         self.dropout = tf.keras.layers.Dropout(dropout_rate)
-#
-#     def call(self, inputs, training):
-#         x = self.embedding(inputs)
-#         x = self.conv_blocks(x, training=training)
-#         x = self.out(x)
-#         return self.dropout(x)
-
 class Postnet(tf.keras.layers.Layer):
     
     def __init__(self, mel_channels: int, conv_filters: int = 256, conv_layers: int = 5, kernel_size: int = 5,
