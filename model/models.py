@@ -25,6 +25,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  decoder_maximum_position_encoding: int,
                  encoder_dense_blocks: int,
                  decoder_dense_blocks: int,
+                 encoder_prenet_dimension: int,
                  decoder_prenet_dimension: int,
                  postnet_conv_filters: int,
                  postnet_conv_layers: int,
@@ -50,7 +51,11 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=True)
         self.phonemizer = Phonemizer(language=phoneme_language)
         
-        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension,
+        # self.encoder_prenet = EncoderPrenet(vocab_size=self.tokenizer.vocab_size,
+        #                                     out_size=encoder_model_dimension,
+        #                                     prenet_size=encoder_prenet_dimension,
+        #                                     dropout_rate=dropout_rate)
+        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_prenet_dimension,
                                                         name='Embedding')
         self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dimension,
                                            dropout_rate=dropout_rate,

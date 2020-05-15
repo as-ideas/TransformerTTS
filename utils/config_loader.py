@@ -82,6 +82,7 @@ class ConfigLoader:
                                          encoder_dense_blocks=self.config['encoder_dense_blocks'],
                                          decoder_dense_blocks=self.config['decoder_dense_blocks'],
                                          decoder_prenet_dimension=self.config['decoder_prenet_dimension'],
+                                         encoder_prenet_dimension=self.config['encoder_prenet_dimension'],
                                          postnet_conv_filters=self.config['postnet_conv_filters'],
                                          postnet_conv_layers=self.config['postnet_conv_layers'],
                                          postnet_kernel_size=self.config['postnet_kernel_size'],

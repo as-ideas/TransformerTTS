@@ -191,6 +191,7 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
                  **kwargs):
         super(SelfAttentionBlocks, self).__init__(**kwargs)
         self.model_dim = model_dim
+        self.pos_encoding_scalar = tf.Variable(1.)
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
         self.encoder_SADB = [
@@ -205,7 +206,7 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
     def call(self, inputs, training, padding_mask, drop_n_heads, reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
         x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
-        x += self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
+        x += self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}
         for i, block in enumerate(self.encoder_SADB):
@@ -287,6 +288,7 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
                  **kwargs):
         super(CrossAttentionBlocks, self).__init__(**kwargs)
         self.model_dim = model_dim
+        self.pos_encoding_scalar = tf.Variable(1.)
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
         self.CADB = [
@@ -302,7 +304,7 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
              reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
         x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
-        x += self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
+        x += self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}
         for i, block in enumerate(self.CADB):
@@ -338,21 +340,22 @@ class DecoderPrenet(tf.keras.layers.Layer):
         return x
 
 
-class PostnetConvLayers(tf.keras.layers.Layer):
+class ConvBatchNormBlock(tf.keras.layers.Layer):
     
     def __init__(self, out_size: int, n_filters: int = 256, n_layers: int = 5, kernel_size: int = 5,
-                 dropout_prob: float = 0.5, **kwargs):
-        super(PostnetConvLayers, self).__init__(**kwargs)
+                 dropout_prob: float = 0.5, padding='causal', inner_activation='tanh',
+                 last_activation='linear', **kwargs):
+        super(ConvBatchNormBlock, self).__init__(**kwargs)
         self.convolutions = [tf.keras.layers.Conv1D(filters=n_filters,
                                                     kernel_size=kernel_size,
-                                                    padding='causal',
-                                                    activation='tanh')
+                                                    padding=padding,
+                                                    activation=inner_activation)
                              for _ in range(n_layers - 1)]
         self.dropouts = [tf.keras.layers.Dropout(dropout_prob) for _ in range(n_layers - 1)]
         self.last_conv = tf.keras.layers.Conv1D(filters=out_size,
                                                 kernel_size=kernel_size,
-                                                padding='causal',
-                                                activation='linear')
+                                                padding=padding,
+                                                activation=last_activation)
         self.batch_norms = [tf.keras.layers.BatchNormalization() for _ in range(n_layers)]
     
     def call(self, x, training):
@@ -365,6 +368,23 @@ class PostnetConvLayers(tf.keras.layers.Layer):
         return x
 
 
+# class EncoderPrenet(tf.keras.layers.Layer):
+#     def __init__(self, vocab_size: int, prenet_size: int, out_size: int, conv_layers: int = 3, kernel_size: int = 5,
+#                  dropout_rate: float = 0.1, **kwargs):
+#         super(EncoderPrenet, self).__init__(**kwargs)
+#         self.embedding = tf.keras.layers.Embedding(input_dim=vocab_size, output_dim=prenet_size)
+#         self.conv_blocks = ConvBatchNormBlock(out_size=prenet_size, n_filters=prenet_size, n_layers=conv_layers,
+#                                               kernel_size=kernel_size, dropout_prob=dropout_rate, padding='causal',
+#                                               inner_activation='relu', last_activation='relu')
+#         self.out = tf.keras.layers.Dense(out_size, activation='linear')
+#         self.dropout = tf.keras.layers.Dropout(dropout_rate)
+#
+#     def call(self, inputs, training):
+#         x = self.embedding(inputs)
+#         x = self.conv_blocks(x, training=training)
+#         x = self.out(x)
+#         return self.dropout(x)
+
 class Postnet(tf.keras.layers.Layer):
     
     def __init__(self, mel_channels: int, conv_filters: int = 256, conv_layers: int = 5, kernel_size: int = 5,
@@ -372,7 +392,7 @@ class Postnet(tf.keras.layers.Layer):
         super(Postnet, self).__init__(**kwargs)
         self.mel_channels = mel_channels
         self.stop_linear = tf.keras.layers.Dense(3)
-        self.postnet_conv_layers = PostnetConvLayers(
+        self.postnet_conv_layers = ConvBatchNormBlock(
             out_size=mel_channels, n_filters=conv_filters, n_layers=conv_layers, kernel_size=kernel_size
         )
         self.add_layer = tf.keras.layers.Add()
