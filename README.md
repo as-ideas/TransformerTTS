@@ -4,9 +4,9 @@
     <br>
 <p>
 
-<h3 align="center">
+<h2 align="center">
 <p>A Text-to-Speech Transformer in TensorFlow 2.0
-</h3>
+</h2>
 
 Implementation of an autoregressive Transformer based neural network for Text-to-Speech (TTS). <br>
 This repo is based on the following paper:
