@@ -62,8 +62,6 @@ where `metadata.csv` has the following format:
 ```bash
 python create_dataset.py --config /path/to/config/folder/
 ```
-
-##### Configure dataset
 * To train on LJSpeech, or if unsure, simply use ```config/standard```
 * **EDIT PATHS**: in `data_config.yaml` edit the paths to point at the desired folders if using a custom dataset
 
