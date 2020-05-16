@@ -44,7 +44,11 @@ pip install -r requirements.txt
 Read the individual scripts for more command line arguments.
 
 ## Dataset
-You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/).
+You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
+
+#### Configuration
+* If training LJSpeech, or if unsure, simply use ```config/standard```
+* **EDIT PATHS**: in `data_config.yaml` edit the paths to point at your dataset and log folders
 
 #### Custom dataset
 Prepare a dataset in the following format:
@@ -58,12 +62,10 @@ Prepare a dataset in the following format:
 where `metadata.csv` has the following format:
 ``` wav_file_name|transcription ```
 
-#### Process dataset
+#### Create training dataset
 ```bash
 python create_dataset.py --config /path/to/config/folder/
 ```
-* To train on LJSpeech, or if unsure, simply use ```config/standard```
-* **EDIT PATHS**: in `data_config.yaml` edit the paths to point at the desired folders if using a custom dataset
 
 ## Training
 ```bash
