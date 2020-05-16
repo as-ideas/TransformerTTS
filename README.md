@@ -1,6 +1,6 @@
 <p align="center">
     <br>
-    <img src="https://raw.githubusercontent.com/as-ideas/TransformerTTS/dev_autoregressive_only/docs/transformers.png" width="400"/>
+    <img src="https://raw.githubusercontent.com/as-ideas/TransformerTTS/dev_autoregressive_only/docs/transformer_logo.png" width="400"/>
     <br>
 <p>
 
