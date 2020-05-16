@@ -12,12 +12,12 @@ Implementation of an autoregressive Transformer based neural network for Text-to
 This repo is based on the following paper:
 - [Neural Speech Synthesis with Transformer Network](https://arxiv.org/abs/1809.08895)
 
-The spectrograms are converted using the pre-trained vocoder model of [WaveRNN](https://github.com/fatchord/WaveRNN).<br>
 Spectrograms produced with LJSpeech and standard data configuration from this repo are compatible with [WaveRNN](https://github.com/fatchord/WaveRNN).
 
 ## 🔈 Samples
 
-[Can be found here.](https://as-ideas.github.io/TransformerTTS/)
+[Can be found here.](https://as-ideas.github.io/TransformerTTS/)<br>
+These samples' spectrograms are converted using the pre-trained [WaveRNN](https://github.com/fatchord/WaveRNN) vocoder.<br>
 
 ## 📖 Contents
 - [Installation](#installation)
