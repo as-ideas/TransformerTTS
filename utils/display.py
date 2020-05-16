@@ -20,6 +20,7 @@ def buffer_mel(ms, sr):
 
 def tight_grid(images):
     images = np.array(images)
+    images = np.pad(images, [[0, 0], [1, 1], [1, 1]], 'constant', constant_values=1)  # add borders
     if len(images.shape) != 3:
         raise Exception
     else:
