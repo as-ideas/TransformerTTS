@@ -9,7 +9,7 @@
 </h2>
 
 
-### 🎧 Samples from the autoregressive model, converted with [WaveRNN](https://github.com/fatchord/WaveRNN>WaveRNN) vocoder
+### 🎧 Samples from the autoregressive model, converted with [WaveRNN](https://github.com/fatchord/WaveRNN) vocoder
 
 <p class="text">Scientists, at the CERN laboratory, say they have discovered a new particle.</p>
 <audio src="https://github.com/as-ideas/tts_model_outputs/blob/master/ljspeech_transformertts/cern_particle.wav?raw=true" controls preload></audio>
