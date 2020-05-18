@@ -2,10 +2,10 @@
     <br>
     <img src="https://raw.githubusercontent.com/as-ideas/TransformerTTS/master/docs/transformer_logo.png" width="400"/>
     <br>
-<p>
+</p>
 
 <h2 align="center">
-<p>A Text-to-Speech Transformer in TensorFlow 2
+<p>A Text-to-Speech Transformer in TensorFlow 2</p>
 </h2>
 
 Implementation of an autoregressive Transformer based neural network for Text-to-Speech (TTS). <br>
