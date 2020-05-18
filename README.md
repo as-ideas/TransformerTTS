@@ -1,11 +1,11 @@
 <p align="center">
     <br>
-    <img src="https://raw.githubusercontent.com/as-ideas/TransformerTTS/dev_autoregressive_only/docs/transformer_logo.png" width="400"/>
+    <img src="https://raw.githubusercontent.com/as-ideas/TransformerTTS/master/docs/transformer_logo.png" width="400"/>
     <br>
 <p>
 
 <h2 align="center">
-<p>A Text-to-Speech Transformer in TensorFlow 2.0
+<p>A Text-to-Speech Transformer in TensorFlow 2
 </h2>
 
 Implementation of an autoregressive Transformer based neural network for Text-to-Speech (TTS). <br>
