@@ -1,0 +1,28 @@
+# PATHS: change accordingly
+data_directory: '/path/to/dataset' # path to wavs and metafile directory
+log_directory: '/path/to/logdir'   # weights and logs are stored here
+train_data_directory: None         # optional: alternative directory where to store processed data (default is data_dir)
+wav_subdir_name: 'wavs'            # subfolder in data_directory containing wavs files
+metadata_filename: 'metadata.csv'  # name of metadata file under data_directory
+session_name: None                 # session naming, can be specified in command line
+
+# DATA
+n_samples: 100000
+n_test: 100
+mel_start_value: 4
+mel_end_value: -4
+
+# AUDIO
+sampling_rate: 22050
+n_fft: 2048
+mel_channels: 80
+hop_length: 275                    # 12.5ms - in line with Tacotron 2 paper
+win_length: 1100                   # 50ms - same reason as above
+f_min: 40
+min_level_db: -100
+ref_level_db: 20
+peak_norm: False  # if False, only normalizes to peak if peak>1
+max_norm: 4 # normalizes values between -max norm, max_norm
+
+# TOKENIZER
+phoneme_language: 'en'

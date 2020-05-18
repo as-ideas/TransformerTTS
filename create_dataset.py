@@ -1,5 +1,6 @@
 import argparse
 import os
+from pathlib import Path
 
 import librosa
 import numpy as np
@@ -7,13 +8,9 @@ import tqdm
 import ruamel.yaml
 
 from preprocessing.text_processing import Phonemizer, TextCleaner
-from utils.config_loader import ConfigLoader
 from utils.audio import melspectrogram
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--metafile', dest='META_FILE', type=str, required=True)
-parser.add_argument('--wavdir', dest='WAV_DIR', type=str, required=True)
-parser.add_argument('--targetdir', dest='TARGET_DIR', type=str, required=True)
 parser.add_argument('--config', dest='CONFIG', type=str, required=True)
 parser.add_argument('--dont_cache_phonemes', dest='CACHE_PHON', action='store_false')
 parser.add_argument('--njobs', dest='NJOBS', type=int, default=16)
@@ -22,10 +19,15 @@ parser.add_argument('--recompute_phon', dest='RECOMPUTE_PHON', action='store_tru
 args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
-
 yaml = ruamel.yaml.YAML()
-configloader = ConfigLoader(args.CONFIG)
-config = configloader.config
+config = yaml.load(open(str(Path(args.CONFIG) / 'data_config.yaml'), 'rb'))
+args.DATA_DIR = config['data_directory']
+args.META_FILE = os.path.join(args.DATA_DIR, config['metadata_filename'])
+args.WAV_DIR = os.path.join(args.DATA_DIR, config['wav_subdir_name'])
+args.TARGET_DIR = config['train_data_directory']
+if args.TARGET_DIR is None:
+    args.TARGET_DIR = args.DATA_DIR
+
 mel_dir = os.path.join(args.TARGET_DIR, 'mels')
 if not os.path.exists(mel_dir):
     os.makedirs(mel_dir)

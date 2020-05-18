@@ -1,12 +1,10 @@
-import os
-import shutil
 import argparse
 
 import tensorflow as tf
 import numpy as np
 from tqdm import trange
 
-from utils.config_loader import ConfigLoader
+from utils.config_manager import ConfigManager
 from preprocessing.data_handling import load_files, Dataset, DataPrepper
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
@@ -27,22 +25,7 @@ if gpus:
     except RuntimeError as e:
         # Memory growth must be set before GPUs have been initialized
         print(e)
-
-
-# aux functions declaration
-
-def create_dirs(args):
-    base_dir = os.path.join(args.log_dir, session_name)
-    log_dir = os.path.join(base_dir, f'logs/')
-    weights_dir = os.path.join(base_dir, f'weights/')
-    if args.clear_dir:
-        delete = input('Delete current logs and weights? (y/[n])')
-        if delete == 'y':
-            shutil.rmtree(base_dir, ignore_errors=True)
-    os.makedirs(log_dir, exist_ok=True)
-    os.makedirs(weights_dir, exist_ok=True)
-    return weights_dir, log_dir, base_dir
-
+        
 
 @ignore_exception
 @time_it
@@ -68,74 +51,58 @@ def validate(model,
     return val_loss['loss']
 
 
-def print_dict_values(values, key_name, level=0, tab_size=2):
-    tab = level * tab_size * ' '
-    print(tab + '-', key_name, ':', values)
-
-
-def print_dictionary(config, recursion_level=0):
-    for key in config.keys():
-        if isinstance(key, dict):
-            recursion_level += 1
-            print_dictionary(config[key], recursion_level)
-        else:
-            print_dict_values(config[key], key_name=key, level=recursion_level)
-
-
 # consuming CLI, creating paths and directories, load data
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--datadir', dest='datadir', type=str)
-parser.add_argument('--logdir', dest='log_dir', default='/tmp/summaries', type=str)
 parser.add_argument('--config', dest='config', type=str)
 parser.add_argument('--reset_dir', dest='clear_dir', action='store_true',
                     help="deletes everything under this config's folder.")
+parser.add_argument('--reset_logs', dest='clear_logs', action='store_true',
+                    help="deletes logs under this config's folder.")
+parser.add_argument('--reset_weights', dest='clear_weights', action='store_true',
+                    help="deletes weights under this config's folder.")
 parser.add_argument('--session_name', dest='session_name', default=None)
 args = parser.parse_args()
-session_name = args.session_name
-if not session_name:
-    session_name = os.path.splitext(os.path.basename(args.config))[0]
-config_loader = ConfigLoader(config=args.config)
-config_loader.config['datadir'] = args.datadir
-config = config_loader.config
-weights_paths, log_dir, base_dir = create_dirs(args)
-config_loader.dump_config(os.path.join(base_dir, session_name + '.yaml'))
+config_manager = ConfigManager(config_path=args.config, session_name=args.session_name)
+config = config_manager.config
+config_manager.create_remove_dirs(clear_dir=args.clear_dir,
+                                  clear_logs=args.clear_logs,
+                                  clear_weights=args.clear_weights)
+config_manager.dump_config(str(config_manager.base_dir))
+config_manager.print_config()
 
-meldir = os.path.join(args.datadir, 'mels')
-train_meta = os.path.join(args.datadir, 'train_metafile.txt')
-test_meta = os.path.join(args.datadir, 'test_metafile.txt')
-train_samples, _ = load_files(metafile=train_meta,
-                              meldir=meldir,
+train_samples, _ = load_files(metafile=str(config_manager.train_datadir / 'train_metafile.txt'),
+                              meldir=str(config_manager.train_datadir / 'mels'),
                               num_samples=config['n_samples'])  # (phonemes, mel)
-val_samples, _ = load_files(metafile=test_meta,
-                            meldir=meldir,
+val_samples, _ = load_files(metafile=str(config_manager.train_datadir / 'test_metafile.txt'),
+                            meldir=str(config_manager.train_datadir / 'mels'),
                             num_samples=config['n_samples'])  # (phonemes, text, mel)
-print('\nCONFIGURATION', session_name)
-print_dictionary(config, recursion_level=1)
 
 # get model, prepare data for model, create datasets
-model = config_loader.get_model()
-config_loader.compile_model(model)
+model = config_manager.get_model()
+config_manager.compile_model(model)
 data_prep = DataPrepper(config=config,
                         tokenizer=model.tokenizer)
 
-test_list = [data_prep(s, include_text=True) for s in val_samples]
+test_list = [data_prep(s) for s in val_samples]
 train_dataset = Dataset(samples=train_samples,
                         preprocessor=data_prep,
                         batch_size=config['batch_size'],
+                        mel_channels=config['mel_channels'],
                         shuffle=True)
 val_dataset = Dataset(samples=val_samples,
                       preprocessor=data_prep,
                       batch_size=config['batch_size'],
+                      mel_channels=config['mel_channels'],
                       shuffle=False)
 
 # create logger and checkpointer and restore latest model
 
-summary_manager = SummaryManager(model=model, log_dir=log_dir, config=config)
+summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir, config=config)
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
                                  optimizer=model.optimizer,
                                  net=model)
-manager = tf.train.CheckpointManager(checkpoint, weights_paths,
+manager = tf.train.CheckpointManager(checkpoint, str(config_manager.weights_dir),
                                      max_to_keep=config['keep_n_weights'],
                                      keep_checkpoint_every_n_hours=config['keep_checkpoint_every_n_hours'])
 checkpoint.restore(manager.latest_checkpoint)
@@ -151,13 +118,15 @@ t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
     mel, phonemes, stop = train_dataset.next_batch()
-    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['dropout_schedule'])
+    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_dropout_schedule'])
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
+    drop_n_heads = tf.cast(reduction_schedule(model.step, config['head_drop_schedule']), tf.int32)
     t.display(f'reduction factor {reduction_factor}', pos=10)
     model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
                         learning_rate=learning_rate,
-                        reduction_factor=reduction_factor)
+                        reduction_factor=reduction_factor,
+                        drop_n_heads=drop_n_heads)
     output = model.train_step(inp=phonemes,
                               tar=mel,
                               stop_prob=stop)
@@ -169,10 +138,11 @@ for _ in t:
             t.display(f'{n_steps}-steps average loss: {sum(losses[-n_steps:]) / n_steps}', pos=pos + 2)
     
     summary_manager.display_loss(output, tag='Train')
-    summary_manager.display_scalar(tag='Meta/dropout', scalar_value=decoder_prenet_dropout)
+    summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet_dropout)
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=model.r)
-    if (model.step + 1) % config['train_images_plotting_frequency'] == 0:
+    summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
+    if model.step % config['train_images_plotting_frequency'] == 0:
         summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel_linear'][0], tag=f'Train/linear_mel_out')
         summary_manager.display_mel(mel=output['final_output'][0], tag=f'Train/predicted_mel')
@@ -180,24 +150,23 @@ for _ in t:
         summary_manager.display_mel(mel=residual[0], tag=f'Train/conv-linear_residual')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
     
-    if (model.step + 1) % config['weights_save_frequency'] == 0:
+    if model.step % config['weights_save_frequency'] == 0:
         save_path = manager.save()
         t.display(f'checkpoint at step {model.step}: {save_path}', pos=len(config['n_steps_avg_losses']) + 2)
     
-    if (model.step + 1) % config['validation_frequency'] == 0:
+    if model.step % config['validation_frequency'] == 0:
         val_loss, time_taken = validate(model=model,
                                         val_dataset=val_dataset,
                                         summary_manager=summary_manager)
         t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
                   pos=len(config['n_steps_avg_losses']) + 3)
     
-    if (model.step + 1) % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
+    if model.step % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
         for j in range(config['n_predictions']):
-            mel, phonemes, stop, text_seq = test_list[j]
+            mel, phonemes, stop = test_list[j]
             t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
             pred = model.predict(phonemes,
                                  max_length=mel.shape[0] + 50,
-                                 decoder_prenet_dropout=decoder_prenet_dropout,
                                  encode=False,
                                  verbose=False)
             pred_mel = pred['mel']

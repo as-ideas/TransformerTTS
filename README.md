@@ -1,12 +1,56 @@
-# Text to Speech Transformer
-Implementation of a Transformer based neural network for text to speech.
+<p align="center">
+    <br>
+    <img src="https://raw.githubusercontent.com/as-ideas/TransformerTTS/dev_autoregressive_only/docs/transformer_logo.png" width="400"/>
+    <br>
+<p>
 
-## Contents
+<h2 align="center">
+<p>A Text-to-Speech Transformer in TensorFlow 2.0
+</h2>
+
+Implementation of an autoregressive Transformer based neural network for Text-to-Speech (TTS). <br>
+This repo is based on the following paper:
+- [Neural Speech Synthesis with Transformer Network](https://arxiv.org/abs/1809.08895)
+
+Spectrograms produced with LJSpeech and standard data configuration from this repo are compatible with [WaveRNN](https://github.com/fatchord/WaveRNN).
+
+## 🔈 Samples
+
+[Can be found here.](https://as-ideas.github.io/TransformerTTS/)<br>
+These samples' spectrograms are converted using the pre-trained [WaveRNN](https://github.com/fatchord/WaveRNN) vocoder.<br>
+
+## 📖 Contents
+- [Installation](#installation)
+- [Dataset](#dataset)
 - [Training](#training)
-- [Prediction](#prediction-wip)
+- [Prediction](#prediction)
 
-## Training
-### Prepare dataset folder
+## Installation
+
+Make sure you have:
+
+* Python >= 3.6
+
+Install espeak as phonemizer backend (for macOS use brew):
+```
+sudo apt-get install espeak
+```
+
+Then install the rest with pip:
+```
+pip install -r requirements.txt
+```
+
+Read the individual scripts for more command line arguments.
+
+## Dataset
+You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
+
+#### Configuration
+* If training LJSpeech, or if unsure, simply use ```config/standard```
+* **EDIT PATHS**: in `data_config.yaml` edit the paths to point at your dataset and log folders
+
+#### Custom dataset
 Prepare a dataset in the following format:
 ```
 |- dataset_folder/
@@ -15,39 +59,26 @@ Prepare a dataset in the following format:
 |       |- file1.wav
 |       |- ...
 ```
-where `metadata.csv` has the following format: 
-``` wav_file_name|trascription ```
+where `metadata.csv` has the following format:
+``` wav_file_name|transcription ```
 
-The dataset [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) is in this format.
-
-### Prepare configuration file
-Prepare a ```yaml``` configuration file with architecture, data and training configurations.
-
-If unsure, simply use ```config/standard_config.yaml```.
-
-Note: configurations files are dataset dependent, ```standard_config.yaml``` is tuned for LJSpeech v1.1.
-
-### Process dataset
-From the root folder run
-
+#### Create training dataset
+```bash
+python create_dataset.py --config /path/to/config/folder/
 ```
-python scripts/create_dataset.py 
-    --metafile /path/to/metadata.csv 
-    --wavdir /path/to/wav/directory/
-    --targetdir /directory/to/store/spectrograms/
-    --config /path/to/config/file.yaml
+
+## Training
+```bash
+python train.py --config /path/to/config_folder/
 ```
-### Run training
-From the root folder run
-```
-python scripts/train.py
-    --datadir /path/to/spectrograms/
-    --logdir /logs/directory/
-    --config /path/to/config_file.yaml
-    [--reset_dir | optional flag, deletes all logs and weights from previous sessions]
-```
-#### Resume training
-Simply target an existing log directory with ```--logdir``` to resume training.
+
+#### Training & Model configuration
+- Training and model settings can be configured in `model_config.yaml`
+
+#### Resume or restart training
+- To resume training simply use the same configuration files AND `--session_name` flag, if any
+- To restart training, delete the weights and/or the logs from the logs folder with the training flag `--reset_dir` (both) or `--reset_logs`, `--reset_weights`
+
 #### Monitor training
 We log some information that can be visualized with TensorBoard:
 ```bash
@@ -55,28 +86,25 @@ tensorboard --logdir /logs/directory/
 ```
 
 ## Prediction
-In a Jupyter notebook
 ```python
-import IPython.display as ipd
-from utils.config_loader import ConfigLoader
+from utils.config_manager import ConfigManager
 from utils.audio import reconstruct_waveform
 
-# Create a `ConfigLoader` object using a config file and restore a checkpoint or directly load a weights file
-config_loader = ConfigLoader('/path/to/config.yaml')
+config_loader = ConfigManager('/path/to/config/')
 model = config_loader.get_model()
-model.load_checkpoint('/path/to/checkpoint/weights/', checkpoint_path=None) # optional: specify checkpoint file
-# Run predictions
-out = model.predict("Please, say something.")
+model.load_checkpoint('/path/to/checkpoint/model_weights/', checkpoint_path=None) # optional: specify checkpoint file
+out = model.predict('Please, say something.')
 
-# Convert spectrogram to wav (with griffin lim) and display
-wav= reconstruct_waveform(out['mel'].numpy().T, config=config_loader.config)
-ipd.display(ipd.Audio(wav, rate=config_loader.config['sampling_rate']))
+# Convert spectrogram to wav (with griffin lim)
+wav = reconstruct_waveform(out['mel'].numpy().T, config=config_loader.config)
 ```
 
 ## Maintainers
-
 * Francesco Cardinale, github: [cfrancesco](https://github.com/cfrancesco)
 
-## Copyright
+## Special thanks
+[WaveRNN](https://github.com/fatchord/WaveRNN): we took the data processing from here and use their vocoder to produce the samples. <br>
+[Erogol](https://github.com/erogol): for the lively exchange on TTS topics. <br>
 
+## Copyright
 See [LICENSE](LICENSE) for details.
