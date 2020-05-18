@@ -7,6 +7,7 @@ import tensorflow as tf
 import ruamel.yaml
 
 from model.models import AutoregressiveTransformer
+from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 
 
 class ConfigManager:
@@ -119,12 +120,10 @@ class ConfigManager:
                                         beta_2=0.98,
                                         epsilon=1e-9)
     
-    def dump_config(self, log_dir: str):
+    def dump_config(self):
         self.update_config()
-        log_dir = Path(log_dir) / 'config'
-        log_dir.mkdir(exist_ok=True)
-        self.yaml.dump(self.model_config, open(log_dir / f'model_config.yaml', 'w'))
-        self.yaml.dump(self.data_config, open(log_dir / 'data_config.yaml', 'w'))
+        self.yaml.dump(self.model_config, open(self.base_dir / f'model_config.yaml', 'w'))
+        self.yaml.dump(self.data_config, open(self.base_dir / 'data_config.yaml', 'w'))
     
     def create_remove_dirs(self, clear_dir: False, clear_logs: False, clear_weights: False):
         self.base_dir.mkdir(exist_ok=True)
@@ -143,3 +142,23 @@ class ConfigManager:
                 shutil.rmtree(self.weights_dir, ignore_errors=True)
         self.log_dir.mkdir(exist_ok=True)
         self.weights_dir.mkdir(exist_ok=True)
+    
+    def load_model(self, checkpoint_path: str = None, verbose=True):
+        model = self.get_model()
+        self.compile_model(model)
+        ckpt = tf.train.Checkpoint(net=model)
+        manager = tf.train.CheckpointManager(ckpt, self.weights_dir,
+                                             max_to_keep=None)
+        if checkpoint_path:
+            ckpt.restore(checkpoint_path)
+            if verbose:
+                print(f'restored weights from {checkpoint_path} at step {model.step}')
+        else:
+            ckpt.restore(manager.latest_checkpoint)
+            if verbose:
+                print(f'restored weights from {manager.latest_checkpoint} at step {model.step}')
+        decoder_prenet_dropout = piecewise_linear_schedule(model.step, self.config['decoder_dropout_schedule'])
+        reduction_factor = reduction_schedule(model.step, self.config['reduction_factor_schedule'])
+        model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
+                            reduction_factor=reduction_factor)
+        return model
