@@ -7,6 +7,7 @@ import tensorflow as tf
 import ruamel.yaml
 
 from model.models import AutoregressiveTransformer, ForwardTransformer
+from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 
 
 class ConfigManager:
@@ -89,51 +90,50 @@ class ConfigManager:
     def get_model(self, ignore_hash=False):
         if not ignore_hash:
             self._check_hash()
-        return AutoregressiveTransformer(mel_channels=self.config['mel_channels'],
-                                         encoder_model_dimension=self.config['encoder_model_dimension'],
-                                         decoder_model_dimension=self.config['decoder_model_dimension'],
-                                         encoder_num_heads=self.config['encoder_num_heads'],
-                                         decoder_num_heads=self.config['decoder_num_heads'],
-                                         encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
-                                         decoder_feed_forward_dimension=self.config['decoder_feed_forward_dimension'],
-                                         encoder_maximum_position_encoding=self.config['encoder_max_position_encoding'],
-                                         decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
-                                         encoder_dense_blocks=self.config['encoder_dense_blocks'],
-                                         decoder_dense_blocks=self.config['decoder_dense_blocks'],
-                                         decoder_prenet_dimension=self.config['decoder_prenet_dimension'],
-                                         encoder_prenet_dimension=self.config['encoder_prenet_dimension'],
-                                         postnet_conv_filters=self.config['postnet_conv_filters'],
-                                         postnet_conv_layers=self.config['postnet_conv_layers'],
-                                         postnet_kernel_size=self.config['postnet_kernel_size'],
-                                         dropout_rate=self.config['dropout_rate'],
-                                         max_r=self.max_r,
-                                         mel_start_value=self.config['mel_start_value'],
-                                         mel_end_value=self.config['mel_end_value'],
-                                         phoneme_language=self.config['phoneme_language'],
-                                         debug=self.config['debug'])
+        if self.model_kind == 'autoregressive':
+            return AutoregressiveTransformer(mel_channels=self.config['mel_channels'],
+                                             encoder_model_dimension=self.config['encoder_model_dimension'],
+                                             decoder_model_dimension=self.config['decoder_model_dimension'],
+                                             encoder_num_heads=self.config['encoder_num_heads'],
+                                             decoder_num_heads=self.config['decoder_num_heads'],
+                                             encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
+                                             decoder_feed_forward_dimension=self.config['decoder_feed_forward_dimension'],
+                                             encoder_maximum_position_encoding=self.config['encoder_max_position_encoding'],
+                                             decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
+                                             encoder_dense_blocks=self.config['encoder_dense_blocks'],
+                                             decoder_dense_blocks=self.config['decoder_dense_blocks'],
+                                             decoder_prenet_dimension=self.config['decoder_prenet_dimension'],
+                                             encoder_prenet_dimension=self.config['encoder_prenet_dimension'],
+                                             postnet_conv_filters=self.config['postnet_conv_filters'],
+                                             postnet_conv_layers=self.config['postnet_conv_layers'],
+                                             postnet_kernel_size=self.config['postnet_kernel_size'],
+                                             dropout_rate=self.config['dropout_rate'],
+                                             max_r=self.max_r,
+                                             mel_start_value=self.config['mel_start_value'],
+                                             mel_end_value=self.config['mel_end_value'],
+                                             phoneme_language=self.config['phoneme_language'],
+                                             debug=self.config['debug'])
     
-    def get_forward_model(self, ignore_hash=False):
-        if not ignore_hash:
-            self._check_hash()
-        return ForwardTransformer(model_dim=self.config['model_dimension'],
-                                  dropout_rate=self.config['dropout_rate'],
-                                  decoder_num_heads=self.config['decoder_num_heads'],
-                                  encoder_num_heads=self.config['encoder_num_heads'],
-                                  encoder_maximum_position_encoding=self.config['encoder_max_position_encoding'],
-                                  decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
-                                  encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
-                                  decoder_feed_forward_dimension=self.config['decoder_feed_forward_dimension'],
-                                  mel_channels=self.config['mel_channels'],
-                                  encoder_dense_blocks=self.config['encoder_dense_blocks'],
-                                  decoder_dense_blocks=self.config['decoder_dense_blocks'],
-                                  phoneme_language=self.config['phoneme_language'],
-                                  debug=self.config['debug'], )
+        else:
+            return ForwardTransformer(model_dim=self.config['model_dimension'],
+                                      dropout_rate=self.config['dropout_rate'],
+                                      decoder_num_heads=self.config['decoder_num_heads'],
+                                      encoder_num_heads=self.config['encoder_num_heads'],
+                                      encoder_maximum_position_encoding=self.config['encoder_max_position_encoding'],
+                                      decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
+                                      encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
+                                      decoder_feed_forward_dimension=self.config['decoder_feed_forward_dimension'],
+                                      mel_channels=self.config['mel_channels'],
+                                      encoder_dense_blocks=self.config['encoder_dense_blocks'],
+                                      decoder_dense_blocks=self.config['decoder_dense_blocks'],
+                                      phoneme_language=self.config['phoneme_language'],
+                                      debug=self.config['debug'], )
     
     def compile_model(self, model):
-        model._compile(stop_scaling=self.stop_scaling, optimizer=self.new_adam(self.learning_rate))
-    
-    def compile_forward_model(self, model):
-        model._compile(optimizer=self.new_adam(self.learning_rate))
+        if self.model_kind == 'autoregressive':
+            model._compile(stop_scaling=self.stop_scaling, optimizer=self.new_adam(self.learning_rate))
+        else:
+            model._compile(optimizer=self.new_adam(self.learning_rate))
     
     # TODO: move to model
     @staticmethod
@@ -143,12 +143,10 @@ class ConfigManager:
                                         beta_2=0.98,
                                         epsilon=1e-9)
     
-    def dump_config(self, log_dir: str):
+    def dump_config(self):
         self.update_config()
-        log_dir = Path(log_dir) / 'config'
-        log_dir.mkdir(exist_ok=True)
-        self.yaml.dump(self.model_config, open(log_dir / f'{self.model_kind}_config.yaml', 'w'))
-        self.yaml.dump(self.data_config, open(log_dir / 'data_config.yaml', 'w'))
+        self.yaml.dump(self.model_config, open(self.base_dir / f'{self.model_kind}_config.yaml', 'w'))
+        self.yaml.dump(self.data_config, open(self.base_dir / 'data_config.yaml', 'w'))
     
     def create_remove_dirs(self, clear_dir: False, clear_logs: False, clear_weights: False):
         self.base_dir.mkdir(exist_ok=True)
@@ -167,3 +165,23 @@ class ConfigManager:
                 shutil.rmtree(self.weights_dir, ignore_errors=True)
         self.log_dir.mkdir(exist_ok=True)
         self.weights_dir.mkdir(exist_ok=True)
+    
+    def load_model(self, checkpoint_path: str = None, verbose=True):
+        model = self.get_model()
+        self.compile_model(model)
+        ckpt = tf.train.Checkpoint(net=model)
+        manager = tf.train.CheckpointManager(ckpt, self.weights_dir,
+                                             max_to_keep=None)
+        if checkpoint_path:
+            ckpt.restore(checkpoint_path)
+            if verbose:
+                print(f'restored weights from {checkpoint_path} at step {model.step}')
+        else:
+            ckpt.restore(manager.latest_checkpoint)
+            if verbose:
+                print(f'restored weights from {manager.latest_checkpoint} at step {model.step}')
+        decoder_prenet_dropout = piecewise_linear_schedule(model.step, self.config['decoder_dropout_schedule'])
+        reduction_factor = reduction_schedule(model.step, self.config['reduction_factor_schedule'])
+        model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
+                            reduction_factor=reduction_factor)
+        return model

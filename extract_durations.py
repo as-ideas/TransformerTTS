@@ -30,18 +30,17 @@ parser.add_argument('--session_name', dest='session_name', default=None)
 args = parser.parse_args()
 config_loader = ConfigManager(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
 config = config_loader.config
-_, _, train_datadir, weights_dir = config_loader.make_folder_paths()
 
-meldir = train_datadir / 'mels'
-target_dir = train_datadir / 'forward_data'
+meldir = config_loader.train_datadir / 'mels'
+target_dir = config_loader.train_datadir / 'forward_data'
 train_target_dir = target_dir / 'train'
 val_target_dir = target_dir / 'val'
 target_dir.mkdir(exist_ok=True)
 train_target_dir.mkdir(exist_ok=True)
 val_target_dir.mkdir(exist_ok=True)
-config_loader.dump_config(str(target_dir))
-train_meta = train_datadir / 'train_metafile.txt'
-test_meta = train_datadir / 'test_metafile.txt'
+config_loader.dump_config()
+train_meta = config_loader.train_datadir / 'train_metafile.txt'
+test_meta = config_loader.train_datadir / 'test_metafile.txt'
 train_samples, _ = load_files(metafile=str(train_meta),
                               meldir=str(meldir),
                               num_samples=config['n_samples'])  # (phonemes, mel)
@@ -50,8 +49,7 @@ val_samples, _ = load_files(metafile=str(test_meta),
                             num_samples=config['n_samples'])  # (phonemes, text, mel)
 
 # get model, prepare data for model, create datasets
-model = config_loader.get_model()
-config_loader.compile_model(model)
+model = config_loader.load_model()
 data_prep = DataPrepper(config=config,
                         tokenizer=model.tokenizer)
 script_batch_size = 5 * config['batch_size']  # faster parallel computation
@@ -65,12 +63,6 @@ val_dataset = Dataset(samples=val_samples,
                       batch_size=script_batch_size,
                       shuffle=False,
                       drop_remainder=False)
-
-model.load_checkpoint(str(weights_dir), r=10)
-decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_dropout_schedule'])
-reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
-model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
-                    reduction_factor=reduction_factor)
 if model.r != 1:
     print(f"ERROR: model's reduction factor is greater than 1, check config. (r={model.r}")
 # identify last decoder block

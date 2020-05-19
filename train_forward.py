@@ -1,5 +1,4 @@
 from pathlib import Path
-import shutil
 import argparse
 from time import time
 
@@ -80,7 +79,7 @@ config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,
                                   clear_weights=args.clear_weights)
-config_manager.dump_config(str(config_manager.base_dir))
+config_manager.dump_config()
 config_manager.print_config()
 
 train_data_list = build_file_list(config_manager.train_datadir / 'forward_data/train')
@@ -98,8 +97,8 @@ val_dataset = Dataset(samples=val_data_list,
                       shuffle=False)
 
 # get model, prepare data for model, create datasets
-model = config_manager.get_forward_model()
-config_manager.compile_forward_model(model)
+model = config_manager.get_model()
+config_manager.compile_model(model)
 
 # create logger and checkpointer and restore latest model
 summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir, config=config)

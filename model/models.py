@@ -204,13 +204,6 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.r = r
         self.__apply_all_signatures()
     
-    def build_graph(self, r: int):
-        self._set_r(r)
-        try:
-            self.forward([0], output=[0], decoder_prenet_dropout=0)
-        except:
-            pass
-    
     def call(self, inputs, targets, training):
         encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)
         model_out = self._call_decoder(encoder_output, targets, padding_mask, training)
@@ -252,26 +245,6 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             self._set_r(reduction_factor)
         if drop_n_heads is not None:
             self.drop_n_heads = drop_n_heads
-    
-    def load_weights(self, weights_path: str, r: int = 1):
-        self.build_graph(r)
-        super(AutoregressiveTransformer, self).load_weights(weights_path)
-    
-    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None, r: int = 1, verbose=True):
-        self.build_graph(self.max_r)
-        ckpt = tf.train.Checkpoint(net=self)
-        manager = tf.train.CheckpointManager(ckpt, checkpoint_dir,
-                                             max_to_keep=None)
-        if checkpoint_path:
-            ckpt.restore(checkpoint_path)
-            if verbose:
-                print(f'restored weights from {checkpoint_path}')
-        else:
-            ckpt.restore(manager.latest_checkpoint)
-            if verbose:
-                print(f'restored weights from {manager.latest_checkpoint}')
-        self._set_r(r)
-        return ckpt, manager
     
     def encode_text(self, text):
         phons = self.phonemizer.encode(text, clean=True)
@@ -388,35 +361,6 @@ class ForwardTransformer(tf.keras.models.Model):
             return
         self.r = r
         self.__apply_all_signatures()
-    
-    def build_graph(self, r: int):
-        self._set_r(r)
-        try:
-            self.forward([0], output=[0], decoder_prenet_dropout=0)
-        except:
-            pass
-    
-    def load_weights(self, weights_path: str, r: int = 1):
-        self.build_graph(r)
-        # self.build_graph()
-        super(ForwardTransformer, self).load_weights(weights_path)
-    
-    def load_checkpoint(self, checkpoint_dir: str, checkpoint_path: str = None, r: int = 1, verbose=True):
-        self.build_graph(self.max_r)
-        # self.build_graph()
-        ckpt = tf.train.Checkpoint(net=self)
-        manager = tf.train.CheckpointManager(ckpt, checkpoint_dir,
-                                             max_to_keep=None)
-        if checkpoint_path:
-            ckpt.restore(checkpoint_path)
-            if verbose:
-                print(f'restored weights from {checkpoint_path}')
-        else:
-            ckpt.restore(manager.latest_checkpoint)
-            if verbose:
-                print(f'restored weights from {manager.latest_checkpoint}')
-        self._set_r(r)
-        return ckpt, manager
     
     @property
     def step(self):
