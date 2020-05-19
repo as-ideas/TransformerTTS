@@ -64,12 +64,12 @@ where `metadata.csv` has the following format:
 
 #### Create training dataset
 ```bash
-python create_dataset.py --config /path/to/config/folder/
+python create_dataset.py --config config/standard
 ```
 
 ## Training
 ```bash
-python train.py --config /path/to/config_folder/
+python train.py --config config/standard
 ```
 
 #### Training & Model configuration
@@ -91,8 +91,7 @@ from utils.config_manager import ConfigManager
 from utils.audio import reconstruct_waveform
 
 config_loader = ConfigManager('/path/to/config/')
-model = config_loader.get_model()
-model.load_checkpoint('/path/to/checkpoint/model_weights/', checkpoint_path=None) # optional: specify checkpoint file
+model = config_loader.load_model()
 out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
