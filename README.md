@@ -19,7 +19,10 @@ Spectrograms produced with LJSpeech and standard data configuration from this re
 [Can be found here.](https://as-ideas.github.io/TransformerTTS/)<br>
 These samples' spectrograms are converted using the pre-trained [WaveRNN](https://github.com/fatchord/WaveRNN) vocoder.<br>
 
-The TTS weights used for these samples can be found [here](https://github.com/as-ideas/tts_model_outputs/tree/master/ljspeech_transformertts) 
+The TTS weights used for these samples can be found [here](https://github.com/as-ideas/tts_model_outputs/tree/master/ljspeech_transformertts).
+
+Check out the notebooks folder for predictions with TransformerTTS and WaveRNN.
+
 ## 📖 Contents
 - [Installation](#installation)
 - [Dataset](#dataset)
