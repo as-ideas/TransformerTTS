@@ -68,7 +68,7 @@ config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,
                                   clear_weights=args.clear_weights)
-config_manager.dump_config(str(config_manager.base_dir))
+config_manager.dump_config()
 config_manager.print_config()
 
 train_samples, _ = load_files(metafile=str(config_manager.train_datadir / 'train_metafile.txt'),
