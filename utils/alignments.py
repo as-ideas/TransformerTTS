@@ -78,6 +78,7 @@ def fix_attention_jumps(binary_attn, alignments_weights, binary_score):
 def binary_attention(attention_weights):
     attention_peak_per_phoneme = attention_weights.max(axis=1)
     binary_attn = (attention_weights.T == attention_peak_per_phoneme).astype(int).T
+    assert np.sum(np.sum(attention_weights.T == attention_peak_per_phoneme, axis=0) != 1) == 0
     binary_score = np.sum(attention_weights * binary_attn)
     return binary_attn, binary_score
 
@@ -141,9 +142,10 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
         if fill_gaps:  # fill zeros durations
             integer_durations = fill_zeros(integer_durations, take_from=fill_mode)
         
-        assert np.sum(integer_durations) == mel_len - 2
+        assert np.sum(integer_durations) == mel_len - 2, f'{np.sum(integer_durations)} vs {mel_len - 2}'
         new_alignment = duration_to_alignment_matrix(integer_durations.astype(int))
-        final_alignment.append(new_alignment)
-
+        best_head = np.argmin(heads_scores)
+        best_attention = unpad_alignments[best_head]
+        final_alignment.append(best_attention.T + new_alignment)
         durations.append(integer_durations)
     return durations, unpad_mels, unpad_phonemes, final_alignment

@@ -153,7 +153,7 @@ all_val_durations[all_val_durations >= 20] = 20
 buckets = len(set(all_val_durations))
 summary_manager.add_histogram(values=all_val_durations, tag='ValidationDurations', buckets=buckets)
 for i, alignment in enumerate(new_alignments):
-    summary_manager.add_image(tag='ValidationAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
+    summary_manager.add_image(tag='ExtractedValidationAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
                               step=i)
     
 train_batch_files = [batch_file for batch_file in train_predictions_dir.iterdir() if batch_file.suffix == '.npy']
@@ -183,6 +183,6 @@ all_train_durations[all_train_durations >= 20] = 20
 buckets = len(set(all_train_durations))
 summary_manager.add_histogram(values=all_train_durations, tag='TrainDurations', buckets=buckets)
 for i, alignment in enumerate(new_alignments):
-    summary_manager.add_image(tag='TrainingAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
+    summary_manager.add_image(tag='ExtractedTrainingAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
                               step=i)
 print('Done.')
