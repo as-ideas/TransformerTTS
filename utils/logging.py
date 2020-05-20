@@ -34,22 +34,29 @@ class SummaryManager:
                  model,
                  log_dir,
                  config,
-                 max_plot_frequency=10):
+                 max_plot_frequency=10,
+                 default_writer='log_dir'):
         self.model = model
         self.log_dir = Path(log_dir)
         self.config = config
         self.plot_frequency = max_plot_frequency
-        self.writers = {'log_dir': tf.summary.create_file_writer(str(self.log_dir))}
+        self.default_writer = default_writer
+        self.writers = {}
+        self.add_writer(tag=default_writer, path=self.log_dir, default=True)
     
-    def add_writer(self, path):
+    def add_writer(self, path, tag=None, default=False):
         """ Adds a writer to self.writers if the writer does not exist already.
             To avoid spamming writers on disk.
             
-            :returns the writer with path as tag
+            :returns the writer on path with tag tag or path
         """
-        if path not in self.writers.keys():
-            self.writers[path] = tf.summary.create_file_writer(str(path))
-        return self.writers[path]
+        if not tag:
+            tag = path
+        if tag not in self.writers.keys():
+            self.writers[tag] = tf.summary.create_file_writer(str(path))
+        if default:
+            self.default_writer = tag
+        return self.writers[tag]
     
     @property
     def global_step(self):
@@ -61,19 +68,21 @@ class SummaryManager:
                 tf.summary.scalar(name=tag, data=dictionary[k], step=self.global_step)
     
     def add_scalar(self, tag, scalar_value):
-        with self.writers['log_dir'].as_default():
+        with self.writers[self.default_writer].as_default():
             tf.summary.scalar(name=tag, data=scalar_value, step=self.global_step)
     
-    def add_image(self, tag, image):
-        with self.writers['log_dir'].as_default():
-            tf.summary.image(name=tag, data=image, step=self.global_step, max_outputs=4)
+    def add_image(self, tag, image, step=None):
+        if step is None:
+            step = self.global_step
+        with self.writers[self.default_writer].as_default():
+            tf.summary.image(name=tag, data=image, step=step, max_outputs=4)
     
-    def add_histogram(self, tag, values):
-        with self.writers['log_dir'].as_default():
-            tf.summary.histogram(name=tag, data=values, step=self.global_step)
+    def add_histogram(self, tag, values, buckets=None):
+        with self.writers[self.default_writer].as_default():
+            tf.summary.histogram(name=tag, data=values, step=self.global_step, buckets=buckets)
     
     def add_audio(self, tag, wav, sr):
-        with self.writers['log_dir'].as_default():
+        with self.writers[self.default_writer].as_default():
             tf.summary.audio(name=tag,
                              data=wav,
                              sample_rate=sr,
@@ -87,7 +96,7 @@ class SummaryManager:
                 # dim 0 of image_batch is now number of heads
                 batch_plot_path = f'{tag}/{layer}/{k}'
                 self.add_image(str(batch_plot_path), tf.expand_dims(tf.expand_dims(image, 0), -1))
-
+    
     @ignore_exception
     def display_mel(self, mel, tag='', sr=22050):
         amp_mel = denormalize(mel, self.config)

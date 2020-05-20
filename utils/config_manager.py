@@ -177,6 +177,9 @@ class ConfigManager:
             if verbose:
                 print(f'restored weights from {checkpoint_path} at step {model.step}')
         else:
+            if manager.latest_checkpoint is None:
+                print(f'WARNING: could not find weights file. Trying to load from \n {self.weights_dir}.')
+                print('Edit data_config.yaml to point at the right log directory.')
             ckpt.restore(manager.latest_checkpoint)
             if verbose:
                 print(f'restored weights from {manager.latest_checkpoint} at step {model.step}')

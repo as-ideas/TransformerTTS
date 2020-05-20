@@ -1,12 +1,13 @@
 import argparse
+import pickle
 
 import tensorflow as tf
 import numpy as np
 from tqdm import tqdm
 
 from utils.config_manager import ConfigManager
+from utils.logging import SummaryManager
 from preprocessing.data_handling import load_files, Dataset, DataPrepper
-from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.alignments import get_durations_from_alignment
 
 # dinamically allocate GPU
@@ -27,88 +28,166 @@ if gpus:
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', dest='config', type=str)
 parser.add_argument('--session_name', dest='session_name', default=None)
+parser.add_argument('--recompute_pred', dest='recompute_pred', action='store_true')
+parser.add_argument('--best', dest='best', action='store_true')
+parser.add_argument('--binary', dest='binary', action='store_true')
+parser.add_argument('--fix_jumps', dest='fix_jumps', action='store_true')
+parser.add_argument('--fill_mode_max', dest='fill_mode_max', action='store_true')
+parser.add_argument('--fill_mode_next', dest='fill_mode_next', action='store_true')
+parser.add_argument('--skip_alignment_plot', dest='skip_alignment_plot', action='store_true')
 args = parser.parse_args()
-config_loader = ConfigManager(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
-config = config_loader.config
+plot_alignments = not args.skip_alignment_plot
+assert (args.fill_mode_max is False) or (args.fill_mode_next is False), 'Choose one gap filling mode.'
+weighted = not args.best
+binary = args.binary
+fill_gaps = args.fill_mode_max or args.fill_mode_next
+fix_jumps = args.fix_jumps
+fill_mode = f"{f'max' * args.fill_mode_max}{f'next' * args.fill_mode_next}"
+filling_tag = f"{f'(max)' * args.fill_mode_max}{f'(next)' * args.fill_mode_next}"
+tag_description = ''.join(
+    [f'{"_weighted" * weighted}{"_best" * (not weighted)}',
+     f'{"_binary" * binary}',
+     f'{"_filled" * fill_gaps}{filling_tag}',
+     f'{"_fix_jumps" * fix_jumps}'])
+writer_tag = f'DurationExtraction{tag_description}'
+print(writer_tag)
+config_manager = ConfigManager(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
+config = config_manager.config
 
-meldir = config_loader.train_datadir / 'mels'
-target_dir = config_loader.train_datadir / 'forward_data'
+meldir = config_manager.train_datadir / 'mels'
+target_dir = config_manager.train_datadir / f'forward_data'
 train_target_dir = target_dir / 'train'
 val_target_dir = target_dir / 'val'
+train_predictions_dir = target_dir / f'train_predictions_{config_manager.session_name}'
+val_predictions_dir = target_dir / f'val_predictions_{config_manager.session_name}'
 target_dir.mkdir(exist_ok=True)
 train_target_dir.mkdir(exist_ok=True)
 val_target_dir.mkdir(exist_ok=True)
-config_loader.dump_config()
-train_meta = config_loader.train_datadir / 'train_metafile.txt'
-test_meta = config_loader.train_datadir / 'test_metafile.txt'
-train_samples, _ = load_files(metafile=str(train_meta),
-                              meldir=str(meldir),
-                              num_samples=config['n_samples'])  # (phonemes, mel)
-val_samples, _ = load_files(metafile=str(test_meta),
-                            meldir=str(meldir),
-                            num_samples=config['n_samples'])  # (phonemes, text, mel)
-
-# get model, prepare data for model, create datasets
-model = config_loader.load_model()
-data_prep = DataPrepper(config=config,
-                        tokenizer=model.tokenizer)
-script_batch_size = 5 * config['batch_size']  # faster parallel computation
-train_dataset = Dataset(samples=train_samples,
-                        preprocessor=data_prep,
-                        batch_size=script_batch_size,
-                        shuffle=False,
-                        drop_remainder=False)
-val_dataset = Dataset(samples=val_samples,
-                      preprocessor=data_prep,
-                      batch_size=script_batch_size,
-                      shuffle=False,
-                      drop_remainder=False)
-if model.r != 1:
-    print(f"ERROR: model's reduction factor is greater than 1, check config. (r={model.r}")
-# identify last decoder block
-n_layers = len(config_loader.config['decoder_num_heads'])
-n_dense = int(config_loader.config['decoder_dense_blocks'])
-n_convs = int(n_layers - n_dense)
-if n_convs > 0:
-    last_layer_key = f'Decoder_ConvBlock{n_convs}_CrossfAttention'
-else:
-    last_layer_key = f'Decoder_DenseBlock{n_dense}_CrossAttention'
-
-print(f'Extracting attention from layer {last_layer_key}')
-# 'log_dir': tf.summary.create_file_writer(str(self.log_dir)) #TODO: log plots in TB
-iterator = tqdm(enumerate(val_dataset.all_batches()))
-for c, (val_mel, val_text, val_stop) in iterator:
-    iterator.set_description(f'Processing validation set')
-    outputs = model.val_step(inp=val_text,
-                             tar=val_mel,
-                             stop_prob=val_stop)
-    durations, unpad_mels, unpad_phonemes = get_durations_from_alignment(
-        batch_alignments=outputs['decoder_attention'][last_layer_key].numpy(),
-        mels=val_mel.numpy(),
-        phonemes=val_text.numpy(),
-        weighted=True,
-        PLOT_OUTLIERS=False,
-        PLOT_ALL=False)
-    for i in range(len(val_mel)):
-        sample_idx = c * script_batch_size + i
-        sample = (unpad_mels[i], unpad_phonemes[i], durations[i])
+train_predictions_dir.mkdir(exist_ok=True)
+val_predictions_dir.mkdir(exist_ok=True)
+config_manager.dump_config()
+script_batch_size = 5 * config['batch_size']
+val_has_files = len([batch_file for batch_file in val_predictions_dir.iterdir() if batch_file.suffix == '.npy'])
+train_has_files = len([batch_file for batch_file in train_predictions_dir.iterdir() if batch_file.suffix == '.npy'])
+model = config_manager.load_model()
+if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
+    train_meta = config_manager.train_datadir / 'train_metafile.txt'
+    test_meta = config_manager.train_datadir / 'test_metafile.txt'
+    train_samples, _ = load_files(metafile=str(train_meta),
+                                  meldir=str(meldir),
+                                  num_samples=config['n_samples'])  # (phonemes, mel)
+    val_samples, _ = load_files(metafile=str(test_meta),
+                                meldir=str(meldir),
+                                num_samples=config['n_samples'])  # (phonemes, text, mel)
+    
+    # get model, prepare data for model, create datasets
+    
+    data_prep = DataPrepper(config=config,
+                            tokenizer=model.tokenizer)
+    script_batch_size = 5 * config['batch_size']  # faster parallel computation
+    train_dataset = Dataset(samples=train_samples,
+                            preprocessor=data_prep,
+                            batch_size=script_batch_size,
+                            shuffle=False,
+                            drop_remainder=False)
+    val_dataset = Dataset(samples=val_samples,
+                          preprocessor=data_prep,
+                          batch_size=script_batch_size,
+                          shuffle=False,
+                          drop_remainder=False)
+    if model.r != 1:
+        print(f"ERROR: model's reduction factor is greater than 1, check config. (r={model.r}")
+    # identify last decoder block
+    n_layers = len(config_manager.config['decoder_num_heads'])
+    n_dense = int(config_manager.config['decoder_dense_blocks'])
+    n_convs = int(n_layers - n_dense)
+    if n_convs > 0:
+        last_layer_key = f'Decoder_ConvBlock{n_convs}_CrossfAttention'
+    else:
+        last_layer_key = f'Decoder_DenseBlock{n_dense}_CrossAttention'
+    print(f'Extracting attention from layer {last_layer_key}')
+    
+    iterator = tqdm(enumerate(val_dataset.all_batches()))
+    for c, (val_mel, val_text, val_stop) in iterator:
+        iterator.set_description(f'Processing validation set')
+        outputs = model.val_step(inp=val_text,
+                                 tar=val_mel,
+                                 stop_prob=val_stop)
+        batch = (val_mel.numpy(), val_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
+        pickle.dump(batch, open(str(val_predictions_dir / f'{c}_batch_prediction.npy'), 'wb'))
+    
+    iterator = tqdm(enumerate(train_dataset.all_batches()))
+    for c, (train_mel, train_text, train_stop) in iterator:
+        iterator.set_description(f'Processing training set')
+        outputs = model.val_step(inp=train_text,
+                                 tar=train_mel,
+                                 stop_prob=train_stop)
+        
+        batch = (train_mel.numpy(), train_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
+        pickle.dump(batch, open(str(train_predictions_dir / f'{c}_batch_prediction.npy'), 'wb'))
+        
+summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir / writer_tag, config=config,
+                                 default_writer=writer_tag)
+val_batch_files = [batch_file for batch_file in val_predictions_dir.iterdir() if batch_file.suffix == '.npy']
+iterator = tqdm(enumerate(val_batch_files))
+all_val_durations = np.array([])
+new_alignments = []
+for c, batch_file in iterator:
+    iterator.set_description(f'Extracting validation alignments')
+    val_mel, val_text, val_alignments = np.load(str(batch_file), allow_pickle=True)
+    durations, unpad_mels, unpad_phonemes, final_align = get_durations_from_alignment(
+        batch_alignments=val_alignments,
+        mels=val_mel,
+        phonemes=val_text,
+        weighted=weighted,
+        binary=binary,
+        fill_gaps=fill_gaps,
+        fill_mode=fill_mode,
+        fix_jumps=fix_jumps,
+        plot_final_alignment=plot_alignments)
+    batch_size = len(val_mel)
+    for i in range(batch_size):
+        sample_idx = c * batch_size + i
+        all_val_durations = np.append(all_val_durations, durations[i])
+        new_alignments.append(final_align[i])
+        sample = (unpad_mels[i], unpad_phonemes[i],)
         np.save(str(val_target_dir / f'{sample_idx}_mel_phon_dur.npy'), sample)
-
-iterator = tqdm(enumerate(train_dataset.all_batches()))
-for c, (train_mel, train_text, train_stop) in iterator:
-    iterator.set_description(f'Processing training set')
-    outputs = model.val_step(inp=train_text,
-                             tar=train_mel,
-                             stop_prob=train_stop)
-    durations, unpad_mels, unpad_phonemes = get_durations_from_alignment(
-        batch_alignments=outputs['decoder_attention'][last_layer_key].numpy(),
-        mels=train_mel.numpy(),
-        phonemes=train_text.numpy(),
-        weighted=True,
-        PLOT_OUTLIERS=False,
-        PLOT_ALL=False)
-    for i in range(len(train_mel)):
-        sample_idx = c * script_batch_size + i
+all_val_durations[all_val_durations >= 20] = 20
+buckets = len(set(all_val_durations))
+summary_manager.add_histogram(values=all_val_durations, tag='ValidationDurations', buckets=buckets)
+if plot_alignments:
+    for i, alignment in enumerate(new_alignments):
+        summary_manager.add_image(tag='ValidationAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
+                                  step=i)
+train_batch_files = [batch_file for batch_file in train_predictions_dir.iterdir() if batch_file.suffix == '.npy']
+iterator = tqdm(enumerate(train_batch_files))
+all_train_durations = np.array([])
+new_alignments = []
+for c, batch_file in iterator:
+    iterator.set_description(f'Extracting training alignments')
+    train_mel, train_text, train_alignments = np.load(str(batch_file), allow_pickle=True)
+    durations, unpad_mels, unpad_phonemes, final_align = get_durations_from_alignment(
+        batch_alignments=train_alignments,
+        mels=train_mel,
+        phonemes=train_text,
+        weighted=weighted,
+        binary=binary,
+        fill_gaps=fill_gaps,
+        fill_mode=fill_mode,
+        fix_jumps=fix_jumps,
+        plot_final_alignment=plot_alignments)
+    batch_size = len(train_mel)
+    for i in range(batch_size):
+        sample_idx = c * batch_size + i
         sample = (unpad_mels[i], unpad_phonemes[i], durations[i])
+        new_alignments.append(final_align[i])
+        all_train_durations = np.append(all_train_durations, durations[i])
         np.save(str(train_target_dir / f'{sample_idx}_mel_phon_dur.npy'), sample)
+all_train_durations[all_train_durations >= 20] = 20
+buckets = len(set(all_train_durations))
+summary_manager.add_histogram(values=all_train_durations, tag='TrainDurations', buckets=buckets)
+if plot_alignments:
+    for i, alignment in enumerate(new_alignments):
+        summary_manager.add_image(tag='TrainingAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
+                                  step=i)
 print('Done.')
