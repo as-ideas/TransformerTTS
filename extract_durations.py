@@ -34,9 +34,7 @@ parser.add_argument('--binary', dest='binary', action='store_true')
 parser.add_argument('--fix_jumps', dest='fix_jumps', action='store_true')
 parser.add_argument('--fill_mode_max', dest='fill_mode_max', action='store_true')
 parser.add_argument('--fill_mode_next', dest='fill_mode_next', action='store_true')
-parser.add_argument('--skip_alignment_plot', dest='skip_alignment_plot', action='store_true')
 args = parser.parse_args()
-plot_alignments = not args.skip_alignment_plot
 assert (args.fill_mode_max is False) or (args.fill_mode_next is False), 'Choose one gap filling mode.'
 weighted = not args.best
 binary = args.binary
@@ -143,8 +141,7 @@ for c, batch_file in iterator:
         binary=binary,
         fill_gaps=fill_gaps,
         fill_mode=fill_mode,
-        fix_jumps=fix_jumps,
-        plot_final_alignment=plot_alignments)
+        fix_jumps=fix_jumps)
     batch_size = len(val_mel)
     for i in range(batch_size):
         sample_idx = c * batch_size + i
@@ -155,10 +152,10 @@ for c, batch_file in iterator:
 all_val_durations[all_val_durations >= 20] = 20
 buckets = len(set(all_val_durations))
 summary_manager.add_histogram(values=all_val_durations, tag='ValidationDurations', buckets=buckets)
-if plot_alignments:
-    for i, alignment in enumerate(new_alignments):
-        summary_manager.add_image(tag='ValidationAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
-                                  step=i)
+for i, alignment in enumerate(new_alignments):
+    summary_manager.add_image(tag='ValidationAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
+                              step=i)
+    
 train_batch_files = [batch_file for batch_file in train_predictions_dir.iterdir() if batch_file.suffix == '.npy']
 iterator = tqdm(enumerate(train_batch_files))
 all_train_durations = np.array([])
@@ -174,8 +171,7 @@ for c, batch_file in iterator:
         binary=binary,
         fill_gaps=fill_gaps,
         fill_mode=fill_mode,
-        fix_jumps=fix_jumps,
-        plot_final_alignment=plot_alignments)
+        fix_jumps=fix_jumps)
     batch_size = len(train_mel)
     for i in range(batch_size):
         sample_idx = c * batch_size + i
@@ -186,8 +182,7 @@ for c, batch_file in iterator:
 all_train_durations[all_train_durations >= 20] = 20
 buckets = len(set(all_train_durations))
 summary_manager.add_histogram(values=all_train_durations, tag='TrainDurations', buckets=buckets)
-if plot_alignments:
-    for i, alignment in enumerate(new_alignments):
-        summary_manager.add_image(tag='TrainingAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
-                                  step=i)
+for i, alignment in enumerate(new_alignments):
+    summary_manager.add_image(tag='TrainingAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
+                              step=i)
 print('Done.')

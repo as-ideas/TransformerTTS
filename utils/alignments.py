@@ -7,28 +7,13 @@ logger = tf.get_logger()
 logger.setLevel(40)
 
 
-# for displaying only
-def map_to_padded_length(inputs):
-    duration, total_length, poss = inputs
-    pos_zeros = tf.zeros(poss)
-    markers = tf.ones(duration)
-    try:
-        padding = tf.zeros(total_length - (duration + poss))
-    except Exception as e:
-        print(e)
-        print(total_length, duration, poss)
-        return
-    attention_weights = tf.concat([pos_zeros, markers, padding], axis=0)
-    return attention_weights
-
-
-# for displaying only
-def duration_to_alignment_matrix(filled_durations):
-    durs = tf.constant(filled_durations, dtype=tf.int32)[tf.newaxis, :]
-    totlen = tf.math.reduce_sum(durs) * tf.ones(tf.shape(durs)[1], dtype=tf.int32)[tf.newaxis, :]
-    pos = tf.math.cumsum(tf.concat([[0], durs[-1][:-1]], axis=0))[tf.newaxis, :]
-    ctc = tf.transpose(tf.concat([durs, totlen, pos], axis=0))
-    return tf.map_fn(map_to_padded_length, ctc, dtype=tf.float32).numpy()
+def duration_to_alignment_matrix(durations):
+    starts = np.cumsum(np.append([0], durations[:-1]))
+    tot_duration = np.sum(durations)
+    pads = tot_duration - starts - durations
+    alignments = [np.concatenate([np.zeros(starts[i]), np.ones(durations[i]), np.zeros(pads[i])]) for i in
+                  range(len(durations))]
+    return np.array(alignments)
 
 
 def clean_attention(binary_attention, jump_threshold):
@@ -98,7 +83,7 @@ def binary_attention(attention_weights):
 
 
 def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=False, binary=False, fill_gaps=False,
-                                 fix_jumps=False, fill_mode='max', plot_final_alignment=True):
+                                 fix_jumps=False, fill_mode='max'):
     assert (binary is True) or (fix_jumps is False), 'Cannot fix jumps in non-binary attention.'
     mel_pad_mask = create_mel_padding_mask(mels)
     phon_pad_mask = create_encoder_padding_mask(phonemes)
@@ -157,11 +142,8 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
             integer_durations = fill_zeros(integer_durations, take_from=fill_mode)
         
         assert np.sum(integer_durations) == mel_len - 2
-        
-        if plot_final_alignment:  # takes time
-            new_alignment = duration_to_alignment_matrix(integer_durations)
-            final_alignment.append(new_alignment)
-        else:
-            final_alignment = None
+        new_alignment = duration_to_alignment_matrix(integer_durations.astype(int))
+        final_alignment.append(new_alignment)
+
         durations.append(integer_durations)
     return durations, unpad_mels, unpad_phonemes, final_alignment
