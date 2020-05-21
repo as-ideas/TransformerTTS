@@ -130,6 +130,7 @@ val_batch_files = [batch_file for batch_file in val_predictions_dir.iterdir() if
 iterator = tqdm(enumerate(val_batch_files))
 all_val_durations = np.array([])
 new_alignments = []
+total_val_samples = 0
 for c, batch_file in iterator:
     iterator.set_description(f'Extracting validation alignments')
     val_mel, val_text, val_alignments = np.load(str(batch_file), allow_pickle=True)
@@ -144,11 +145,12 @@ for c, batch_file in iterator:
         fix_jumps=fix_jumps)
     batch_size = len(val_mel)
     for i in range(batch_size):
-        sample_idx = c * batch_size + i
+        sample_idx = total_val_samples + i
         all_val_durations = np.append(all_val_durations, durations[i])
         new_alignments.append(final_align[i])
-        sample = (unpad_mels[i], unpad_phonemes[i],)
+        sample = (unpad_mels[i], unpad_phonemes[i], durations[i])
         np.save(str(val_target_dir / f'{sample_idx}_mel_phon_dur.npy'), sample)
+    total_val_samples += batch_size
 all_val_durations[all_val_durations >= 20] = 20
 buckets = len(set(all_val_durations))
 summary_manager.add_histogram(values=all_val_durations, tag='ValidationDurations', buckets=buckets)
@@ -160,6 +162,7 @@ train_batch_files = [batch_file for batch_file in train_predictions_dir.iterdir(
 iterator = tqdm(enumerate(train_batch_files))
 all_train_durations = np.array([])
 new_alignments = []
+total_train_samples = 0
 for c, batch_file in iterator:
     iterator.set_description(f'Extracting training alignments')
     train_mel, train_text, train_alignments = np.load(str(batch_file), allow_pickle=True)
@@ -174,11 +177,12 @@ for c, batch_file in iterator:
         fix_jumps=fix_jumps)
     batch_size = len(train_mel)
     for i in range(batch_size):
-        sample_idx = c * batch_size + i
+        sample_idx = total_train_samples + i
         sample = (unpad_mels[i], unpad_phonemes[i], durations[i])
         new_alignments.append(final_align[i])
         all_train_durations = np.append(all_train_durations, durations[i])
         np.save(str(train_target_dir / f'{sample_idx}_mel_phon_dur.npy'), sample)
+    total_train_samples += batch_size
 all_train_durations[all_train_durations >= 20] = 20
 buckets = len(set(all_train_durations))
 summary_manager.add_histogram(values=all_train_durations, tag='TrainDurations', buckets=buckets)
