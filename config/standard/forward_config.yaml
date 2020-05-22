@@ -1,9 +1,12 @@
 # ARCHITECTURE
+decoder_model_dimension: 256
+encoder_model_dimension: 512
 decoder_num_heads: [4,4,4,4]  # the length of this defines the number of layers
 encoder_num_heads: [4,4,4,4]  # the length of this defines the number of layers
 encoder_feed_forward_dimension: 512
 decoder_feed_forward_dimension: 512
 decoder_prenet_dimension: 256
+encoder_prenet_dimension: 512
 encoder_max_position_encoding: 1000
 decoder_max_position_encoding: 10000
 postnet_conv_filters: 256
@@ -11,21 +14,16 @@ postnet_conv_layers: 5
 postnet_kernel_size: 5
 encoder_dense_blocks: 1
 decoder_dense_blocks: 0
-model_dimension: 264
 
 # TRAINING
 dropout_rate: 0.1
 decoder_dropout_schedule:  # dropout scheduling for the decoder status
-  - [0, 0.9]
-  - [50_000, 0.]
+  - [0, 0.54]
 learning_rate_schedule:
   - [0, 1.0e-4]
 head_drop_schedule:  # head-level dropout: how many heads to set to zero at training time
   - [0, 0]
   - [10_000, 1]
-  - [20_000, 2]
-  - [30_000, 3]
-  - [50_000, 1]
 reduction_factor_schedule:
   - [0, 10]
   - [10_000, 5]

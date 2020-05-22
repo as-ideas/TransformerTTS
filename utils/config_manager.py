@@ -96,10 +96,14 @@ class ConfigManager:
                                              decoder_model_dimension=self.config['decoder_model_dimension'],
                                              encoder_num_heads=self.config['encoder_num_heads'],
                                              decoder_num_heads=self.config['decoder_num_heads'],
-                                             encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
-                                             decoder_feed_forward_dimension=self.config['decoder_feed_forward_dimension'],
-                                             encoder_maximum_position_encoding=self.config['encoder_max_position_encoding'],
-                                             decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
+                                             encoder_feed_forward_dimension=self.config[
+                                                 'encoder_feed_forward_dimension'],
+                                             decoder_feed_forward_dimension=self.config[
+                                                 'decoder_feed_forward_dimension'],
+                                             encoder_maximum_position_encoding=self.config[
+                                                 'encoder_max_position_encoding'],
+                                             decoder_maximum_position_encoding=self.config[
+                                                 'decoder_max_position_encoding'],
                                              encoder_dense_blocks=self.config['encoder_dense_blocks'],
                                              decoder_dense_blocks=self.config['decoder_dense_blocks'],
                                              decoder_prenet_dimension=self.config['decoder_prenet_dimension'],
@@ -113,9 +117,10 @@ class ConfigManager:
                                              mel_end_value=self.config['mel_end_value'],
                                              phoneme_language=self.config['phoneme_language'],
                                              debug=self.config['debug'])
-    
+        
         else:
-            return ForwardTransformer(model_dim=self.config['model_dimension'],
+            return ForwardTransformer(encoder_model_dim=self.config['encoder_model_dimension'],
+                                      decoder_model_dim=self.config['decoder_model_dimension'],
                                       dropout_rate=self.config['dropout_rate'],
                                       decoder_num_heads=self.config['decoder_num_heads'],
                                       encoder_num_heads=self.config['encoder_num_heads'],

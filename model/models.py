@@ -252,7 +252,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
 
 
 class ForwardTransformer(tf.keras.models.Model):
-    def __init__(self, model_dim: int,
+    def __init__(self,
+                 encoder_model_dim: int,
+                 decoder_model_dim: int,
                  dropout_rate: float,
                  decoder_num_heads: list,
                  encoder_num_heads: list,
@@ -276,19 +278,19 @@ class ForwardTransformer(tf.keras.models.Model):
         self.max_r = max_r
         self.r = max_r
         self.mel_channels = mel_channels
-        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, model_dim,
+        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dim,
                                                         name='Embedding')
-        self.encoder = SelfAttentionBlocks(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=encoder_num_heads,
+        self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dim, dropout_rate=dropout_rate, num_heads=encoder_num_heads,
                                            feed_forward_dimension=encoder_feed_forward_dimension,
                                            maximum_position_encoding=encoder_maximum_position_encoding,
                                            dense_blocks=encoder_dense_blocks,
                                            name='Encoder')
-        self.dur_pred = DurationPredictor(model_dim=model_dim, dropout_rate=dropout_rate, name='dur_pred')
-        self.expand = Expand(name='expand', model_dim=model_dim)
-        self.decoder_prenet = DecoderPrenet(model_dim=model_dim,
-                                            dense_hidden_units=model_dim,
+        self.dur_pred = DurationPredictor(model_dim=encoder_model_dim, dropout_rate=dropout_rate, name='dur_pred')
+        self.expand = Expand(name='expand', model_dim=encoder_model_dim)
+        self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dim,
+                                            dense_hidden_units=decoder_feed_forward_dimension,
                                             name='DecoderPrenet')
-        self.decoder = SelfAttentionBlocks(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=decoder_num_heads,
+        self.decoder = SelfAttentionBlocks(model_dim=decoder_model_dim, dropout_rate=dropout_rate, num_heads=decoder_num_heads,
                                            feed_forward_dimension=decoder_feed_forward_dimension,
                                            maximum_position_encoding=decoder_maximum_position_encoding,
                                            dense_blocks=decoder_dense_blocks,
