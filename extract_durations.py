@@ -8,6 +8,7 @@ from tqdm import tqdm
 from utils.config_manager import ConfigManager
 from utils.logging import SummaryManager
 from preprocessing.data_handling import load_files, Dataset, DataPrepper
+from model.transformer_utils import create_mel_padding_mask
 from utils.alignments import get_durations_from_alignment
 
 # dinamically allocate GPU
@@ -34,6 +35,7 @@ parser.add_argument('--binary', dest='binary', action='store_true')
 parser.add_argument('--fix_jumps', dest='fix_jumps', action='store_true')
 parser.add_argument('--fill_mode_max', dest='fill_mode_max', action='store_true')
 parser.add_argument('--fill_mode_next', dest='fill_mode_next', action='store_true')
+parser.add_argument('--use_GT', action='store_true')
 args = parser.parse_args()
 assert (args.fill_mode_max is False) or (args.fill_mode_next is False), 'Choose one gap filling mode.'
 weighted = not args.best
@@ -111,7 +113,13 @@ if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
         outputs = model.val_step(inp=val_text,
                                  tar=val_mel,
                                  stop_prob=val_stop)
-        batch = (val_mel.numpy(), val_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
+        if args.use_GT:
+            batch = (val_mel.numpy(), val_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
+        else:
+            mask = create_mel_padding_mask(val_mel)
+            out_val = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(val_mel[:, 1:, :])), -1) * outputs[
+                'final_output'].numpy()
+            batch = (out_val.numpy(), val_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
         pickle.dump(batch, open(str(val_predictions_dir / f'{c}_batch_prediction.npy'), 'wb'))
     
     iterator = tqdm(enumerate(train_dataset.all_batches()))
@@ -120,10 +128,16 @@ if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
         outputs = model.val_step(inp=train_text,
                                  tar=train_mel,
                                  stop_prob=train_stop)
+        if args.use_GT:
+            batch = (train_mel.numpy(), train_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
+        else:
+            mask = create_mel_padding_mask(train_mel)
+            out_train = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(train_mel[:, 1:, :])), -1) * outputs[
+                'final_output'].numpy()
+            batch = (out_train.numpy(), train_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
         
-        batch = (train_mel.numpy(), train_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
         pickle.dump(batch, open(str(train_predictions_dir / f'{c}_batch_prediction.npy'), 'wb'))
-        
+
 summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir / writer_tag, config=config,
                                  default_writer=writer_tag)
 val_batch_files = [batch_file for batch_file in val_predictions_dir.iterdir() if batch_file.suffix == '.npy']
@@ -155,9 +169,10 @@ all_val_durations[all_val_durations >= 20] = 20
 buckets = len(set(all_val_durations))
 summary_manager.add_histogram(values=all_val_durations, tag='ValidationDurations', buckets=buckets)
 for i, alignment in enumerate(new_alignments):
-    summary_manager.add_image(tag='ExtractedValidationAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
+    summary_manager.add_image(tag='ExtractedValidationAlignments',
+                              image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
                               step=i)
-    
+
 train_batch_files = [batch_file for batch_file in train_predictions_dir.iterdir() if batch_file.suffix == '.npy']
 iterator = tqdm(enumerate(train_batch_files))
 all_train_durations = np.array([])

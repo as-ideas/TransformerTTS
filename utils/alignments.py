@@ -24,7 +24,7 @@ def clean_attention(binary_attention, jump_threshold):
         if abs(next_phon_idx - phon_idx) > jump_threshold:
             next_phon_idx = phon_idx
         phon_idx = next_phon_idx
-        clean_attn[i, min(phon_idx, clean_attn.shape[0] - 1)] = 1
+        clean_attn[i, min(phon_idx, clean_attn.shape[1] - 1)] = 1
     return clean_attn
 
 
@@ -78,7 +78,7 @@ def fix_attention_jumps(binary_attn, alignments_weights, binary_score):
 def binary_attention(attention_weights):
     attention_peak_per_phoneme = attention_weights.max(axis=1)
     binary_attn = (attention_weights.T == attention_peak_per_phoneme).astype(int).T
-    assert np.sum(np.sum(attention_weights.T == attention_peak_per_phoneme, axis=0) != 1) == 0
+    assert np.sum(np.sum(attention_weights.T == attention_peak_per_phoneme, axis=0) != 1) == 0  # single peak per mel step
     binary_score = np.sum(attention_weights * binary_attn)
     return binary_attn, binary_score
 
