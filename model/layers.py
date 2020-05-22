@@ -445,7 +445,7 @@ class Expand(tf.keras.layers.Layer):
         self.model_dimension = model_dim
     
     def call(self, x, dimensions):
-        dimensions = tf.squeeze(dimensions)
+        dimensions = tf.squeeze(dimensions, axis=-1)
         dimensions = tf.cast(tf.math.round(dimensions), tf.int32)
         seq_len = tf.shape(x)[1]
         batch_size = tf.shape(x)[0]
