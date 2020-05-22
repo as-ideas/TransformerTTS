@@ -128,6 +128,12 @@ class ConfigManager:
                                       decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
                                       encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
                                       decoder_feed_forward_dimension=self.config['decoder_feed_forward_dimension'],
+                                      encoder_attention_conv_filters=self.config[
+                                          'encoder_attention_conv_filters'],
+                                      decoder_attention_conv_filters=self.config[
+                                          'decoder_attention_conv_filters'],
+                                      encoder_attention_conv_kernel=self.config['encoder_attention_conv_kernel'],
+                                      decoder_attention_conv_kernel=self.config['decoder_attention_conv_kernel'],
                                       mel_channels=self.config['mel_channels'],
                                       encoder_dense_blocks=self.config['encoder_dense_blocks'],
                                       decoder_dense_blocks=self.config['decoder_dense_blocks'],
