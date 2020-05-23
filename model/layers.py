@@ -3,6 +3,8 @@ import tensorflow as tf
 from model.transformer_utils import positional_encoding, scaled_dot_product_attention
 
 
+# TODO: Fix autoregressive call parameters
+
 class CNNResNorm(tf.keras.layers.Layer):
     def __init__(self,
                  out_size: int,
@@ -48,7 +50,7 @@ class CNNResNorm(tf.keras.layers.Layer):
 
 class FFNResNorm(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, dense_hidden_units: int, dropout_rate: float = 0.1, **kwargs):
+    def __init__(self, model_dim: int, dense_hidden_units: int, dropout_rate: float, **kwargs):
         super(FFNResNorm, self).__init__(**kwargs)
         self.d1 = tf.keras.layers.Dense(dense_hidden_units)
         self.activation = tf.keras.layers.Activation('relu')
@@ -205,10 +207,10 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
                  num_heads: list,
                  maximum_position_encoding: int,
                  conv_filters: int,
-                 dropout_rate=0.1,
-                 dense_blocks=1,
-                 kernel_size=5,
-                 conv_activation='relu',
+                 dropout_rate: float,
+                 dense_blocks: int,
+                 kernel_size: int,
+                 conv_activation: str,
                  **kwargs):
         super(SelfAttentionBlocks, self).__init__(**kwargs)
         self.model_dim = model_dim
@@ -243,7 +245,7 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
 
 class CrossAttentionResnorm(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, num_heads: int, dropout_rate: float = 0.1, **kwargs):
+    def __init__(self, model_dim: int, num_heads: int, dropout_rate: float, **kwargs):
         super(CrossAttentionResnorm, self).__init__(**kwargs)
         self.mha = MultiHeadAttention(model_dim, num_heads)
         self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
@@ -258,7 +260,7 @@ class CrossAttentionResnorm(tf.keras.layers.Layer):
 
 class CrossAttentionDenseBlock(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, num_heads: int, dense_hidden_units: int, dropout_rate: float = 0.1, **kwargs):
+    def __init__(self, model_dim: int, num_heads: int, dense_hidden_units: int, dropout_rate: float, **kwargs):
         super(CrossAttentionDenseBlock, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate)
@@ -279,10 +281,10 @@ class CrossAttentionConvBlock(tf.keras.layers.Layer):
                  model_dim: int,
                  num_heads: int,
                  conv_filters: int,
-                 dropout_rate: float = 0.1,
-                 kernel_size: int = 5,
-                 conv_padding: str = 'same',
-                 conv_activation: str = 'relu',
+                 dropout_rate: float,
+                 kernel_size: int,
+                 conv_padding: str,
+                 conv_activation: str,
                  **kwargs):
         super(CrossAttentionConvBlock, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
@@ -312,8 +314,8 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
                  feed_forward_dimension: int,
                  num_heads: list,
                  maximum_position_encoding: int,
-                 dropout_rate=0.1,
-                 dense_blocks=1,
+                 dropout_rate: float,
+                 dense_blocks: int,
                  **kwargs):
         super(CrossAttentionBlocks, self).__init__(**kwargs)
         self.model_dim = model_dim
@@ -399,12 +401,12 @@ class Postnet(tf.keras.layers.Layer):
 class DurationPredictor(tf.keras.layers.Layer):
     def __init__(self,
                  model_dim: int,
-                 kernel_size=3,
-                 conv_padding='same',
-                 conv_activation='relu',
-                 conv_block_n=2,
-                 dense_activation='relu',
-                 dense_scalar=1.,
+                 kernel_size: int,
+                 conv_padding: str,
+                 conv_activation: str,
+                 conv_block_n: int,
+                 dense_activation: str,
+                 dense_scalar: float,
                  **kwargs):
         super(DurationPredictor, self).__init__(**kwargs)
         self.conv_blocks = CNNResNorm(out_size=model_dim,

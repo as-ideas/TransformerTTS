@@ -8,8 +8,9 @@ from model.layers import DecoderPrenet, Postnet
 from utils.losses import masked_mean_absolute_error, new_scaled_crossentropy
 from preprocessing.data_handling import Tokenizer
 from preprocessing.text_processing import _phonemes, Phonemizer, _punctuations
-from model.layers import DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
+from model.layers import DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks, CNNResNorm
 
+# TODO: Fix autoregressive call parameters
 
 class AutoregressiveTransformer(tf.keras.models.Model):
     
@@ -260,16 +261,19 @@ class ForwardTransformer(tf.keras.models.Model):
                  encoder_num_heads: list,
                  encoder_maximum_position_encoding: int,
                  decoder_maximum_position_encoding: int,
+                 postnet_conv_filters: int,
+                 postnet_conv_layers: int,
+                 postnet_kernel_size: int,
+                 encoder_dense_blocks: int,
+                 decoder_dense_blocks: int,
+                 mel_channels: int,
+                 phoneme_language: str,
+                 encoder_attention_conv_filters: int = None,
+                 decoder_attention_conv_filters: int = None,
+                 encoder_attention_conv_kernel: int = None,
+                 decoder_attention_conv_kernel: int = None,
                  encoder_feed_forward_dimension: int = None,
                  decoder_feed_forward_dimension: int = None,
-                 encoder_dense_blocks=1,
-                 decoder_dense_blocks=0,
-                 encoder_attention_conv_filters=1536,
-                 decoder_attention_conv_filters=1536,
-                 encoder_attention_conv_kernel=3,
-                 decoder_attention_conv_kernel=3,
-                 mel_channels=80,
-                 phoneme_language='en',
                  debug=False,
                  max_r=10,
                  decoder_prenet_dropout=0.,
@@ -295,7 +299,14 @@ class ForwardTransformer(tf.keras.models.Model):
                                            kernel_size=encoder_attention_conv_kernel,
                                            conv_activation='relu',
                                            name='Encoder')
-        self.dur_pred = DurationPredictor(model_dim=encoder_model_dim, name='dur_pred')
+        self.dur_pred = DurationPredictor(model_dim=encoder_model_dim,
+                                          kernel_size=3,
+                                          conv_padding='same',
+                                          conv_activation='relu',
+                                          conv_block_n=2,
+                                          dense_activation='relu',
+                                          dense_scalar=1.,
+                                          name='dur_pred')
         self.expand = Expand(name='expand', model_dim=encoder_model_dim)
         self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dim,
                                             dense_hidden_units=decoder_feed_forward_dimension,
@@ -311,12 +322,16 @@ class ForwardTransformer(tf.keras.models.Model):
                                            conv_activation='relu',
                                            name='Decoder')
         # self.project_reduced = tf.keras.layers.Dense(self.mel_channels * self.max_r, name='Project')
-        # self.decoder_postnet = Postnet(mel_channels=mel_channels,
-        #                                conv_filters=postnet_conv_filters,
-        #                                conv_layers=postnet_conv_layers,
-        #                                kernel_size=postnet_kernel_size,
-        #                                name='Postnet')
         self.out = tf.keras.layers.Dense(mel_channels)
+        self.decoder_postnet = CNNResNorm(out_size=mel_channels,
+                                          kernel_size=postnet_kernel_size,
+                                          padding='same',
+                                          inner_activation='tanh',
+                                          last_activation='linear',
+                                          hidden_size=postnet_conv_filters,
+                                          n_layers=postnet_conv_layers,
+                                          normalization='batch',
+                                          name='Postnet')
         self.training_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
@@ -354,7 +369,7 @@ class ForwardTransformer(tf.keras.models.Model):
         # b = int(tf.shape(out_proj)[0])
         # t = int(tf.shape(out_proj)[1])
         # mels = tf.reshape(out_proj, (b, t * self.r, self.mel_channels))
-        # mels = self.decoder_postnet(mels, training=training)
+        mels = self.decoder_postnet(mels, training=training)
         model_out = {'mel': mels,
                      'duration': durations,
                      'expanded_mask': expanded_mask,
