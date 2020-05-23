@@ -163,10 +163,10 @@ class SelfAttentionResNorm(tf.keras.layers.Layer):
 
 class SelfAttentionDenseBlock(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, num_heads: int, dense_hidden_units: int, dropout_rate: float = 0.1, **kwargs):
+    def __init__(self, model_dim: int, num_heads: int, dense_hidden_units: int, dropout_rate: float, **kwargs):
         super(SelfAttentionDenseBlock, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
-        self.ffn = FFNResNorm(model_dim, dense_hidden_units)
+        self.ffn = FFNResNorm(model_dim, dense_hidden_units, dropout_rate=dropout_rate)
     
     def call(self, x, training, mask, drop_n_heads):
         attn_out, attn_weights = self.sarn(x, mask=mask, training=training, drop_n_heads=drop_n_heads)
