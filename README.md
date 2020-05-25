@@ -23,15 +23,15 @@ These samples' spectrograms are converted using the pre-trained [WaveRNN](https:
 
 
 Try it out on Colab:<br>
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize_forward.ipynb) -> Forward <br>
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize.ipynb) -> Autoregressive
+* Forward: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize_forward.ipynb)
+* Autoregressive: [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize.ipynb)
 
 ## 📖 Contents
 - [Installation](#installation)
 - [Dataset](#dataset)
 - [Training](#training)
-    - [Autoregressive](#train_autoregressive_model)
-    - [Forward](#train_forward_model)
+    - [Autoregressive](#train-autoregressive-model)
+    - [Forward](#train-forward-model)
 - [Prediction](#prediction)
 - [Model Weights](#model_weights)
 
