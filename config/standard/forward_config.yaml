@@ -27,8 +27,6 @@ learning_rate_schedule:
   - [0, 1.0e-4]
 head_drop_schedule:  # head-level dropout: how many heads to set to zero at training time
   - [0, 0]
-reduction_factor_schedule:
-  - [0, 1]
 max_steps: 400_000
 batch_size: 16
 debug: False

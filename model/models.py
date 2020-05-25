@@ -431,7 +431,7 @@ class ForwardTransformer(tf.keras.models.Model):
         return model_out
     
     def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
-                      drop_n_heads: int = None):
+                      drop_n_heads: int = None, **kwargs):
         if decoder_prenet_dropout is not None:
             self.decoder_prenet_dropout = decoder_prenet_dropout
         if learning_rate is not None:
@@ -447,4 +447,6 @@ class ForwardTransformer(tf.keras.models.Model):
         if encode:
             inp = self.encode_text(inp)
             inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
-        return self.forward(inp)
+        out = self.forward(inp)
+        out['mel'] = tf.squeeze(out['mel'])
+        return out

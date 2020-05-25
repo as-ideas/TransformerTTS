@@ -26,8 +26,8 @@ class ConfigManager:
         self.session_name = '_'.join(filter(None, [self.config_path.name, session_name]))
         self.base_dir, self.log_dir, self.train_datadir, self.weights_dir = self._make_folder_paths()
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
-        self.max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
         if model_kind == 'autoregressive':
+            self.max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
             self.stop_scaling = self.config.get('stop_loss_scaling', 1.)
     
     def _load_config(self):
@@ -198,7 +198,10 @@ class ConfigManager:
             if verbose:
                 print(f'restored weights from {manager.latest_checkpoint} at step {model.step}')
         decoder_prenet_dropout = piecewise_linear_schedule(model.step, self.config['decoder_dropout_schedule'])
-        reduction_factor = reduction_schedule(model.step, self.config['reduction_factor_schedule'])
+        if self.model_kind == 'autoregressive':
+            reduction_factor = reduction_schedule(model.step, self.config['reduction_factor_schedule'])
+        else:
+            reduction_factor = None
         model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
                             reduction_factor=reduction_factor)
         return model
