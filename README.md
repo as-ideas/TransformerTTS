@@ -21,11 +21,10 @@ Spectrograms produced with LJSpeech and standard data configuration from this re
 
 These samples' spectrograms are converted using the pre-trained [WaveRNN](https://github.com/fatchord/WaveRNN) vocoder.<br>
 
-The TTS weights used for these samples can be found [here](https://github.com/as-ideas/tts_model_outputs/tree/master/ljspeech_transformertts).
 
-Check out the notebooks folder for predictions with TransformerTTS and WaveRNN or just try out our Colab notebook:
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize.ipynb)
+Try it out on Colab:<br>
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize_forward.ipynb) -> Forward <br>
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize.ipynb) -> Autoregressive
 
 ## 📖 Contents
 - [Installation](#installation)
@@ -34,6 +33,7 @@ Check out the notebooks folder for predictions with TransformerTTS and WaveRNN o
     - [Autoregressive](#train_autoregressive_model)
     - [Forward](#train_forward_model)
 - [Prediction](#prediction)
+- [Model Weights](#model_weights)
 
 ## Installation
 
@@ -120,6 +120,12 @@ out = model.predict('Please, say something.')
 # Convert spectrogram to wav (with griffin lim)
 wav = reconstruct_waveform(out['mel'].numpy().T, config=config_loader.config)
 ```
+
+## Model Weights
+| Model URL | Git Hash |
+|---|---|
+|[Forward Model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_forward_transformer.zip)| 4945e775b|
+[Autoregressive Model](None)| 4945e775b|
 
 ## Maintainers
 * Francesco Cardinale, github: [cfrancesco](https://github.com/cfrancesco)
