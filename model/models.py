@@ -10,18 +10,14 @@ from preprocessing.data_handling import Tokenizer
 from preprocessing.text_processing import _phonemes, Phonemizer, _punctuations
 from model.layers import DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks, CNNResNorm
 
-# TODO: Fix autoregressive call parameters
 
 class AutoregressiveTransformer(tf.keras.models.Model):
     
     def __init__(self,
-                 mel_channels: int,
                  encoder_model_dimension: int,
                  decoder_model_dimension: int,
                  encoder_num_heads: list,
                  decoder_num_heads: list,
-                 encoder_feed_forward_dimension: int,
-                 decoder_feed_forward_dimension: int,
                  encoder_maximum_position_encoding: int,
                  decoder_maximum_position_encoding: int,
                  encoder_dense_blocks: int,
@@ -34,8 +30,15 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  dropout_rate: float,
                  mel_start_value: int,
                  mel_end_value: int,
+                 mel_channels: int,
+                 phoneme_language: str,
+                 encoder_attention_conv_filters: int = None,
+                 decoder_attention_conv_filters: int = None,
+                 encoder_attention_conv_kernel: int = None,
+                 decoder_attention_conv_kernel: int = None,
+                 encoder_feed_forward_dimension: int = None,
+                 decoder_feed_forward_dimension: int = None,
                  max_r: int = 10,
-                 phoneme_language: str = 'en',
                  decoder_prenet_dropout=0.,
                  debug=False,
                  **kwargs):
@@ -59,9 +62,13 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                                            feed_forward_dimension=encoder_feed_forward_dimension,
                                            maximum_position_encoding=encoder_maximum_position_encoding,
                                            dense_blocks=encoder_dense_blocks,
+                                           conv_filters=encoder_attention_conv_filters,
+                                           kernel_size=encoder_attention_conv_kernel,
+                                           conv_activation='relu',
                                            name='Encoder')
         self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
                                             dense_hidden_units=decoder_prenet_dimension,
+                                            dropout_rate=decoder_prenet_dropout,
                                             name='DecoderPrenet')
         self.decoder = CrossAttentionBlocks(model_dim=decoder_model_dimension,
                                             dropout_rate=dropout_rate,
@@ -69,6 +76,10 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                                             feed_forward_dimension=decoder_feed_forward_dimension,
                                             maximum_position_encoding=decoder_maximum_position_encoding,
                                             dense_blocks=decoder_dense_blocks,
+                                            conv_filters=decoder_attention_conv_filters,
+                                            conv_kernel=decoder_attention_conv_kernel,
+                                            conv_activation='relu',
+                                            conv_padding='causal',
                                             name='Decoder')
         self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r, name='FinalProj')
         self.decoder_postnet = Postnet(mel_channels=mel_channels,
@@ -254,8 +265,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
 
 class ForwardTransformer(tf.keras.models.Model):
     def __init__(self,
-                 encoder_model_dim: int,
-                 decoder_model_dim: int,
+                 encoder_model_dimension: int,
+                 decoder_model_dimension: int,
                  dropout_rate: float,
                  decoder_num_heads: list,
                  encoder_num_heads: list,
@@ -275,7 +286,6 @@ class ForwardTransformer(tf.keras.models.Model):
                  encoder_feed_forward_dimension: int = None,
                  decoder_feed_forward_dimension: int = None,
                  debug=False,
-                 max_r=10,
                  decoder_prenet_dropout=0.,
                  **kwargs):
         super(ForwardTransformer, self).__init__(**kwargs)
@@ -283,13 +293,10 @@ class ForwardTransformer(tf.keras.models.Model):
         self.phonemizer = Phonemizer(language=phoneme_language)
         self.decoder_prenet_dropout = decoder_prenet_dropout
         self.drop_n_heads = 0
-        self.max_r = max_r
-        self.r = 1
-        # self.r = max_r
         self.mel_channels = mel_channels
-        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dim,
+        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension,
                                                         name='Embedding')
-        self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dim,
+        self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dimension,
                                            dropout_rate=dropout_rate,
                                            num_heads=encoder_num_heads,
                                            feed_forward_dimension=encoder_feed_forward_dimension,
@@ -299,7 +306,7 @@ class ForwardTransformer(tf.keras.models.Model):
                                            kernel_size=encoder_attention_conv_kernel,
                                            conv_activation='relu',
                                            name='Encoder')
-        self.dur_pred = DurationPredictor(model_dim=encoder_model_dim,
+        self.dur_pred = DurationPredictor(model_dim=encoder_model_dimension,
                                           kernel_size=3,
                                           conv_padding='same',
                                           conv_activation='relu',
@@ -307,11 +314,12 @@ class ForwardTransformer(tf.keras.models.Model):
                                           dense_activation='relu',
                                           dense_scalar=1.,
                                           name='dur_pred')
-        self.expand = Expand(name='expand', model_dim=encoder_model_dim)
-        self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dim,
+        self.expand = Expand(name='expand', model_dim=encoder_model_dimension)
+        self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
                                             dense_hidden_units=decoder_feed_forward_dimension,
+                                            dropout_rate=decoder_prenet_dropout,
                                             name='DecoderPrenet')
-        self.decoder = SelfAttentionBlocks(model_dim=decoder_model_dim,
+        self.decoder = SelfAttentionBlocks(model_dim=decoder_model_dimension,
                                            dropout_rate=dropout_rate,
                                            num_heads=decoder_num_heads,
                                            feed_forward_dimension=decoder_feed_forward_dimension,
@@ -321,7 +329,6 @@ class ForwardTransformer(tf.keras.models.Model):
                                            kernel_size=decoder_attention_conv_kernel,
                                            conv_activation='relu',
                                            name='Decoder')
-        # self.project_reduced = tf.keras.layers.Dense(self.mel_channels * self.max_r, name='Project')
         self.out = tf.keras.layers.Dense(mel_channels)
         self.decoder_postnet = CNNResNorm(out_size=mel_channels,
                                           kernel_size=postnet_kernel_size,
@@ -343,39 +350,16 @@ class ForwardTransformer(tf.keras.models.Model):
         self.debug = debug
         self.__apply_all_signatures()
     
+    def __apply_signature(self, function, signature):
+        if self.debug:
+            return function
+        else:
+            return tf.function(input_signature=signature)(function)
+    
     def __apply_all_signatures(self):
         self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
         self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
-    
-    def call(self, x, target_durations, training):
-        padding_mask = create_encoder_padding_mask(x)
-        x = self.encoder_prenet(x)
-        x, encoder_attention = self.encoder(x, training=training, padding_mask=padding_mask,
-                                            drop_n_heads=self.drop_n_heads)
-        durations = self.dur_pred(x, training=training)
-        durations = (1. - tf.reshape(padding_mask, tf.shape(durations))) * durations
-        if target_durations is not None:
-            mels = self.expand(x, target_durations)
-        else:
-            mels = self.expand(x, durations)
-        # mels = mels[:, 0::self.r, :]
-        expanded_mask = create_mel_padding_mask(mels)
-        mels = self.decoder_prenet(mels, training=training, dropout_rate=self.decoder_prenet_dropout)
-        mels, decoder_attention = self.decoder(mels, training=training, padding_mask=expanded_mask,
-                                               drop_n_heads=self.drop_n_heads, reduction_factor=self.r)
-        mels = self.out(mels)
-        # out_proj = self.project_reduced(mels)[:, :, :self.r * self.mel_channels]
-        # b = int(tf.shape(out_proj)[0])
-        # t = int(tf.shape(out_proj)[1])
-        # mels = tf.reshape(out_proj, (b, t * self.r, self.mel_channels))
-        mels = self.decoder_postnet(mels, training=training)
-        model_out = {'mel': mels,
-                     'duration': durations,
-                     'expanded_mask': expanded_mask,
-                     'encoder_attention': encoder_attention,
-                     'decoder_attention': decoder_attention}
-        return model_out
     
     def _train_step(self, input_sequence, target_sequence, target_durations):
         target_durations = tf.expand_dims(target_durations, -1)
@@ -393,37 +377,6 @@ class ForwardTransformer(tf.keras.models.Model):
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
-    
-    def _set_r(self, r):
-        if self.r == r:
-            return
-        self.r = r
-        self.__apply_all_signatures()
-    
-    @property
-    def step(self):
-        return int(self.optimizer.iterations)
-    
-    def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
-                      drop_n_heads: int = None, reduction_factor: float = None):
-        if decoder_prenet_dropout is not None:
-            self.decoder_prenet_dropout = decoder_prenet_dropout
-        if learning_rate is not None:
-            self.optimizer.lr.assign(learning_rate)
-        if reduction_factor is not None:
-            self._set_r(reduction_factor)
-        if drop_n_heads is not None:
-            self.drop_n_heads = drop_n_heads
-    
-    def __apply_signature(self, function, signature):
-        if self.debug:
-            return function
-        else:
-            return tf.function(input_signature=signature)(function)
-    
-    def encode_text(self, text):
-        phons = self.phonemizer.encode(text, clean=True)
-        return self.tokenizer.encode(phons)
     
     def _compile(self, optimizer):
         self.loss_weights = [3., 1.]
@@ -448,6 +401,47 @@ class ForwardTransformer(tf.keras.models.Model):
     
     def _forward(self, input_sequence):
         return self.__call__(input_sequence, target_durations=None, training=False)
+    
+    @property
+    def step(self):
+        return int(self.optimizer.iterations)
+    
+    def call(self, x, target_durations, training):
+        padding_mask = create_encoder_padding_mask(x)
+        x = self.encoder_prenet(x)
+        x, encoder_attention = self.encoder(x, training=training, padding_mask=padding_mask,
+                                            drop_n_heads=self.drop_n_heads)
+        durations = self.dur_pred(x, training=training)
+        durations = (1. - tf.reshape(padding_mask, tf.shape(durations))) * durations
+        if target_durations is not None:
+            mels = self.expand(x, target_durations)
+        else:
+            mels = self.expand(x, durations)
+        expanded_mask = create_mel_padding_mask(mels)
+        mels = self.decoder_prenet(mels, training=training, dropout_rate=self.decoder_prenet_dropout)
+        mels, decoder_attention = self.decoder(mels, training=training, padding_mask=expanded_mask,
+                                               drop_n_heads=self.drop_n_heads, reduction_factor=1)
+        mels = self.out(mels)
+        mels = self.decoder_postnet(mels, training=training)
+        model_out = {'mel': mels,
+                     'duration': durations,
+                     'expanded_mask': expanded_mask,
+                     'encoder_attention': encoder_attention,
+                     'decoder_attention': decoder_attention}
+        return model_out
+    
+    def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
+                      drop_n_heads: int = None):
+        if decoder_prenet_dropout is not None:
+            self.decoder_prenet_dropout = decoder_prenet_dropout
+        if learning_rate is not None:
+            self.optimizer.lr.assign(learning_rate)
+        if drop_n_heads is not None:
+            self.drop_n_heads = drop_n_heads
+    
+    def encode_text(self, text):
+        phons = self.phonemizer.encode(text, clean=True)
+        return self.tokenizer.encode(phons)
     
     def predict(self, inp, encode=True):
         if encode:

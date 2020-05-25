@@ -3,8 +3,6 @@ import tensorflow as tf
 from model.transformer_utils import positional_encoding, scaled_dot_product_attention
 
 
-# TODO: Fix autoregressive call parameters
-
 class CNNResNorm(tf.keras.layers.Layer):
     def __init__(self,
                  out_size: int,
@@ -50,7 +48,11 @@ class CNNResNorm(tf.keras.layers.Layer):
 
 class FFNResNorm(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, dense_hidden_units: int, dropout_rate: float, **kwargs):
+    def __init__(self,
+                 model_dim: int,
+                 dense_hidden_units: int,
+                 dropout_rate: float,
+                 **kwargs):
         super(FFNResNorm, self).__init__(**kwargs)
         self.d1 = tf.keras.layers.Dense(dense_hidden_units)
         self.activation = tf.keras.layers.Activation('relu')
@@ -146,7 +148,11 @@ class MultiHeadAttention(tf.keras.layers.Layer):
 
 class SelfAttentionResNorm(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, num_heads: int, dropout_rate: float, **kwargs):
+    def __init__(self,
+                 model_dim: int,
+                 num_heads: int,
+                 dropout_rate: float,
+                 **kwargs):
         super(SelfAttentionResNorm, self).__init__(**kwargs)
         self.mha = MultiHeadAttention(model_dim, num_heads)
         self.ln = tf.keras.layers.LayerNormalization(epsilon=1e-6)
@@ -163,7 +169,12 @@ class SelfAttentionResNorm(tf.keras.layers.Layer):
 
 class SelfAttentionDenseBlock(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, num_heads: int, dense_hidden_units: int, dropout_rate: float, **kwargs):
+    def __init__(self,
+                 model_dim: int,
+                 num_heads: int,
+                 dense_hidden_units: int,
+                 dropout_rate: float,
+                 **kwargs):
         super(SelfAttentionDenseBlock, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.ffn = FFNResNorm(model_dim, dense_hidden_units, dropout_rate=dropout_rate)
@@ -245,7 +256,11 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
 
 class CrossAttentionResnorm(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, num_heads: int, dropout_rate: float, **kwargs):
+    def __init__(self,
+                 model_dim: int,
+                 num_heads: int,
+                 dropout_rate: float,
+                 **kwargs):
         super(CrossAttentionResnorm, self).__init__(**kwargs)
         self.mha = MultiHeadAttention(model_dim, num_heads)
         self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
@@ -260,7 +275,12 @@ class CrossAttentionResnorm(tf.keras.layers.Layer):
 
 class CrossAttentionDenseBlock(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, num_heads: int, dense_hidden_units: int, dropout_rate: float, **kwargs):
+    def __init__(self,
+                 model_dim: int,
+                 num_heads: int,
+                 dense_hidden_units: int,
+                 dropout_rate: float,
+                 **kwargs):
         super(CrossAttentionDenseBlock, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate)
@@ -316,6 +336,10 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
                  maximum_position_encoding: int,
                  dropout_rate: float,
                  dense_blocks: int,
+                 conv_filters: int,
+                 conv_activation: str,
+                 conv_padding: str,
+                 conv_kernel: int,
                  **kwargs):
         super(CrossAttentionBlocks, self).__init__(**kwargs)
         self.model_dim = model_dim
@@ -328,7 +352,8 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
             for i, n_heads in enumerate(num_heads[:dense_blocks])]
         self.CACB = [
             CrossAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
-                                    name=f'{self.name}_CACB_{i}')
+                                    name=f'{self.name}_CACB_{i}', conv_filters=conv_filters,
+                                    conv_activation=conv_activation, conv_padding=conv_padding, kernel_size=conv_kernel)
             for i, n_heads in enumerate(num_heads[dense_blocks:])]
     
     def call(self, inputs, enc_output, training, decoder_padding_mask, encoder_padding_mask, drop_n_heads,
@@ -352,7 +377,11 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
 
 class DecoderPrenet(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, dense_hidden_units: int, dropout_rate: float = 0.5, **kwargs):
+    def __init__(self,
+                 model_dim: int,
+                 dense_hidden_units: int,
+                 dropout_rate: float,
+                 **kwargs):
         super(DecoderPrenet, self).__init__(**kwargs)
         self.d1 = tf.keras.layers.Dense(dense_hidden_units,
                                         activation='relu')  # (batch_size, seq_len, dense_hidden_units)
@@ -373,7 +402,10 @@ class DecoderPrenet(tf.keras.layers.Layer):
 
 class Postnet(tf.keras.layers.Layer):
     
-    def __init__(self, mel_channels: int, conv_filters: int = 256, conv_layers: int = 5, kernel_size: int = 5,
+    def __init__(self, mel_channels: int,
+                 conv_filters: int,
+                 conv_layers: int,
+                 kernel_size: int,
                  **kwargs):
         super(Postnet, self).__init__(**kwargs)
         self.mel_channels = mel_channels

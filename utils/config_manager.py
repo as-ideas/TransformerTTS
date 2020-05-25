@@ -119,8 +119,8 @@ class ConfigManager:
                                              debug=self.config['debug'])
         
         else:
-            return ForwardTransformer(encoder_model_dim=self.config['encoder_model_dimension'],
-                                      decoder_model_dim=self.config['decoder_model_dimension'],
+            return ForwardTransformer(encoder_model_dimension=self.config['encoder_model_dimension'],
+                                      decoder_model_dimension=self.config['decoder_model_dimension'],
                                       dropout_rate=self.config['dropout_rate'],
                                       decoder_num_heads=self.config['decoder_num_heads'],
                                       encoder_num_heads=self.config['encoder_num_heads'],
@@ -141,7 +141,7 @@ class ConfigManager:
                                       encoder_dense_blocks=self.config['encoder_dense_blocks'],
                                       decoder_dense_blocks=self.config['decoder_dense_blocks'],
                                       phoneme_language=self.config['phoneme_language'],
-                                      debug=self.config['debug'], )
+                                      debug=self.config['debug'])
     
     def compile_model(self, model):
         if self.model_kind == 'autoregressive':

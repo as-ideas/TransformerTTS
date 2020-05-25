@@ -124,12 +124,9 @@ for _ in t:
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_dropout_schedule'])
     drop_n_heads = tf.cast(reduction_schedule(model.step, config['head_drop_schedule']), tf.int32)
-    reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
-    t.display(f'reduction factor {reduction_factor}', pos=10)
     model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
                         learning_rate=learning_rate,
-                        drop_n_heads=drop_n_heads,
-                        reduction_factor=reduction_factor)
+                        drop_n_heads=drop_n_heads)
     output = model.train_step(input_sequence=phonemes,
                               target_sequence=mel,
                               target_durations=durations)
