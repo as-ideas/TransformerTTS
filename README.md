@@ -17,12 +17,15 @@ Spectrograms produced with LJSpeech and standard data configuration from this re
 
 ## 🔈 Samples
 
-[Can be found here.](https://as-ideas.github.io/TransformerTTS/)<br>
+[Can be found here.](https://as-ideas.github.io/TransformerTTS/)
+
 These samples' spectrograms are converted using the pre-trained [WaveRNN](https://github.com/fatchord/WaveRNN) vocoder.<br>
 
 The TTS weights used for these samples can be found [here](https://github.com/as-ideas/tts_model_outputs/tree/master/ljspeech_transformertts).
 
-Check out the notebooks folder for predictions with TransformerTTS and WaveRNN.
+Check out the notebooks folder for predictions with TransformerTTS and WaveRNN or just try out our Colab notebook:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize.ipynb)
 
 ## 📖 Contents
 - [Installation](#installation)
