@@ -15,6 +15,12 @@ This repo is based on the following papers:
 
 Spectrograms produced with LJSpeech and standard data configuration from this repo are compatible with [WaveRNN](https://github.com/fatchord/WaveRNN).
 
+#### Non-Autoregressive
+Being non-autoregressive, this Transformer model is:
+- Robust: No repeats and failed attention modes for challenging sentences.
+- Fast: The generation of a mel spectogram takes about 0.04s on a GeForce RTX 2080.
+- Controllable: It is possible to control the speed of the generated utterance.
+
 ## 🔈 Samples
 
 [Can be found here.](https://as-ideas.github.io/TransformerTTS/)
@@ -122,17 +128,17 @@ wav = reconstruct_waveform(out['mel'].numpy().T, config=config_loader.config)
 ```
 
 ## Model Weights
-| Model URL | Git Hash |
-|---|---|
-|[Forward Model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_forward_transformer.zip)| 4945e775b|
-[Autoregressive Model](None)| 4945e775b|
+| Model URL | Oldest Compatible Commit | Latest Compatible Commit |
+|---|---|---|
+|[ljspeech_forward_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_forward_transformer.zip)| 4945e775b| - |
+[ljspeech_autoregressive_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_autoregressive_transformer.zip)| 4945e775b| - |
 
 ## Maintainers
 * Francesco Cardinale, github: [cfrancesco](https://github.com/cfrancesco)
 
 ## Special thanks
 [WaveRNN](https://github.com/fatchord/WaveRNN): we took the data processing from here and use their vocoder to produce the samples. <br>
-[Erogol](https://github.com/erogol): for the lively exchange on TTS topics. <br>
+[Erogol](https://github.com/erogol) and the Mozilla TTS team for the lively exchange on the topic. <br>
 
 ## Copyright
 See [LICENSE](LICENSE) for details.

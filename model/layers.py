@@ -438,7 +438,6 @@ class DurationPredictor(tf.keras.layers.Layer):
                  conv_activation: str,
                  conv_block_n: int,
                  dense_activation: str,
-                 dense_scalar: float,
                  **kwargs):
         super(DurationPredictor, self).__init__(**kwargs)
         self.conv_blocks = CNNResNorm(out_size=model_dim,
@@ -451,11 +450,10 @@ class DurationPredictor(tf.keras.layers.Layer):
                                       normalization='layer')
         self.linear = tf.keras.layers.Dense(1, activation=dense_activation,
                                             bias_initializer=tf.keras.initializers.Constant(value=1))
-        self.dense_scalar = dense_scalar
     
     def call(self, x, training):
         x = self.conv_blocks(x, training=training)
-        x = self.linear(x) * self.dense_scalar
+        x = self.linear(x)
         return x
 
 

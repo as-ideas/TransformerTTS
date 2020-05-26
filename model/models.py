@@ -312,7 +312,6 @@ class ForwardTransformer(tf.keras.models.Model):
                                           conv_activation='relu',
                                           conv_block_n=2,
                                           dense_activation='relu',
-                                          dense_scalar=1.,
                                           name='dur_pred')
         self.expand = Expand(name='expand', model_dim=encoder_model_dimension)
         self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
@@ -346,6 +345,7 @@ class ForwardTransformer(tf.keras.models.Model):
         ]
         self.forward_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+            tf.TensorSpec(shape=(), dtype=tf.float32),
         ]
         self.debug = debug
         self.__apply_all_signatures()
@@ -399,19 +399,19 @@ class ForwardTransformer(tf.keras.models.Model):
         model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1]}})
         return model_out
     
-    def _forward(self, input_sequence):
-        return self.__call__(input_sequence, target_durations=None, training=False)
+    def _forward(self, input_sequence, durations_scalar):
+        return self.__call__(input_sequence, target_durations=None, training=False, durations_scalar=durations_scalar)
     
     @property
     def step(self):
         return int(self.optimizer.iterations)
     
-    def call(self, x, target_durations, training):
+    def call(self, x, target_durations, training, durations_scalar=1.):
         padding_mask = create_encoder_padding_mask(x)
         x = self.encoder_prenet(x)
         x, encoder_attention = self.encoder(x, training=training, padding_mask=padding_mask,
                                             drop_n_heads=self.drop_n_heads)
-        durations = self.dur_pred(x, training=training)
+        durations = self.dur_pred(x, training=training) * durations_scalar
         durations = (1. - tf.reshape(padding_mask, tf.shape(durations))) * durations
         if target_durations is not None:
             mels = self.expand(x, target_durations)
@@ -433,20 +433,25 @@ class ForwardTransformer(tf.keras.models.Model):
     def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
                       drop_n_heads: int = None, **kwargs):
         if decoder_prenet_dropout is not None:
-            self.decoder_prenet_dropout = decoder_prenet_dropout
+            if self.decoder_prenet_dropout != decoder_prenet_dropout:
+                self.decoder_prenet_dropout = decoder_prenet_dropout
+                self.__apply_all_signatures()
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
         if drop_n_heads is not None:
-            self.drop_n_heads = drop_n_heads
+            if self.drop_n_heads != drop_n_heads:
+                self.drop_n_heads = drop_n_heads
+                self.__apply_all_signatures()
     
     def encode_text(self, text):
         phons = self.phonemizer.encode(text, clean=True)
         return self.tokenizer.encode(phons)
     
-    def predict(self, inp, encode=True):
+    def predict(self, inp, encode=True, speed_regulator=1.):
         if encode:
             inp = self.encode_text(inp)
             inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
-        out = self.forward(inp)
+        duration_scalar = tf.cast(1./speed_regulator, tf.float32)
+        out = self.forward(inp, durations_scalar=duration_scalar)
         out['mel'] = tf.squeeze(out['mel'])
         return out
