@@ -131,11 +131,11 @@ wav = reconstruct_waveform(out['mel'].numpy().T, config=config_loader.config)
 ```
 
 ## Model Weights
-| Model URL | Oldest Compatible Commit | Latest Compatible Commit |
-|---|---|---|
-|[ljspeech_forward_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_forward_transformer.zip)| 4945e775b| - |
-[ljspeech_autoregressive_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_autoregressive_transformer.zip)| 4945e775b| - |
-
+| Model URL | Commit |
+|---|---|
+|[ljspeech_forward_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_forward_transformer.zip)| 4945e775b|
+[ljspeech_autoregressive_model_v2](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_autoregressive_transformer.zip)| 4945e775b|
+|[ljspeech_autoregressive_model_v1](https://github.com/as-ideas/tts_model_outputs/tree/master/ljspeech_transformertts)| 2f3a1b5|
 ## Maintainers
 * Francesco Cardinale, github: [cfrancesco](https://github.com/cfrancesco)
 
