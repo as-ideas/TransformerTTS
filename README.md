@@ -18,7 +18,7 @@ Spectrograms produced with LJSpeech and standard data configuration from this re
 #### Non-Autoregressive
 Being non-autoregressive, this Transformer model is:
 - Robust: No repeats and failed attention modes for challenging sentences.
-- Fast: The generation of a mel spectogram takes about 0.04s on a GeForce RTX 2080.
+- Fast: With no autoregression, predictions take a fraction of the time.
 - Controllable: It is possible to control the speed of the generated utterance.
 
 ## 🔈 Samples
@@ -89,19 +89,19 @@ python create_dataset.py --config config/standard
 ```
 #### Training
 ```bash
-python train.py --config config/standard
+python train_autoregressive.py --config config/standard
 ```
 ### Train Forward Model
 #### Compute alignment dataset
 First use the autoregressive model to create the durations dataset
 ```bash
-python extract_durations.py --config config/standard  --binary --fix_jumps --fill_mode_next
+python extract_durations.py --config config/standard --binary --fix_jumps --fill_mode_next
 ```
 this will add an additional folder to the dataset folder containing the new datasets for validation and training of the forward model.<br>
 If the rhythm of the trained model is off, play around with the flags of this script to fix the durations.
 #### Training
 ```bash
-python train_forward.py  --config /path/to/config_folder/
+python train_forward.py --config /path/to/config_folder/
 ```
 #### Training & Model configuration
 - Training and model settings can be configured in `model_config.yaml`
@@ -117,7 +117,7 @@ tensorboard --logdir /logs/directory/
 ```
 
 ## Prediction
-Predict with either the Forward or AutoRegressive model
+Predict with either the Forward or Autoregressive model
 ```python
 from utils.config_manager import ConfigManager
 from utils.audio import reconstruct_waveform

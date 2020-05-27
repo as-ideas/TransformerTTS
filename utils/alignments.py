@@ -4,7 +4,7 @@ import tensorflow as tf
 from model.transformer_utils import create_mel_padding_mask, create_encoder_padding_mask
 
 logger = tf.get_logger()
-logger.setLevel(40)
+logger.setLevel('ERROR')
 
 
 def duration_to_alignment_matrix(durations):

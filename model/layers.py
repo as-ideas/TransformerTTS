@@ -394,7 +394,7 @@ class DecoderPrenet(tf.keras.layers.Layer):
         self.dropout_1.rate = self.rate
         self.dropout_2.rate = self.rate
         x = self.d1(x)
-        # use dropout also in inference for additional noise as suggested in the original tacotron2 paper
+        # use dropout also in inference for positional encoding relevance
         x = self.dropout_1(x, training=True)
         x = self.d2(x)
         x = self.dropout_2(x, training=True)
