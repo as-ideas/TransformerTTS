@@ -197,11 +197,9 @@ class ConfigManager:
             ckpt.restore(manager.latest_checkpoint)
             if verbose:
                 print(f'restored weights from {manager.latest_checkpoint} at step {model.step}')
-        decoder_prenet_dropout = piecewise_linear_schedule(model.step, self.config['decoder_dropout_schedule'])
+        decoder_prenet_dropout = piecewise_linear_schedule(model.step, self.config['decoder_prenet_dropout_schedule'])
+        reduction_factor = None
         if self.model_kind == 'autoregressive':
             reduction_factor = reduction_schedule(model.step, self.config['reduction_factor_schedule'])
-        else:
-            reduction_factor = None
-        model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
-                            reduction_factor=reduction_factor)
+        model.set_constants(reduction_factor=reduction_factor, decoder_prenet_dropout=decoder_prenet_dropout)
         return model

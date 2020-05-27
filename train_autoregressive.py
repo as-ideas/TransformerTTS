@@ -118,7 +118,7 @@ t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
     mel, phonemes, stop = train_dataset.next_batch()
-    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_dropout_schedule'])
+    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_prenet_dropout_schedule'])
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
     drop_n_heads = tf.cast(reduction_schedule(model.step, config['head_drop_schedule']), tf.int32)
@@ -138,7 +138,7 @@ for _ in t:
             t.display(f'{n_steps}-steps average loss: {sum(losses[-n_steps:]) / n_steps}', pos=pos + 2)
     
     summary_manager.display_loss(output, tag='Train')
-    summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet_dropout)
+    summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet.rate)
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=model.r)
     summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)

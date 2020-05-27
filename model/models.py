@@ -38,8 +38,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  decoder_attention_conv_kernel: int = None,
                  encoder_feed_forward_dimension: int = None,
                  decoder_feed_forward_dimension: int = None,
+                 decoder_prenet_dropout=0.5,
                  max_r: int = 10,
-                 decoder_prenet_dropout=0.,
                  debug=False,
                  **kwargs):
         super(AutoregressiveTransformer, self).__init__(**kwargs)
@@ -49,7 +49,6 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.max_r = max_r
         self.r = max_r
         self.mel_channels = mel_channels
-        self.decoder_prenet_dropout = decoder_prenet_dropout
         self.drop_n_heads = 0
         
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=True)
@@ -95,7 +94,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         ]
         self.forward_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32)
+            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
         ]
         self.encoder_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32)
@@ -106,24 +105,24 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             tf.TensorSpec(shape=(None, None, None, None), dtype=tf.float32),
         ]
         self.debug = debug
-        self.__apply_all_signatures()
+        self._apply_all_signatures()
     
     @property
     def step(self):
         return int(self.optimizer.iterations)
-    
-    def __apply_all_signatures(self):
-        self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
-        self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
-        self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
-        self.forward_encoder = self.__apply_signature(self._forward_encoder, self.encoder_signature)
-        self.forward_decoder = self.__apply_signature(self._forward_decoder, self.decoder_signature)
     
     def __apply_signature(self, function, signature):
         if self.debug:
             return function
         else:
             return tf.function(input_signature=signature)(function)
+    
+    def _apply_all_signatures(self):
+        self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
+        self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
+        self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
+        self.forward_encoder = self.__apply_signature(self._forward_encoder, self.encoder_signature)
+        self.forward_decoder = self.__apply_signature(self._forward_decoder, self.decoder_signature)
     
     def _call_encoder(self, inputs, training):
         padding_mask = create_encoder_padding_mask(inputs)
@@ -138,7 +137,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         dec_target_padding_mask = create_mel_padding_mask(targets)
         look_ahead_mask = create_look_ahead_mask(tf.shape(targets)[1])
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
-        dec_input = self.decoder_prenet(targets, training=training, dropout_rate=self.decoder_prenet_dropout)
+        dec_input = self.decoder_prenet(targets)
         dec_output, attention_weights = self.decoder(inputs=dec_input,
                                                      enc_output=encoder_output,
                                                      training=training,
@@ -214,7 +213,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         if self.r == r:
             return
         self.r = r
-        self.__apply_all_signatures()
+        self._apply_all_signatures()
     
     def call(self, inputs, targets, training):
         encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)
@@ -250,7 +249,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
                       reduction_factor: float = None, drop_n_heads: int = None):
         if decoder_prenet_dropout is not None:
-            self.decoder_prenet_dropout = decoder_prenet_dropout
+            self.decoder_prenet.rate.assign(decoder_prenet_dropout)
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
         if reduction_factor is not None:
@@ -291,7 +290,6 @@ class ForwardTransformer(tf.keras.models.Model):
         super(ForwardTransformer, self).__init__(**kwargs)
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=False)
         self.phonemizer = Phonemizer(language=phoneme_language)
-        self.decoder_prenet_dropout = decoder_prenet_dropout
         self.drop_n_heads = 0
         self.mel_channels = mel_channels
         self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension,
@@ -348,7 +346,7 @@ class ForwardTransformer(tf.keras.models.Model):
             tf.TensorSpec(shape=(), dtype=tf.float32),
         ]
         self.debug = debug
-        self.__apply_all_signatures()
+        self._apply_all_signatures()
     
     def __apply_signature(self, function, signature):
         if self.debug:
@@ -356,7 +354,7 @@ class ForwardTransformer(tf.keras.models.Model):
         else:
             return tf.function(input_signature=signature)(function)
     
-    def __apply_all_signatures(self):
+    def _apply_all_signatures(self):
         self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
         self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
@@ -418,7 +416,7 @@ class ForwardTransformer(tf.keras.models.Model):
         else:
             mels = self.expand(x, durations)
         expanded_mask = create_mel_padding_mask(mels)
-        mels = self.decoder_prenet(mels, training=training, dropout_rate=self.decoder_prenet_dropout)
+        mels = self.decoder_prenet(mels)
         mels, decoder_attention = self.decoder(mels, training=training, padding_mask=expanded_mask,
                                                drop_n_heads=self.drop_n_heads, reduction_factor=1)
         mels = self.out(mels)
@@ -433,15 +431,11 @@ class ForwardTransformer(tf.keras.models.Model):
     def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
                       drop_n_heads: int = None, **kwargs):
         if decoder_prenet_dropout is not None:
-            if self.decoder_prenet_dropout != decoder_prenet_dropout:
-                self.decoder_prenet_dropout = decoder_prenet_dropout
-                self.__apply_all_signatures()
+            self.decoder_prenet.rate.assign(decoder_prenet_dropout)
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
         if drop_n_heads is not None:
-            if self.drop_n_heads != drop_n_heads:
-                self.drop_n_heads = drop_n_heads
-                self.__apply_all_signatures()
+            self.drop_n_heads = drop_n_heads
     
     def encode_text(self, text):
         phons = self.phonemizer.encode(text, clean=True)
@@ -451,7 +445,7 @@ class ForwardTransformer(tf.keras.models.Model):
         if encode:
             inp = self.encode_text(inp)
             inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
-        duration_scalar = tf.cast(1./speed_regulator, tf.float32)
+        duration_scalar = tf.cast(1. / speed_regulator, tf.float32)
         out = self.forward(inp, durations_scalar=duration_scalar)
         out['mel'] = tf.squeeze(out['mel'])
         return out

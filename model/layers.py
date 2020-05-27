@@ -386,12 +386,13 @@ class DecoderPrenet(tf.keras.layers.Layer):
         self.d1 = tf.keras.layers.Dense(dense_hidden_units,
                                         activation='relu')  # (batch_size, seq_len, dense_hidden_units)
         self.d2 = tf.keras.layers.Dense(model_dim, activation='relu')  # (batch_size, seq_len, model_dim)
-        self.dropout_1 = tf.keras.layers.Dropout(dropout_rate)
-        self.dropout_2 = tf.keras.layers.Dropout(dropout_rate)
+        self.rate = tf.Variable(dropout_rate)
+        self.dropout_1 = tf.keras.layers.Dropout(self.rate)
+        self.dropout_2 = tf.keras.layers.Dropout(self.rate)
     
-    def call(self, x, dropout_rate):
-        self.dropout_1.dropout_rate = dropout_rate
-        self.dropout_2.dropout_rate = dropout_rate
+    def call(self, x):
+        self.dropout_1.rate = self.rate
+        self.dropout_2.rate = self.rate
         x = self.d1(x)
         # use dropout also in inference for additional noise as suggested in the original tacotron2 paper
         x = self.dropout_1(x, training=True)
