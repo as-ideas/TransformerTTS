@@ -33,7 +33,7 @@ Try it out on Colab:
 | Version | Colab Link |
 |---|---|
 | Forward | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize_forward.ipynb) |
-Autoregressive | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize.ipynb) |
+Autoregressive | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize_autoregressive.ipynb) |
 
 ## 📖 Contents
 - [Installation](#installation)
