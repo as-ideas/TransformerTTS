@@ -117,9 +117,6 @@ class DataPrepper:
 
 class ForwardDataPrepper:
     
-    def __init__(self):
-        pass
-    
     def __call__(self, sample):
         mel, encoded_phonemes, durations = np.load(str(sample), allow_pickle=True)
         return mel, encoded_phonemes, durations
