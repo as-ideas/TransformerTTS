@@ -31,8 +31,10 @@ class ConfigManager:
             self.stop_scaling = self.config.get('stop_loss_scaling', 1.)
     
     def _load_config(self):
-        data_config = self.yaml.load(open(str(self.config_path / 'data_config.yaml'), 'rb'))
-        model_config = self.yaml.load(open(str(self.config_path / f'{self.model_kind}_config.yaml'), 'rb'))
+        with open(str(self.config_path / 'data_config.yaml'), 'rb') as data_yaml:
+            data_config = self.yaml.load(data_yaml)
+        with open(str(self.config_path / f'{self.model_kind}_config.yaml'), 'rb') as model_yaml:
+            model_config = self.yaml.load(model_yaml)
         all_config = {}
         all_config.update(model_config)
         all_config.update(data_config)
@@ -159,8 +161,10 @@ class ConfigManager:
     
     def dump_config(self):
         self.update_config()
-        self.yaml.dump(self.model_config, open(self.base_dir / f'{self.model_kind}_config.yaml', 'w'))
-        self.yaml.dump(self.data_config, open(self.base_dir / 'data_config.yaml', 'w'))
+        with open(self.base_dir / f'{self.model_kind}_config.yaml', 'w') as model_yaml:
+            self.yaml.dump(self.model_config, model_yaml)
+        with open(self.base_dir / 'data_config.yaml', 'w') as data_yaml:
+            self.yaml.dump(self.data_config, data_yaml)
     
     def create_remove_dirs(self, clear_dir: False, clear_logs: False, clear_weights: False):
         self.base_dir.mkdir(exist_ok=True)

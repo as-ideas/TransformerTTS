@@ -1,4 +1,5 @@
 import argparse
+import traceback
 import pickle
 
 import tensorflow as tf
@@ -20,9 +21,8 @@ if gpus:
             tf.config.experimental.set_memory_growth(gpu, True)
         logical_gpus = tf.config.experimental.list_logical_devices('GPU')
         print(len(gpus), 'Physical GPUs,', len(logical_gpus), 'Logical GPUs')
-    except RuntimeError as e:
-        # Memory growth must be set before GPUs have been initialized
-        print(e)
+    except Exception:
+        traceback.print_exc()
 
 # consuming CLI, creating paths and directories, load data
 
@@ -120,7 +120,8 @@ if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
             out_val = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(val_mel[:, 1:, :])), -1) * outputs[
                 'final_output'].numpy()
             batch = (out_val.numpy(), val_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
-        pickle.dump(batch, open(str(val_predictions_dir / f'{c}_batch_prediction.npy'), 'wb'))
+        with open(str(val_predictions_dir / f'{c}_batch_prediction.npy'), 'wb') as file:
+            pickle.dump(batch, file)
     
     iterator = tqdm(enumerate(train_dataset.all_batches()))
     for c, (train_mel, train_text, train_stop) in iterator:
@@ -135,8 +136,8 @@ if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
             out_train = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(train_mel[:, 1:, :])), -1) * outputs[
                 'final_output'].numpy()
             batch = (out_train.numpy(), train_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
-        
-        pickle.dump(batch, open(str(train_predictions_dir / f'{c}_batch_prediction.npy'), 'wb'))
+        with open(str(train_predictions_dir / f'{c}_batch_prediction.npy'), 'wb') as file:
+            pickle.dump(batch, file)
 
 summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir / writer_tag, config=config,
                                  default_writer=writer_tag)

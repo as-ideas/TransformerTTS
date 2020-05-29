@@ -1,4 +1,5 @@
 import argparse
+import traceback
 
 import tensorflow as tf
 import numpy as np
@@ -22,9 +23,8 @@ if gpus:
             tf.config.experimental.set_memory_growth(gpu, True)
         logical_gpus = tf.config.experimental.list_logical_devices('GPU')
         print(len(gpus), 'Physical GPUs,', len(logical_gpus), 'Logical GPUs')
-    except RuntimeError as e:
-        # Memory growth must be set before GPUs have been initialized
-        print(e)
+    except Exception:
+        traceback.print_exc()
 
 
 @ignore_exception

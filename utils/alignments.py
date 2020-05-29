@@ -78,13 +78,27 @@ def fix_attention_jumps(binary_attn, alignments_weights, binary_score):
 def binary_attention(attention_weights):
     attention_peak_per_phoneme = attention_weights.max(axis=1)
     binary_attn = (attention_weights.T == attention_peak_per_phoneme).astype(int).T
-    assert np.sum(np.sum(attention_weights.T == attention_peak_per_phoneme, axis=0) != 1) == 0  # single peak per mel step
+    assert np.sum(
+        np.sum(attention_weights.T == attention_peak_per_phoneme, axis=0) != 1) == 0  # single peak per mel step
     binary_score = np.sum(attention_weights * binary_attn)
     return binary_attn, binary_score
 
 
 def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=False, binary=False, fill_gaps=False,
                                  fix_jumps=False, fill_mode='max'):
+    """
+    
+    :param batch_alignments: attention weights from autoregressive model.
+    :param mels: mel spectrograms.
+    :param phonemes: phoneme sequence.
+    :param weighted: if True use weighted average of durations of heads, best head if False.
+    :param binary: if True take maximum attention peak, sum if False.
+    :param fill_gaps: if True fills zeros durations with ones.
+    :param fix_jumps: if True, tries to scan alingments for attention jumps and interpolate.
+    :param fill_mode: used only if fill_gaps is True. Is either 'max' or 'next'. Defines where to take the duration
+        needed to fill the gap. Next takes it from the next non-zeros duration value, max from the sequence maximum.
+    :return:
+    """
     assert (binary is True) or (fix_jumps is False), 'Cannot fix jumps in non-binary attention.'
     mel_pad_mask = create_mel_padding_mask(mels)
     phon_pad_mask = create_encoder_padding_mask(phonemes)

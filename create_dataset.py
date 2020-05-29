@@ -20,7 +20,8 @@ args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 yaml = ruamel.yaml.YAML()
-config = yaml.load(open(str(Path(args.CONFIG) / 'data_config.yaml'), 'rb'))
+with open(str(Path(args.CONFIG) / 'data_config.yaml'), 'rb') as conf_yaml:
+    config = yaml.load(conf_yaml)
 args.DATA_DIR = config['data_directory']
 args.META_FILE = os.path.join(args.DATA_DIR, config['metadata_filename'])
 args.WAV_DIR = os.path.join(args.DATA_DIR, config['wav_subdir_name'])
