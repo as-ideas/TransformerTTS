@@ -386,7 +386,7 @@ class DecoderPrenet(tf.keras.layers.Layer):
         self.d1 = tf.keras.layers.Dense(dense_hidden_units,
                                         activation='relu')  # (batch_size, seq_len, dense_hidden_units)
         self.d2 = tf.keras.layers.Dense(model_dim, activation='relu')  # (batch_size, seq_len, model_dim)
-        self.rate = tf.Variable(dropout_rate)
+        self.rate = tf.Variable(dropout_rate, trainable=False)
         self.dropout_1 = tf.keras.layers.Dropout(self.rate)
         self.dropout_2 = tf.keras.layers.Dropout(self.rate)
     
