@@ -113,3 +113,10 @@ class DataPrepper:
         stop_probs = np.ones((norm_mel.shape[0]))
         stop_probs[-1] = 2
         return norm_mel, encoded_phonemes, stop_probs
+
+
+class ForwardDataPrepper:
+    
+    def __call__(self, sample):
+        mel, encoded_phonemes, durations = np.load(str(sample), allow_pickle=True)
+        return mel, encoded_phonemes, durations

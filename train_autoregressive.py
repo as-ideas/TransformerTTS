@@ -1,4 +1,5 @@
 import argparse
+import traceback
 
 import tensorflow as tf
 import numpy as np
@@ -13,7 +14,7 @@ from utils.logging import SummaryManager
 np.random.seed(42)
 tf.random.set_seed(42)
 
-# dinamically allocate GPU
+# dynamically allocate GPU
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
     try:
@@ -21,11 +22,10 @@ if gpus:
         for gpu in gpus:
             tf.config.experimental.set_memory_growth(gpu, True)
         logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-        print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-    except RuntimeError as e:
-        # Memory growth must be set before GPUs have been initialized
-        print(e)
-        
+        print(len(gpus), 'Physical GPUs,', len(logical_gpus), 'Logical GPUs')
+    except Exception:
+        traceback.print_exc()
+
 
 @ignore_exception
 @time_it
@@ -63,7 +63,7 @@ parser.add_argument('--reset_weights', dest='clear_weights', action='store_true'
                     help="deletes weights under this config's folder.")
 parser.add_argument('--session_name', dest='session_name', default=None)
 args = parser.parse_args()
-config_manager = ConfigManager(config_path=args.config, session_name=args.session_name)
+config_manager = ConfigManager(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
 config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,
@@ -118,7 +118,7 @@ t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
     mel, phonemes, stop = train_dataset.next_batch()
-    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_dropout_schedule'])
+    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_prenet_dropout_schedule'])
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
     drop_n_heads = tf.cast(reduction_schedule(model.step, config['head_drop_schedule']), tf.int32)
@@ -138,7 +138,7 @@ for _ in t:
             t.display(f'{n_steps}-steps average loss: {sum(losses[-n_steps:]) / n_steps}', pos=pos + 2)
     
     summary_manager.display_loss(output, tag='Train')
-    summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet_dropout)
+    summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet.rate)
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=model.r)
     summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)

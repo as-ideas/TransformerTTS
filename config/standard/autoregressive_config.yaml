@@ -1,0 +1,50 @@
+# ARCHITECTURE
+decoder_model_dimension: 256
+encoder_model_dimension: 512
+decoder_num_heads: [4, 4, 4, 4]  # the length of this defines the number of layers
+encoder_num_heads: [4, 4, 4, 4]  # the length of this defines the number of layers
+encoder_feed_forward_dimension: 1024
+decoder_feed_forward_dimension: 1024
+decoder_prenet_dimension: 256
+encoder_prenet_dimension: 512
+encoder_max_position_encoding: 1000
+decoder_max_position_encoding: 10000
+postnet_conv_filters: 256
+postnet_conv_layers: 5
+postnet_kernel_size: 5
+encoder_dense_blocks: 4
+decoder_dense_blocks: 4
+
+# LOSSES
+stop_loss_scaling: 8
+
+# TRAINING
+dropout_rate: 0.1
+decoder_prenet_dropout_schedule:
+  - [0, 0.]
+  - [25_000, 0.]
+  - [35_000, .5]
+learning_rate_schedule:
+  - [0, 1.0e-4]
+head_drop_schedule:  # head-level dropout: how many heads to set to zero at training time
+  - [0, 0]
+  - [15_000, 1]
+reduction_factor_schedule:
+  - [0, 10]
+  - [80_000, 1]
+max_steps: 900_000
+batch_size: 16
+debug: False
+
+# LOGGING
+validation_frequency: 1_000
+prediction_frequency: 10_000
+weights_save_frequency: 10_000
+train_images_plotting_frequency: 1_000
+keep_n_weights: 2
+keep_checkpoint_every_n_hours: 12
+n_steps_avg_losses: [100, 500, 1_000, 5_000]
+n_predictions: 2  # autoregressive predictions take time
+prediction_start_step: 20_000
+audio_start_step: 40_000
+audio_prediction_frequency: 10_000 # converting to glim takes time
