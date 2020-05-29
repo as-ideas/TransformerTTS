@@ -111,18 +111,18 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     def step(self):
         return int(self.optimizer.iterations)
     
-    def __apply_signature(self, function, signature):
+    def _apply_signature(self, function, signature):
         if self.debug:
             return function
         else:
             return tf.function(input_signature=signature)(function)
     
     def _apply_all_signatures(self):
-        self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
-        self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
-        self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
-        self.forward_encoder = self.__apply_signature(self._forward_encoder, self.encoder_signature)
-        self.forward_decoder = self.__apply_signature(self._forward_decoder, self.decoder_signature)
+        self.forward = self._apply_signature(self._forward, self.forward_input_signature)
+        self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
+        self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
+        self.forward_encoder = self._apply_signature(self._forward_encoder, self.encoder_signature)
+        self.forward_decoder = self._apply_signature(self._forward_decoder, self.decoder_signature)
     
     def _call_encoder(self, inputs, training):
         padding_mask = create_encoder_padding_mask(inputs)
@@ -348,16 +348,16 @@ class ForwardTransformer(tf.keras.models.Model):
         self.debug = debug
         self._apply_all_signatures()
     
-    def __apply_signature(self, function, signature):
+    def _apply_signature(self, function, signature):
         if self.debug:
             return function
         else:
             return tf.function(input_signature=signature)(function)
     
     def _apply_all_signatures(self):
-        self.forward = self.__apply_signature(self._forward, self.forward_input_signature)
-        self.train_step = self.__apply_signature(self._train_step, self.training_input_signature)
-        self.val_step = self.__apply_signature(self._val_step, self.training_input_signature)
+        self.forward = self._apply_signature(self._forward, self.forward_input_signature)
+        self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
+        self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
     
     def _train_step(self, input_sequence, target_sequence, target_durations):
         target_durations = tf.expand_dims(target_durations, -1)
