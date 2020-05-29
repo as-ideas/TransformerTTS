@@ -54,6 +54,7 @@
 
 ### Comparison with [ForwardTacotron](https://github.com/as-ideas/ForwardTacotron)
 <p class="text"> In a statement announcing his resignation, Mr Ross, said: "While the intentions may have been well meaning, the reaction to this news shows that Mr Cummings interpretation of the government advice was not shared by the vast majority of people who have done as the government asked."</p>
+
 | ForwardTacotron | TransformerTTS |
 |:---:|:---:|
 |<audio src="https://github.com/as-ideas/tts_model_outputs/blob/master/ljspeech_forward/forward_transformer_comparison.wav?raw=true" controls preload></audio>|<audio src="https://github.com/as-ideas/tts_model_outputs/blob/master/ljspeech_forward_transformer/tacotron_comparison.wav?raw=true" controls preload></audio>|
