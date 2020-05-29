@@ -116,6 +116,8 @@ We log some information that can be visualized with TensorBoard:
 tensorboard --logdir /logs/directory/
 ```
 
+![Tensorboard Demo](https://raw.githubusercontent.com/as-ideas/TransformerTTS/master/docs/tboard_demo.gif)
+
 ## Prediction
 Predict with either the Forward or Autoregressive model
 ```python
