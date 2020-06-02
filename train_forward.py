@@ -168,11 +168,7 @@ for _ in t:
         summary_manager.display_attention_heads(model_out, tag='TestAttentionHeads')
         summary_manager.add_histogram(tag=f'Test/Predicted durations', values=model_out['duration'])
         summary_manager.add_histogram(tag=f'Test/Target durations', values=durs)
-        if model.r > 1:
-            pred_lengths = tf.cast(tf.math.round(model_out['duration']), tf.int32)
-            pred_lengths = tf.reduce_sum(pred_lengths, axis=1)
-        else:
-            pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
+        pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
         pred_lengths = tf.squeeze(pred_lengths)
         tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(tar_mel), axis=-1), tf.int32)
         tar_lengths = tf.squeeze(tar_lengths)
