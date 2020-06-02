@@ -215,6 +215,12 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.r = r
         self._apply_all_signatures()
     
+    def _set_heads(self, heads):
+        if self.drop_n_heads == heads:
+            return
+        self.drop_n_heads = heads
+        self._apply_all_signatures()
+    
     def call(self, inputs, targets, training):
         encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)
         model_out = self._call_decoder(encoder_output, targets, padding_mask, training)
@@ -255,7 +261,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         if reduction_factor is not None:
             self._set_r(reduction_factor)
         if drop_n_heads is not None:
-            self.drop_n_heads = drop_n_heads
+            self._set_heads(drop_n_heads)
     
     def encode_text(self, text):
         phons = self.phonemizer.encode(text, clean=True)
@@ -359,6 +365,12 @@ class ForwardTransformer(tf.keras.models.Model):
         self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
     
+    def _set_heads(self, heads):
+        if self.drop_n_heads == heads:
+            return
+        self.drop_n_heads = heads
+        self._apply_all_signatures()
+    
     def _train_step(self, input_sequence, target_sequence, target_durations):
         target_durations = tf.expand_dims(target_durations, -1)
         mel_len = int(tf.shape(target_sequence)[1])
@@ -435,7 +447,7 @@ class ForwardTransformer(tf.keras.models.Model):
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
         if drop_n_heads is not None:
-            self.drop_n_heads = drop_n_heads
+            self._set_heads(drop_n_heads)
     
     def encode_text(self, text):
         phons = self.phonemizer.encode(text, clean=True)
