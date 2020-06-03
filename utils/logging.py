@@ -2,7 +2,7 @@ from pathlib import Path
 
 import tensorflow as tf
 
-from utils.audio import reconstruct_waveform, denormalize
+from utils.audio import Audio
 from utils.display import buffer_mel, tight_grid
 from utils.vec_ops import norm_tensor
 from utils.decorators import ignore_exception
@@ -31,14 +31,15 @@ class SummaryManager:
     """
     
     def __init__(self,
-                 model,
-                 log_dir,
-                 config,
+                 model: tf.keras.models.Model,
+                 log_dir: str,
+                 config: dict,
                  max_plot_frequency=10,
                  default_writer='log_dir'):
         self.model = model
         self.log_dir = Path(log_dir)
         self.config = config
+        self.audio = Audio(config)
         self.plot_frequency = max_plot_frequency
         self.default_writer = default_writer
         self.writers = {}
@@ -99,7 +100,7 @@ class SummaryManager:
     
     @ignore_exception
     def display_mel(self, mel, tag='', sr=22050):
-        amp_mel = denormalize(mel, self.config)
+        amp_mel = self.audio._denormalize(mel)
         img = tf.transpose(amp_mel)
         buf = buffer_mel(img, sr=sr)
         img_tf = tf.image.decode_png(buf.getvalue(), channels=3)
@@ -118,7 +119,7 @@ class SummaryManager:
     
     @ignore_exception
     def display_audio(self, tag, mel):
-        wav = reconstruct_waveform(tf.transpose(mel), self.config)
+        wav = self.audio.reconstruct_waveform(tf.transpose(mel))
         wav = tf.expand_dims(wav, 0)
         wav = tf.expand_dims(wav, -1)
         self.add_audio(tag, wav.numpy(), sr=self.config['sampling_rate'])
