@@ -56,7 +56,7 @@ def validate(model,
     summary_manager.display_attention_heads(model_out, tag='ValidationAttentionHeads')
     summary_manager.add_histogram(tag=f'Validation/Predicted durations', values=model_out['duration'])
     summary_manager.add_histogram(tag=f'Validation/Target durations', values=durations)
-    summary_manager.display_mel(mel=model_out['mel'][0], tag=f'Validation/linear_mel_out')
+    summary_manager.display_mel(mel=model_out['mel'][0], tag=f'Validation/predicted_mel')
     summary_manager.display_mel(mel=mel[0], tag=f'Validation/target_mel')
     return val_loss['loss']
 
@@ -143,7 +143,7 @@ for _ in t:
     summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
     if model.step % config['train_images_plotting_frequency'] == 0:
         summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
-        summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/linear_mel_out')
+        summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/predicted_mel')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
         summary_manager.add_histogram(tag=f'Train/Predicted durations', values=output['duration'])
         summary_manager.add_histogram(tag=f'Train/Target durations', values=durations)
