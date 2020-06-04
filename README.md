@@ -73,7 +73,7 @@ Read the individual scripts for more command line arguments.
 You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
 
 #### Configuration
-* If training LJSpeech, or if unsure, simply use one of 
+* If training on LJSpeech, or if unsure, simply use one of 
     * ```config/wavernn``` to create models compatible with [WaveRNN](https://github.com/fatchord/WaveRNN) 
     * ```config/melgan``` for models compatible with [MelGAN](https://github.com/seungwonpark/melgan) 
 * **EDIT PATHS**: in `data_config.yaml` edit the paths to point at your dataset and log folders
