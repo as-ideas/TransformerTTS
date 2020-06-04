@@ -73,7 +73,9 @@ Read the individual scripts for more command line arguments.
 You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
 
 #### Configuration
-* If training LJSpeech, or if unsure, simply use ```config/standard```
+* If training LJSpeech, or if unsure, simply use one of 
+    * ```config/wavernn``` to create models compatible with [WaveRNN](https://github.com/fatchord/WaveRNN) 
+    * ```config/melgan``` for models compatible with [MelGAN](https://github.com/seungwonpark/melgan) 
 * **EDIT PATHS**: in `data_config.yaml` edit the paths to point at your dataset and log folders
 
 #### Custom dataset
@@ -89,20 +91,21 @@ where `metadata.csv` has the following format:
 ``` wav_file_name|transcription ```
 
 ## Training
+Change the ```--config``` argument based on the configuration of your choice.
 ### Train Autoregressive Model
 #### Create training dataset
 ```bash
-python create_dataset.py --config config/standard
+python create_dataset.py --config config/melgan
 ```
 #### Training
 ```bash
-python train_autoregressive.py --config config/standard
+python train_autoregressive.py --config config/melgan
 ```
 ### Train Forward Model
 #### Compute alignment dataset
 First use the autoregressive model to create the durations dataset
 ```bash
-python extract_durations.py --config config/standard --binary --fix_jumps --fill_mode_next
+python extract_durations.py --config config/melgan --binary --fix_jumps --fill_mode_next
 ```
 this will add an additional folder to the dataset folder containing the new datasets for validation and training of the forward model.<br>
 If the rhythm of the trained model is off, play around with the flags of this script to fix the durations.

@@ -21,7 +21,7 @@ decoder_dense_blocks: 0
 
 # TRAINING
 dropout_rate: 0.1
-decoder_dropout_schedule:  # dropout scheduling for the decoder status
+decoder_prenet_dropout_schedule:  # dropout scheduling for the decoder status
   - [0, 0.]
 learning_rate_schedule:
   - [0, 1.0e-4]
