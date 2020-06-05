@@ -41,7 +41,7 @@ class Audio():
     
     def reconstruct_waveform(self, mel, n_iter=32):
         """ Uses Griffin-Lim phase reconstruction to convert from a normalized
-        mel spectrogram back into a waveform."""
+        mel spectrogram back into a waveform. """
         amp_mel = self._denormalize(mel)
         S = librosa.feature.inverse.mel_to_stft(
             amp_mel,
