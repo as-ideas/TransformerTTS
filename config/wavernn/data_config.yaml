@@ -20,6 +20,6 @@ hop_length: 275
 win_length: 1100
 f_min: 40
 f_max: None
-normalizer: WaveRNN                 # which mel normalization to use from utils.audio.py
+normalizer: WaveRNN                 # which mel normalization to use from utils.audio.py  [MelGAN or WaveRNN]
 # TOKENIZER
 phoneme_language: 'en'

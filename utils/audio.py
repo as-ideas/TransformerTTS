@@ -1,7 +1,9 @@
 import sys
 
-import numpy as np
 import librosa
+import numpy as np
+import librosa.display
+from matplotlib import pyplot as plt
 
 
 class Audio():
@@ -38,7 +40,7 @@ class Audio():
         return self._normalize(S)
     
     def reconstruct_waveform(self, mel, n_iter=32):
-        """Uses Griffin-Lim phase reconstruction to convert from a normalized
+        """ Uses Griffin-Lim phase reconstruction to convert from a normalized
         mel spectrogram back into a waveform."""
         amp_mel = self._denormalize(mel)
         S = librosa.feature.inverse.mel_to_stft(
@@ -54,6 +56,20 @@ class Audio():
             hop_length=self.config['hop_length'],
             win_length=self.config['win_length'])
         return wav
+    
+    def display_mel(self, mel, is_normal=True):
+        if is_normal:
+            mel = self._denormalize(mel)
+        f = plt.figure(figsize=(10, 4))
+        s_db = librosa.power_to_db(mel, ref=np.max)
+        ax = librosa.display.specshow(s_db,
+                                      x_axis='time',
+                                      y_axis='mel',
+                                      sr=self.config['sampling_rate'],
+                                      fmin=self.config['f_min'],
+                                      fmax=self.config['f_max'])
+        f.add_subplot(ax)
+        return f
 
 
 class Normalizer:

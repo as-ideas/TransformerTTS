@@ -29,13 +29,20 @@ if gpus:
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', dest='config', type=str)
 parser.add_argument('--session_name', dest='session_name', default=None)
-parser.add_argument('--recompute_pred', dest='recompute_pred', action='store_true')
-parser.add_argument('--best', dest='best', action='store_true')
-parser.add_argument('--binary', dest='binary', action='store_true')
-parser.add_argument('--fix_jumps', dest='fix_jumps', action='store_true')
-parser.add_argument('--fill_mode_max', dest='fill_mode_max', action='store_true')
-parser.add_argument('--fill_mode_next', dest='fill_mode_next', action='store_true')
-parser.add_argument('--use_GT', action='store_true')
+parser.add_argument('--recompute_pred', dest='recompute_pred', action='store_true',
+                    help='Recompute the model predictions.')
+parser.add_argument('--best', dest='best', action='store_true',
+                    help='Use best head instead of weighted average of heads.')
+parser.add_argument('--binary', dest='binary', action='store_true',
+                    help='Use attention peak instead of all attentio values.')
+parser.add_argument('--fix_jumps', dest='fix_jumps', action='store_true',
+                    help='Scan attention peaks and try to fix jumps. Only with binary.')
+parser.add_argument('--fill_mode_max', dest='fill_mode_max', action='store_true',
+                    help='Fill zero durations with ones. Reduces phoneme duration with maximum value in sequence to compensate.')
+parser.add_argument('--fill_mode_next', dest='fill_mode_next', action='store_true',
+                    help='Fill zero durations with ones. Reduces next non-zero phoneme duration in sequence to compensate.')
+parser.add_argument('--use_GT', action='store_true',
+                    help='Use ground truth mel instead of predicted mel to train forward model.')
 args = parser.parse_args()
 assert (args.fill_mode_max is False) or (args.fill_mode_next is False), 'Choose one gap filling mode.'
 weighted = not args.best

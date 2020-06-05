@@ -21,7 +21,7 @@
 | <b>forward + melgan</b> | <b>autoregressive + melgan</b> |
 |<audio src="https://github.com/as-ideas/tts_model_outputs/blob/master/ljspeech_transformerTTS_melgan/trump_forward_melgan.wav?raw=true" controls preload></audio>|<audio src="https://github.com/as-ideas/tts_model_outputs/blob/master/ljspeech_transformerTTS_melgan/trump_autoregressive_melgan.wav?raw=true" controls preload></audio>|
 
-<p class="text">Scientists, at the CERN laboratory, say they have discovered a new particle.</p>
+<p class="text">Scientists at the CERN laboratory, say they have discovered a new particle.</p>
 
 | forward + wavernn | autoregressive + wavernn |
 |:---:|:---:|

@@ -40,7 +40,7 @@ Try it out on Colab:
 | Autoregressive + WaveRNN | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize_autoregressive_wavernn.ipynb) |
 
 ## Updates
-- 4/06/20: Added normalzation and pre-trained models compatible with the faster [MelGAN](https://github.com/seungwonpark/melgan) vocoder.
+- 4/06/20: Added normalisation and pre-trained models compatible with the faster [MelGAN](https://github.com/seungwonpark/melgan) vocoder.
 
 ## 📖 Contents
 - [Installation](#installation)
@@ -158,9 +158,10 @@ wav = audio.reconstruct_waveform(out['mel'].numpy().T)
 * Francesco Cardinale, github: [cfrancesco](https://github.com/cfrancesco)
 
 ## Special thanks
-[MelGAN](https://github.com/seungwonpark/melgan): one data normalization and samples' vocoder are from this repo. <br>
-[WaveRNN](https://github.com/fatchord/WaveRNN): one data normalization and samples' vocoder are from this repo. <br>
-[Erogol](https://github.com/erogol) and the Mozilla TTS team for the lively exchange on the topic. <br>
+[MelGAN](https://github.com/seungwonpark/melgan) and [WaveRNN](https://github.com/fatchord/WaveRNN): data normalization and samples' vocoders are from these repos.
+
+[Erogol](https://github.com/erogol) and the Mozilla TTS team for the lively exchange on the topic.
+
 
 ## Copyright
 See [LICENSE](LICENSE) for details.
