@@ -13,7 +13,7 @@ This repo is based on the following papers:
 - [Neural Speech Synthesis with Transformer Network](https://arxiv.org/abs/1809.08895)
 - [FastSpeech: Fast, Robust and Controllable Text to Speech](https://arxiv.org/abs/1905.09263)
 
-The configurations files provide models that, if trained on LJSpeech, are compatible with the pre-trained vocoders from:
+Our pre-trained LJSpeech models are compatible with the pre-trained vocoders from:
 - [WaveRNN](https://github.com/fatchord/WaveRNN)
 - [MelGAN](https://github.com/seungwonpark/melgan)
 
