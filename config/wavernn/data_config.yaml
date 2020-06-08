@@ -16,12 +16,10 @@ mel_end_value: -4
 sampling_rate: 22050
 n_fft: 2048
 mel_channels: 80
-hop_length: 275                    # 12.5ms - in line with Tacotron 2 paper
-win_length: 1100                   # 50ms - same reason as above
+hop_length: 275
+win_length: 1100
 f_min: 40
 f_max: None
-min_level_db: -100
-ref_level_db: 20
-max_norm: 4 # normalizes values between -max norm, max_norm
+normalizer: WaveRNN                 # which mel normalization to use from utils.audio.py  [MelGAN or WaveRNN]
 # TOKENIZER
 phoneme_language: 'en'

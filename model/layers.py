@@ -115,7 +115,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         self.dense = tf.keras.layers.Dense(model_dim)
     
     def split_heads(self, x, batch_size: int):
-        """Split the last dimension into (num_heads, depth).
+        """ Split the last dimension into (num_heads, depth).
         Transpose the result such that the shape is (batch_size, num_heads, seq_len, depth)
         """
         

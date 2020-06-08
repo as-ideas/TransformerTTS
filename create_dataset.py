@@ -8,7 +8,7 @@ import tqdm
 import ruamel.yaml
 
 from preprocessing.text_processing import Phonemizer, TextCleaner
-from utils.audio import melspectrogram
+from utils.audio import Audio
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', dest='CONFIG', type=str, required=True)
@@ -80,11 +80,12 @@ with open(test_metafile, 'w+', encoding='utf-8') as test_f:
 with open(train_metafile, 'w+', encoding='utf-8') as train_f:
     train_f.writelines(train_lines)
 
+audio = Audio(config)
 for i in tqdm.tqdm(range(len(audio_data))):
     filename, _, _ = audio_data[i]
     wav_path = os.path.join(args.WAV_DIR, filename + '.wav')
     y, sr = librosa.load(wav_path, sr=config['sampling_rate'])
-    mel = melspectrogram(y, config)
+    mel = audio.mel_spectrogram(y)
     mel_path = os.path.join(mel_dir, filename)
     np.save(mel_path, mel.T)
 print('\nDone')

@@ -2,8 +2,8 @@ from pathlib import Path
 
 import tensorflow as tf
 
-from utils.audio import reconstruct_waveform, denormalize
-from utils.display import buffer_mel, tight_grid
+from utils.audio import Audio
+from utils.display import tight_grid, buffer_image
 from utils.vec_ops import norm_tensor
 from utils.decorators import ignore_exception
 
@@ -31,14 +31,15 @@ class SummaryManager:
     """
     
     def __init__(self,
-                 model,
-                 log_dir,
-                 config,
+                 model: tf.keras.models.Model,
+                 log_dir: str,
+                 config: dict,
                  max_plot_frequency=10,
                  default_writer='log_dir'):
         self.model = model
         self.log_dir = Path(log_dir)
         self.config = config
+        self.audio = Audio(config)
         self.plot_frequency = max_plot_frequency
         self.default_writer = default_writer
         self.writers = {}
@@ -98,10 +99,10 @@ class SummaryManager:
                 self.add_image(str(batch_plot_path), tf.expand_dims(tf.expand_dims(image, 0), -1))
     
     @ignore_exception
-    def display_mel(self, mel, tag='', sr=22050):
-        amp_mel = denormalize(mel, self.config)
-        img = tf.transpose(amp_mel)
-        buf = buffer_mel(img, sr=sr)
+    def display_mel(self, mel, tag=''):
+        img = tf.transpose(mel)
+        figure = self.audio.display_mel(img, is_normal=True)
+        buf = buffer_image(figure)
         img_tf = tf.image.decode_png(buf.getvalue(), channels=3)
         self.add_image(tag, tf.expand_dims(img_tf, 0))
     
@@ -118,7 +119,8 @@ class SummaryManager:
     
     @ignore_exception
     def display_audio(self, tag, mel):
-        wav = reconstruct_waveform(tf.transpose(mel), self.config)
+        wav = tf.transpose(mel)
+        wav = self.audio.reconstruct_waveform(wav)
         wav = tf.expand_dims(wav, 0)
         wav = tf.expand_dims(wav, -1)
         self.add_audio(tag, wav.numpy(), sr=self.config['sampling_rate'])
