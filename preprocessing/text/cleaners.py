@@ -87,3 +87,42 @@ class English(Cleaner):
         if ends_with_dot:
             text += '.'
         return text
+
+
+class German(Cleaner):
+    def __init__(self):
+        super().__init__()
+        self.numbers = Numbers(lang_ID='de',
+                               comma='Komma',
+                               thousand='tausend')
+        self._date_re = re.compile(r'([0-9]{1,2}\.+)')
+        self._time_re = re.compile(r'([0-9]{1,2}).([0-9]{1,2})(\s*Uhr)')
+        self.abbreviations = {}
+    
+    def _fix_time(self, m):
+        if int(m.group(2)):
+            return m.group(1) + m.group(3) + ' ' + m.group(2)  # 9 Uhr 30
+        else:
+            return m.group(1) + m.group(3)
+    
+    def _expand_date(self, m):
+        num = int(m.group(0).replace('.', ''))
+        if num < 20:
+            return m.group(1).replace('.', 'ten')
+        else:
+            return m.group(1).replace('.', 'sten')
+    
+    def _expand_numbers(self, text):
+        ends_with_dot = text.endswith('.')
+        if ends_with_dot:
+            text = text[:-1]
+        text = self.numbers.expand_comma(text)
+        text = re.sub(self._time_re, self._fix_time, text)
+        text = self.numbers.expand_decimal_thousands(text)
+        text = self.numbers.expand_decimal_hundreds(text)
+        text = self.numbers.expand_decimal_point(text)
+        text = re.sub(self._date_re, self._expand_date, text)
+        text = self.numbers.expand_number(text)
+        if ends_with_dot:
+            text += '.'
+        return text

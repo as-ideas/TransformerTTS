@@ -1,15 +1,17 @@
 from phonemizer.phonemize import phonemize
 
 from preprocessing.text.symbols import _phonemes, _punctuations
-from preprocessing.text.cleaners import English
+from preprocessing.text.cleaners import English, German
 
 
 class Pipeline:
     def __init__(self, language='en', add_start_end=True):
         if language == 'en':
             self.cleaner = English()
+        elif language == 'de':
+            self.cleaner = German()
         else:
-            raise ValueError(f'only "en" language available. (received {language})')
+            raise ValueError(f'language must be either "en" or "de", not {language}.')
         self.phonemizer = Phonemizer(language=language)
         self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=add_start_end)
     

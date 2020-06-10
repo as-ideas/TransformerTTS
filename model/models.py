@@ -30,7 +30,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  mel_start_value: int,
                  mel_end_value: int,
                  mel_channels: int,
-                 phoneme_language='en',
+                 phoneme_language: str,
                  encoder_attention_conv_filters: int = None,
                  decoder_attention_conv_filters: int = None,
                  encoder_attention_conv_kernel: int = None,
