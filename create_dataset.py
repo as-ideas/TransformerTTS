@@ -7,7 +7,7 @@ import numpy as np
 import tqdm
 import ruamel.yaml
 
-from preprocessing.text_processing import Phonemizer, TextCleaner
+from preprocessing.text.tokenizer import Pipeline
 from utils.audio import Audio
 
 parser = argparse.ArgumentParser()
@@ -34,12 +34,13 @@ if not os.path.exists(mel_dir):
     os.makedirs(mel_dir)
 
 phon_path = os.path.join(args.TARGET_DIR, 'phonemes.npy')
+text_cleaner = Pipeline(config['phoneme_language'])
 if os.path.exists(phon_path) and not args.RECOMPUTE_PHON:
     print("using cached phonemes")
     audio_data = np.load(phon_path)
 else:
     print('\nLoading and cleaning text')
-    text_cleaner = TextCleaner()
+    
     audio_data = []
     with open(args.META_FILE, 'r', encoding='utf-8') as f:
         for l in f.readlines():
@@ -52,7 +53,7 @@ else:
     audio_data = np.array(audio_data)
     print('\nPhonemizing')
     
-    phonemizer = Phonemizer(config['phoneme_language'])
+    phonemizer = text_cleaner.phonemizer
     texts = audio_data[:, 1]
     batch_size = 250  # batch phonemization to avoid memory issues.
     phonemes = []
