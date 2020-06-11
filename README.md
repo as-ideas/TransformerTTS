@@ -1,8 +1,8 @@
-<h1 align="center">
+<p align="center">
     <br>
-    <img src="https://raw.githubusercontent.com/as-ideas/TransformerTTS/dev/docs/favicon.png" width="60"/> Transformer TTS
+    <img src="https://raw.githubusercontent.com/as-ideas/TransformerTTS/master/docs/transformer_logo.png" width="400"/>
     <br>
-</h1>
+</p>
 
 <h2 align="center">
 <p>A Text-to-Speech Transformer in TensorFlow 2</p>
