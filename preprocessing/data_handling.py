@@ -84,7 +84,7 @@ class DataPrepper:
         return self._run(phonemes, text, mel)
     
     def _run(self, phonemes, text, mel):
-        encoded_phonemes = self.tokenizer.encode(phonemes)
+        encoded_phonemes = self.tokenizer(phonemes)
         norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
         stop_probs = np.ones((norm_mel.shape[0]))
         stop_probs[-1] = 2

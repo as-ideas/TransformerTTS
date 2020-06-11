@@ -34,7 +34,7 @@ if not os.path.exists(mel_dir):
     os.makedirs(mel_dir)
 
 phon_path = os.path.join(args.TARGET_DIR, 'phonemes.npy')
-text_cleaner = Pipeline(config['phoneme_language'])
+text_proc = Pipeline.default_pipeline(config['phoneme_language'], add_start_end=True)
 if os.path.exists(phon_path) and not args.RECOMPUTE_PHON:
     print("using cached phonemes")
     audio_data = np.load(phon_path)
@@ -48,18 +48,17 @@ else:
             filename, text = l_split[0], l_split[-1]
             if filename.endswith('.wav'):
                 filename = filename.split('.')[-1]
-            text = text_cleaner.clean(text)
+            text = text_proc.cleaner(text)
             audio_data.append((filename, text))
     audio_data = np.array(audio_data)
     print('\nPhonemizing')
     
-    phonemizer = text_cleaner.phonemizer
     texts = audio_data[:, 1]
     batch_size = 250  # batch phonemization to avoid memory issues.
     phonemes = []
     for i in tqdm.tqdm(range(0, len(audio_data), batch_size)):
         batch = texts[i: i + batch_size]
-        batch = phonemizer.encode(batch, njobs=args.NJOBS, clean=False)
+        batch = text_proc.phonemizer(batch, njobs=args.NJOBS)
         phonemes.extend(batch)
     audio_data = np.concatenate([np.array(audio_data), np.expand_dims(phonemes, axis=1)], axis=1)
     if args.CACHE_PHON:

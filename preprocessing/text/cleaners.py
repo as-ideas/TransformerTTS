@@ -1,46 +1,24 @@
 import re
+import abc
+from typing import Union
+from abc import abstractmethod
 
 from preprocessing.text.symbols import _alphabet, _punctuations, _not_end_punctuation, _numbers
 from preprocessing.text.numbers import Numbers
 
 
-class Cleaner:
-    def __init__(self, alphabet=None):
-        if not alphabet:
-            self.accepted_chars = list(_alphabet) + list(_punctuations) + list(_numbers)
-        self.abbreviations = {}
-        self.abbreviations_pattern = None
+class Cleaner(abc.ABC):
     
-    def __call__(self, text):
-        if type(text) is list:
-            return [self._clean_line(t) for t in text]
-        elif type(text) is str:
-            return self._clean_line(text)
-        else:
-            raise TypeError(f'TextCleaner.clean() input must be list or str, not {type(text)}')
-    
-    def _get_abbreviation_pattern(self):
-        return '|'.join(sorted(re.escape(k) for k in self.abbreviations))
-    
-    def _expand_numbers(self, text):
-        raise NotImplementedError
-    
-    def _filter_chars(self, text):
-        return ''.join([c for c in text if c in self.accepted_chars])
-    
-    def _clean_line(self, text):
-        text = self._filter_chars(text)
-        text = self._expand_numbers(text)
-        if self.abbreviations:
-            text = re.sub(self.abbreviations_pattern, lambda m: self.abbreviations.get(m.group(0)), text)
-        if text.endswith(tuple(_not_end_punctuation)):
-            text = text[:-1]
-        return text + ' '
+    @abstractmethod
+    def __call__(self, text: Union[str, list]) -> Union[str, list]:
+        """ Cleans text. """
+        pass
 
 
 class English(Cleaner):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, alphabet=None):
+        if not alphabet:
+            self.accepted_chars = list(_alphabet) + list(_punctuations) + list(_numbers)
         self.numbers = Numbers(lang_ID='en',
                                comma='comma',
                                thousand='thousands')
@@ -72,8 +50,30 @@ class English(Cleaner):
         
         self.abbreviations_pattern = self._get_abbreviation_pattern()
     
+    def __call__(self, text: Union[str, list]) -> str:
+        if isinstance(text, list):
+            return [self._clean_line(t) for t in text]
+        elif isinstance(text, str):
+            return self._clean_line(text)
+        else:
+            raise TypeError(f'TextCleaner.clean() input must be list or str, not {type(text)}')
+    
+    def _get_abbreviation_pattern(self):
+        return '|'.join(sorted(re.escape(k) for k in self.abbreviations))
+    
     def _expand_abbreviations(self, text):
         return re.sub(self.abbreviations_pattern, lambda m: self.abbreviations.get(m.group(0)), text)
+    
+    def _filter_chars(self, text):
+        return ''.join([c for c in text if c in self.accepted_chars])
+    
+    def _clean_line(self, text):
+        text = self._filter_chars(text)
+        text = self._expand_numbers(text)
+        text = re.sub(self.abbreviations_pattern, lambda m: self.abbreviations.get(m.group(0)), text)
+        if text.endswith(tuple(_not_end_punctuation)):
+            text = text[:-1]
+        return text + ' '
     
     def _expand_numbers(self, text):
         ends_with_dot = text.endswith('.')
@@ -90,14 +90,32 @@ class English(Cleaner):
 
 
 class German(Cleaner):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, alphabet=None):
+        if not alphabet:
+            self.accepted_chars = list(_alphabet) + list(_punctuations) + list(_numbers)
         self.numbers = Numbers(lang_ID='de',
                                comma='Komma',
                                thousand='tausend')
         self._date_re = re.compile(r'([0-9]{1,2}\.+)')
         self._time_re = re.compile(r'([0-9]{1,2}).([0-9]{1,2})(\s*Uhr)')
-        self.abbreviations = {}
+    
+    def __call__(self, text: Union[str, list]) -> str:
+        if isinstance(text, list):
+            return [self._clean_line(t) for t in text]
+        elif isinstance(text, str):
+            return self._clean_line(text)
+        else:
+            raise TypeError(f'TextCleaner.clean() input must be list or str, not {type(text)}')
+    
+    def _filter_chars(self, text):
+        return ''.join([c for c in text if c in self.accepted_chars])
+    
+    def _clean_line(self, text):
+        text = self._filter_chars(text)
+        text = self._expand_numbers(text)
+        if text.endswith(tuple(_not_end_punctuation)):
+            text = text[:-1]
+        return text + ' '
     
     def _fix_time(self, m):
         if int(m.group(2)):

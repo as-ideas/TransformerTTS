@@ -5,21 +5,28 @@ from preprocessing.text.cleaners import English, German
 
 
 class Pipeline:
-    def __init__(self, language='en', add_start_end=True):
-        if language == 'en':
-            self.cleaner = English()
-        elif language == 'de':
-            self.cleaner = German()
-        else:
-            raise ValueError(f'language must be either "en" or "de", not {language}.')
-        self.phonemizer = Phonemizer(language=language)
-        self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=add_start_end)
+    def __init__(self, cleaner, phonemizer, tokenizer):
+        self.cleaner = cleaner
+        self.phonemizer = phonemizer
+        self.tokenizer = tokenizer
     
     def __call__(self, input_text):
         text = self.cleaner(input_text)
-        phons = self.phonemizer.encode(text)
-        tokens = self.tokenizer.encode(phons)
+        phons = self.phonemizer(text)
+        tokens = self.tokenizer(phons)
         return tokens
+    
+    @classmethod
+    def default_pipeline(cls, language, add_start_end):
+        if language == 'en':
+            cleaner = English()
+        elif language == 'de':
+            cleaner = German()
+        else:
+            raise ValueError(f'language must be either "en" or "de", not {language}.')
+        phonemizer = Phonemizer(language=language)
+        tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=add_start_end)
+        return cls(cleaner=cleaner, phonemizer=phonemizer, tokenizer=tokenizer)
 
 
 class Tokenizer:
@@ -38,7 +45,7 @@ class Tokenizer:
             self.idx_to_token[self.start_token_index] = start_token
             self.idx_to_token[self.end_token_index] = end_token
     
-    def encode(self, sentence):
+    def __call__(self, sentence):
         sequence = [self.token_to_idx[c] for c in sentence if c in self.token_to_idx]
         if self.add_start_end:
             sequence = [self.start_token_index] + sequence + [self.end_token_index]
@@ -52,7 +59,7 @@ class Phonemizer:
     def __init__(self, language):
         self.language = language
     
-    def encode(self, text, strip=True, preserve_punctuation=True, with_stress=False, njobs=4):
+    def __call__(self, text, strip=True, preserve_punctuation=True, with_stress=False, njobs=4):
         phonemes = phonemize(text,
                              language=self.language,
                              backend='espeak',

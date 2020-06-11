@@ -49,7 +49,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.r = max_r
         self.mel_channels = mel_channels
         self.drop_n_heads = 0
-        self.text_pipeline = Pipeline(phoneme_language)
+        self.text_pipeline = Pipeline.default_pipeline(phoneme_language,
+                                                       add_start_end=True)
         self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
                                                         encoder_prenet_dimension,
                                                         name='Embedding')
@@ -291,7 +292,8 @@ class ForwardTransformer(tf.keras.models.Model):
                  decoder_prenet_dropout=0.,
                  **kwargs):
         super(ForwardTransformer, self).__init__(**kwargs)
-        self.text_pipeline = Pipeline(phoneme_language, add_start_end=False)
+        self.text_pipeline = Pipeline.default_pipeline(phoneme_language,
+                                                       add_start_end=False)
         self.drop_n_heads = 0
         self.mel_channels = mel_channels
         self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
