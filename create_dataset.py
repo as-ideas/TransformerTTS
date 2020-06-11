@@ -7,7 +7,7 @@ import numpy as np
 import tqdm
 import ruamel.yaml
 
-from preprocessing.text.tokenizer import Pipeline
+from preprocessing.text import Pipeline
 from utils.audio import Audio
 
 parser = argparse.ArgumentParser()

@@ -6,7 +6,7 @@ from model.transformer_utils import create_encoder_padding_mask, create_mel_padd
 from utils.losses import weighted_sum_losses
 from model.layers import DecoderPrenet, Postnet
 from utils.losses import masked_mean_absolute_error, new_scaled_crossentropy
-from preprocessing.text.tokenizer import Pipeline
+from preprocessing.text import Pipeline
 from model.layers import DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks, CNNResNorm
 
 
