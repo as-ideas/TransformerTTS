@@ -82,7 +82,7 @@ val_samples, _ = load_files(metafile=str(config_manager.train_datadir / 'test_me
 model = config_manager.get_model()
 config_manager.compile_model(model)
 data_prep = DataPrepper(config=config,
-                        tokenizer=model.tokenizer)
+                        tokenizer=model.text_pipeline.tokenizer)
 
 test_list = [data_prep(s) for s in val_samples]
 train_dataset = Dataset(samples=train_samples,

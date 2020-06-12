@@ -3,12 +3,10 @@ import sys
 import tensorflow as tf
 
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
-from utils.losses import weighted_sum_losses
-from model.layers import DecoderPrenet, Postnet
-from utils.losses import masked_mean_absolute_error, new_scaled_crossentropy
-from preprocessing.data_handling import Tokenizer
-from preprocessing.text_processing import _phonemes, Phonemizer, _punctuations
-from model.layers import DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks, CNNResNorm
+from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
+from preprocessing.text import Pipeline
+from model.layers import DecoderPrenet, Postnet, DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks, \
+    CNNResNorm
 
 
 class AutoregressiveTransformer(tf.keras.models.Model):
@@ -50,10 +48,10 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.r = max_r
         self.mel_channels = mel_channels
         self.drop_n_heads = 0
-        
-        self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=True)
-        self.phonemizer = Phonemizer(language=phoneme_language)
-        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_prenet_dimension,
+        self.text_pipeline = Pipeline.default_pipeline(phoneme_language,
+                                                       add_start_end=True)
+        self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
+                                                        encoder_prenet_dimension,
                                                         name='Embedding')
         self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dimension,
                                            dropout_rate=dropout_rate,
@@ -264,8 +262,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             self._set_heads(drop_n_heads)
     
     def encode_text(self, text):
-        phons = self.phonemizer.encode(text, clean=True)
-        return self.tokenizer.encode(phons)
+        return self.text_pipeline(text)
 
 
 class ForwardTransformer(tf.keras.models.Model):
@@ -294,11 +291,12 @@ class ForwardTransformer(tf.keras.models.Model):
                  decoder_prenet_dropout=0.,
                  **kwargs):
         super(ForwardTransformer, self).__init__(**kwargs)
-        self.tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=False)
-        self.phonemizer = Phonemizer(language=phoneme_language)
+        self.text_pipeline = Pipeline.default_pipeline(phoneme_language,
+                                                       add_start_end=False)
         self.drop_n_heads = 0
         self.mel_channels = mel_channels
-        self.encoder_prenet = tf.keras.layers.Embedding(self.tokenizer.vocab_size, encoder_model_dimension,
+        self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
+                                                        encoder_model_dimension,
                                                         name='Embedding')
         self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dimension,
                                            dropout_rate=dropout_rate,
@@ -450,8 +448,7 @@ class ForwardTransformer(tf.keras.models.Model):
             self._set_heads(drop_n_heads)
     
     def encode_text(self, text):
-        phons = self.phonemizer.encode(text, clean=True)
-        return self.tokenizer.encode(phons)
+        return self.text_pipeline(text)
     
     def predict(self, inp, encode=True, speed_regulator=1.):
         if encode:
