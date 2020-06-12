@@ -36,7 +36,7 @@ if not os.path.exists(mel_dir):
 phon_path = os.path.join(args.TARGET_DIR, 'phonemes.npy')
 text_proc = Pipeline.default_pipeline(config['phoneme_language'], add_start_end=True)
 if os.path.exists(phon_path) and not args.RECOMPUTE_PHON:
-    print("using cached phonemes")
+    print('Using cached phonemes.')
     audio_data = np.load(phon_path)
 else:
     print('\nLoading and cleaning text')

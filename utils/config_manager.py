@@ -43,17 +43,17 @@ class ConfigManager:
     @staticmethod
     def _get_git_hash():
         try:
-            return subprocess.check_output(["git", "describe", "--always"]).strip().decode()
+            return subprocess.check_output(['git', 'describe', '--always']).strip().decode()
         except Exception as e:
-            print(f"WARNING: could not retrieve git hash. {e}")
+            print(f'WARNING: could not retrieve git hash. {e}')
     
     def _check_hash(self):
         try:
-            git_hash = subprocess.check_output(["git", "describe", "--always"]).strip().decode()
+            git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode()
             if self.config['git_hash'] != git_hash:
                 print(f"WARNING: git hash mismatch. Current: {git_hash}. Config hash: {self.config['git_hash']}")
         except Exception as e:
-            print(f"WARNING: could not check git hash. {e}")
+            print(f'WARNING: could not check git hash. {e}')
     
     def _make_folder_paths(self):
         base_dir = Path(self.config['log_directory']) / self.session_name

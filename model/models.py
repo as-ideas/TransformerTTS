@@ -3,11 +3,10 @@ import sys
 import tensorflow as tf
 
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
-from utils.losses import weighted_sum_losses
-from model.layers import DecoderPrenet, Postnet
-from utils.losses import masked_mean_absolute_error, new_scaled_crossentropy
+from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
 from preprocessing.text import Pipeline
-from model.layers import DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks, CNNResNorm
+from model.layers import DecoderPrenet, Postnet, DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks, \
+    CNNResNorm
 
 
 class AutoregressiveTransformer(tf.keras.models.Model):
