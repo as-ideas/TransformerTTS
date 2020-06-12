@@ -43,6 +43,8 @@ parser.add_argument('--fill_mode_next', dest='fill_mode_next', action='store_tru
                     help='Fill zero durations with ones. Reduces next non-zero phoneme duration in sequence to compensate.')
 parser.add_argument('--use_GT', action='store_true',
                     help='Use ground truth mel instead of predicted mel to train forward model.')
+parser.add_argument('--store_predictions', action='store_true',
+                    help='Store the model predictions for faster alignment RE-computation.')
 args = parser.parse_args()
 assert (args.fill_mode_max is False) or (args.fill_mode_next is False), 'Choose one gap filling mode.'
 weighted = not args.best
@@ -78,6 +80,8 @@ val_has_files = len([batch_file for batch_file in val_predictions_dir.iterdir() 
 train_has_files = len([batch_file for batch_file in train_predictions_dir.iterdir() if batch_file.suffix == '.npy'])
 model = config_manager.load_model()
 if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
+    if args.store_predictions:
+        print('\nWARNING: storing predictions can take a lot of disk space (~40GB)\n')
     train_meta = config_manager.train_datadir / 'train_metafile.txt'
     test_meta = config_manager.train_datadir / 'test_metafile.txt'
     train_samples, _ = load_files(metafile=str(train_meta),
@@ -90,7 +94,7 @@ if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
     # get model, prepare data for model, create datasets
     
     data_prep = DataPrepper(config=config,
-                            tokenizer=model.tokenizer)
+                            tokenizer=model.text_pipeline.tokenizer)
     script_batch_size = 5 * config['batch_size']  # faster parallel computation
     train_dataset = Dataset(samples=train_samples,
                             preprocessor=data_prep,
@@ -127,8 +131,9 @@ if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
             out_val = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(val_mel[:, 1:, :])), -1) * outputs[
                 'final_output'].numpy()
             batch = (out_val.numpy(), val_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
-        with open(str(val_predictions_dir / f'{c}_batch_prediction.npy'), 'wb') as file:
-            pickle.dump(batch, file)
+        if args.store_predictions:
+            with open(str(val_predictions_dir / f'{c}_batch_prediction.npy'), 'wb') as file:
+                pickle.dump(batch, file)
     
     iterator = tqdm(enumerate(train_dataset.all_batches()))
     for c, (train_mel, train_text, train_stop) in iterator:
@@ -143,8 +148,9 @@ if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
             out_train = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(train_mel[:, 1:, :])), -1) * outputs[
                 'final_output'].numpy()
             batch = (out_train.numpy(), train_text.numpy(), outputs['decoder_attention'][last_layer_key].numpy())
-        with open(str(train_predictions_dir / f'{c}_batch_prediction.npy'), 'wb') as file:
-            pickle.dump(batch, file)
+        if args.store_predictions:
+            with open(str(train_predictions_dir / f'{c}_batch_prediction.npy'), 'wb') as file:
+                pickle.dump(batch, file)
 
 summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir / writer_tag, config=config,
                                  default_writer=writer_tag)

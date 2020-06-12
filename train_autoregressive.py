@@ -110,6 +110,9 @@ if manager.latest_checkpoint:
     print(f'\nresuming training from step {model.step} ({manager.latest_checkpoint})')
 else:
     print(f'\nstarting training from scratch')
+    
+if config['debug'] is True:
+    print('\nWARNING: DEBUG is set to True. Training in eager mode.')
 # main event
 print('\nTRAINING')
 losses = []
