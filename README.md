@@ -83,7 +83,7 @@ Prepare a dataset in the following format:
 ```
 |- dataset_folder/
 |   |- metadata.csv
-|   |- wav/
+|   |- wavs/
 |       |- file1.wav
 |       |- ...
 ```
