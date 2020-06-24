@@ -9,8 +9,8 @@ session_name: None                 # session naming, can be specified in command
 # DATA
 n_samples: 100000
 n_test: 100
-mel_start_value: 4
-mel_end_value: -4
+mel_start_value: .5
+mel_end_value: -.5
 
 # AUDIO
 sampling_rate: 22050
