@@ -79,7 +79,8 @@ script_batch_size = 5 * config['batch_size']
 val_has_files = len([batch_file for batch_file in val_predictions_dir.iterdir() if batch_file.suffix == '.npy'])
 train_has_files = len([batch_file for batch_file in train_predictions_dir.iterdir() if batch_file.suffix == '.npy'])
 model = config_manager.load_model()
-if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
+running_predictions = args.recompute_pred or (val_has_files == 0) or (train_has_files == 0)
+if running_predictions:
     if args.store_predictions:
         print('\nWARNING: storing predictions can take a lot of disk space (~40GB)\n')
     train_meta = config_manager.train_datadir / 'train_metafile.txt'
@@ -113,11 +114,11 @@ if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
     n_dense = int(config_manager.config['decoder_dense_blocks'])
     n_convs = int(n_layers - n_dense)
     if n_convs > 0:
-        last_layer_key = f'Decoder_ConvBlock{n_convs}_CrossfAttention'
+        last_layer_key = f'Decoder_ConvBlock{n_convs}_CrossAttention'
     else:
         last_layer_key = f'Decoder_DenseBlock{n_dense}_CrossAttention'
     print(f'Extracting attention from layer {last_layer_key}')
-    
+    val_batches = []
     iterator = tqdm(enumerate(val_dataset.all_batches()))
     for c, (val_mel, val_text, val_stop) in iterator:
         iterator.set_description(f'Processing validation set')
@@ -134,7 +135,9 @@ if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
         if args.store_predictions:
             with open(str(val_predictions_dir / f'{c}_batch_prediction.npy'), 'wb') as file:
                 pickle.dump(batch, file)
-    
+        val_batches.append(batch)
+        
+    train_batches = []
     iterator = tqdm(enumerate(train_dataset.all_batches()))
     for c, (train_mel, train_text, train_stop) in iterator:
         iterator.set_description(f'Processing training set')
@@ -151,17 +154,27 @@ if args.recompute_pred or (val_has_files == 0) or (train_has_files == 0):
         if args.store_predictions:
             with open(str(train_predictions_dir / f'{c}_batch_prediction.npy'), 'wb') as file:
                 pickle.dump(batch, file)
+        train_batches.append(batch)
 
 summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir / writer_tag, config=config,
                                  default_writer=writer_tag)
-val_batch_files = [batch_file for batch_file in val_predictions_dir.iterdir() if batch_file.suffix == '.npy']
+
+if not running_predictions:
+    val_batch_files = [batch_file for batch_file in val_predictions_dir.iterdir() if batch_file.suffix == '.npy']
+    train_batch_files = [batch_file for batch_file in train_predictions_dir.iterdir() if batch_file.suffix == '.npy']
+else:
+    val_batch_files = val_batches
+    train_batch_files = train_batches
 iterator = tqdm(enumerate(val_batch_files))
 all_val_durations = np.array([])
 new_alignments = []
 total_val_samples = 0
 for c, batch_file in iterator:
     iterator.set_description(f'Extracting validation alignments')
-    val_mel, val_text, val_alignments = np.load(str(batch_file), allow_pickle=True)
+    if not running_predictions:
+        val_mel, val_text, val_alignments = np.load(str(batch_file), allow_pickle=True)
+    else:
+        val_mel, val_text, val_alignments = batch_file
     durations, unpad_mels, unpad_phonemes, final_align = get_durations_from_alignment(
         batch_alignments=val_alignments,
         mels=val_mel,
@@ -187,14 +200,16 @@ for i, alignment in enumerate(new_alignments):
                               image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
                               step=i)
 
-train_batch_files = [batch_file for batch_file in train_predictions_dir.iterdir() if batch_file.suffix == '.npy']
 iterator = tqdm(enumerate(train_batch_files))
 all_train_durations = np.array([])
 new_alignments = []
 total_train_samples = 0
 for c, batch_file in iterator:
     iterator.set_description(f'Extracting training alignments')
-    train_mel, train_text, train_alignments = np.load(str(batch_file), allow_pickle=True)
+    if not running_predictions:
+        train_mel, train_text, train_alignments = np.load(str(batch_file), allow_pickle=True)
+    else:
+        train_mel, train_text, train_alignments = batch_file
     durations, unpad_mels, unpad_phonemes, final_align = get_durations_from_alignment(
         batch_alignments=train_alignments,
         mels=train_mel,

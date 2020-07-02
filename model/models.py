@@ -149,7 +149,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         mel = tf.reshape(out_proj, (b, t * self.r, self.mel_channels))
         model_output = self.decoder_postnet(mel, training=training)
         model_output.update(
-            {'decoder_attention': attention_weights, 'decoder_output': dec_output, 'out_proj': out_proj})
+            {'decoder_attention': attention_weights, 'decoder_output': dec_output, 'linear': mel})
         return model_output
     
     def _forward(self, inp, output):
