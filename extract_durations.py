@@ -155,17 +155,15 @@ if running_predictions:
             with open(str(train_predictions_dir / f'{c}_batch_prediction.npy'), 'wb') as file:
                 pickle.dump(batch, file)
         train_batches.append(batch)
-
+else:
+    val_batches = [batch_file for batch_file in val_predictions_dir.iterdir() if batch_file.suffix == '.npy']
+    train_batches = [batch_file for batch_file in train_predictions_dir.iterdir() if batch_file.suffix == '.npy']
+    
 summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir / writer_tag, config=config,
                                  default_writer=writer_tag)
 
-if not running_predictions:
-    val_batch_files = [batch_file for batch_file in val_predictions_dir.iterdir() if batch_file.suffix == '.npy']
-    train_batch_files = [batch_file for batch_file in train_predictions_dir.iterdir() if batch_file.suffix == '.npy']
-else:
-    val_batch_files = val_batches
-    train_batch_files = train_batches
-iterator = tqdm(enumerate(val_batch_files))
+# TODO: not clean, here val/train _batches can be either the actual batches, or the file names.
+iterator = tqdm(enumerate(val_batches))
 all_val_durations = np.array([])
 new_alignments = []
 total_val_samples = 0
@@ -175,6 +173,7 @@ for c, batch_file in iterator:
         val_mel, val_text, val_alignments = np.load(str(batch_file), allow_pickle=True)
     else:
         val_mel, val_text, val_alignments = batch_file
+        
     durations, unpad_mels, unpad_phonemes, final_align = get_durations_from_alignment(
         batch_alignments=val_alignments,
         mels=val_mel,
@@ -200,7 +199,7 @@ for i, alignment in enumerate(new_alignments):
                               image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
                               step=i)
 
-iterator = tqdm(enumerate(train_batch_files))
+iterator = tqdm(enumerate(train_batches))
 all_train_durations = np.array([])
 new_alignments = []
 total_train_samples = 0

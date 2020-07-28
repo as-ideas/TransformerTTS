@@ -28,15 +28,17 @@ class Tokenizer:
 
 
 class Phonemizer:
-    def __init__(self, language, strip, njobs=4):
+    def __init__(self, language, strip, with_stress, njobs=4):
         self.language = language
         self.strip = strip
         self.njobs = njobs
+        self.with_stress = with_stress
     
-    def __call__(self, text, strip=None, preserve_punctuation=True, with_stress=True, njobs=None, language=None):
+    def __call__(self, text, strip=None, preserve_punctuation=True, with_stress=None, njobs=None, language=None):
         language = language or self.language
         strip = strip or self.strip
         njobs = njobs or self.njobs
+        with_stress = with_stress or self.with_stress
         phonemes = phonemize(text,
                              language=language,
                              backend='espeak',
@@ -44,5 +46,5 @@ class Phonemizer:
                              preserve_punctuation=preserve_punctuation,
                              with_stress=with_stress,
                              njobs=njobs,
-                             language_switch='keep-flags')
+                             language_switch='remove-flags')
         return phonemes

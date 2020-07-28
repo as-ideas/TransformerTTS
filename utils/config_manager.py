@@ -122,6 +122,7 @@ class ConfigManager:
                                              mel_start_value=self.config['mel_start_value'],
                                              mel_end_value=self.config['mel_end_value'],
                                              phoneme_language=self.config['phoneme_language'],
+                                             with_stress=self.config['with_stress'],
                                              debug=self.config['debug'])
         
         else:
@@ -147,6 +148,7 @@ class ConfigManager:
                                       encoder_dense_blocks=self.config['encoder_dense_blocks'],
                                       decoder_dense_blocks=self.config['decoder_dense_blocks'],
                                       phoneme_language=self.config['phoneme_language'],
+                                      with_stress=self.config['with_stress'],
                                       debug=self.config['debug'])
     
     def compile_model(self, model):
