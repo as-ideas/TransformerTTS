@@ -110,6 +110,10 @@ class ConfigManager:
                                              decoder_dense_blocks=self.config['decoder_dense_blocks'],
                                              decoder_prenet_dimension=self.config['decoder_prenet_dimension'],
                                              encoder_prenet_dimension=self.config['encoder_prenet_dimension'],
+                                             encoder_attention_conv_kernel=self.config['encoder_attention_conv_kernel'],
+                                             decoder_attention_conv_kernel=self.config['decoder_attention_conv_kernel'],
+                                             encoder_attention_conv_filters=self.config['encoder_attention_conv_filters'],
+                                             decoder_attention_conv_filters=self.config['decoder_attention_conv_filters'],
                                              postnet_conv_filters=self.config['postnet_conv_filters'],
                                              postnet_conv_layers=self.config['postnet_conv_layers'],
                                              postnet_kernel_size=self.config['postnet_kernel_size'],
@@ -118,6 +122,7 @@ class ConfigManager:
                                              mel_start_value=self.config['mel_start_value'],
                                              mel_end_value=self.config['mel_end_value'],
                                              phoneme_language=self.config['phoneme_language'],
+                                             with_stress=self.config['with_stress'],
                                              debug=self.config['debug'])
         
         else:
@@ -143,6 +148,7 @@ class ConfigManager:
                                       encoder_dense_blocks=self.config['encoder_dense_blocks'],
                                       decoder_dense_blocks=self.config['decoder_dense_blocks'],
                                       phoneme_language=self.config['phoneme_language'],
+                                      with_stress=self.config['with_stress'],
                                       debug=self.config['debug'])
     
     def compile_model(self, model):
