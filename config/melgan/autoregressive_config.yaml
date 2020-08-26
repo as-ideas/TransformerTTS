@@ -7,6 +7,10 @@ encoder_feed_forward_dimension: 1024
 decoder_feed_forward_dimension: 1024
 decoder_prenet_dimension: 256
 encoder_prenet_dimension: 512
+encoder_attention_conv_filters: 512
+decoder_attention_conv_filters: 512
+encoder_attention_conv_kernel: 3
+decoder_attention_conv_kernel: 3
 encoder_max_position_encoding: 1000
 decoder_max_position_encoding: 10000
 postnet_conv_filters: 256
