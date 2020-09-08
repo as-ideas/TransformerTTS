@@ -37,18 +37,23 @@ def masked_mean_squared_error(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tenso
     loss = mse(targets, logits, sample_weight=mask)
     return loss
 
-def masked_mean_absolute_error(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tensor:
+
+def masked_mean_absolute_error(targets: tf.Tensor, logits: tf.Tensor, mask_value=0,
+                               mask: tf.Tensor = None) -> tf.Tensor:
     mae = tf.keras.losses.MeanAbsoluteError()
-    mask = tf.math.logical_not(tf.math.equal(targets, 0))
-    mask = tf.cast(mask, dtype=tf.int32)
-    mask = tf.reduce_max(mask, axis=-1)
+    if mask is not None:
+        mask = tf.math.logical_not(tf.math.equal(targets, mask_value))
+        mask = tf.cast(mask, dtype=tf.int32)
+        mask = tf.reduce_max(mask, axis=-1)
     loss = mae(targets, logits, sample_weight=mask)
     return loss
 
 
-def masked_binary_crossentropy(targets: tf.Tensor, logits: tf.Tensor) -> tf.Tensor:
+def masked_binary_crossentropy(targets: tf.Tensor, logits: tf.Tensor, mask_value=-1) -> tf.Tensor:
     bc = tf.keras.losses.BinaryCrossentropy(reduction='none')
-    mask = tf.math.logical_not(tf.math.equal(targets, -1))
+    mask = tf.math.logical_not(tf.math.equal(logits,
+                                             mask_value))  # TODO: masking based on the logits requires a masking layer. But masking layer produces 0. as outputs.
+    # Need explicit masking
     mask = tf.cast(mask, dtype=tf.int32)
     loss_ = bc(targets, logits)
     loss_ *= mask

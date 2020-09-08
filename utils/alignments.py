@@ -108,11 +108,11 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
     unpad_phonemes = []
     final_alignment = []
     for i, al in enumerate(batch_alignments):
-        mel_len = int(mel_pad_mask[i].shape[-1] - np.sum(mel_pad_mask[i]))
-        phon_len = int(phon_pad_mask[i].shape[-1] - np.sum(phon_pad_mask[i]))
-        unpad_alignments = al[:, 1:mel_len - 1, 1:phon_len - 1]  # first dim is heads
-        unpad_mels.append(mels[i, 1:mel_len - 1, :])
-        unpad_phonemes.append(phonemes[i, 1:phon_len - 1])
+        mel_len = int(mel_pad_mask[i].shape[-1] - np.sum(mel_pad_mask[i])) -1 # mel_len - 1 because we remove last timestep, which is end_vector. start vector is not predicted
+        phon_len = int(phon_pad_mask[i].shape[-1] - np.sum(phon_pad_mask[i])) - 1
+        unpad_alignments = al[:, :mel_len, 1:phon_len]  # first dim is heads
+        unpad_mels.append(mels[i, :mel_len, :])
+        unpad_phonemes.append(phonemes[i, 1:phon_len]) # phonemes have both start and end tokens
         alignments_weights = weight_mask(unpad_alignments[0])
         heads_scores = []
         scored_attention = []
@@ -138,10 +138,10 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
         
         else:  # takes actual attention values and normalizes to mel_len
             attention_durations = np.sum(ref_attention_weights, axis=0)
-            normalized_durations = attention_durations * ((mel_len - 2) / np.sum(attention_durations))
+            normalized_durations = attention_durations * ((mel_len) / np.sum(attention_durations))
             integer_durations = np.round(normalized_durations)
             tot_duration = np.sum(integer_durations)
-            duration_diff = tot_duration - (mel_len - 2)
+            duration_diff = tot_duration - (mel_len)
             while duration_diff != 0:
                 rounding_diff = integer_durations - normalized_durations
                 if duration_diff > 0:  # duration is too long -> reduce highest (positive) rounding difference
@@ -151,12 +151,12 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
                     min_error_idx = np.argmin(rounding_diff)
                     integer_durations[min_error_idx] += 1
                 tot_duration = np.sum(integer_durations)
-                duration_diff = tot_duration - (mel_len - 2)
+                duration_diff = tot_duration - (mel_len)
         
         if fill_gaps:  # fill zeros durations
             integer_durations = fill_zeros(integer_durations, take_from=fill_mode)
         
-        assert np.sum(integer_durations) == mel_len - 2, f'{np.sum(integer_durations)} vs {mel_len - 2}'
+        assert np.sum(integer_durations) == mel_len, f'{np.sum(integer_durations)} vs {mel_len}'
         new_alignment = duration_to_alignment_matrix(integer_durations.astype(int))
         best_head = np.argmin(heads_scores)
         best_attention = unpad_alignments[best_head]

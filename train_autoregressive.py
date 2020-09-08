@@ -1,30 +1,20 @@
-import argparse
-import traceback
-
 import tensorflow as tf
 import numpy as np
 from tqdm import trange
 
-from utils.config_manager import ConfigManager
-from preprocessing.data_handling import load_files, Dataset, DataPrepper
+from utils.config_manager import Config
+from preprocessing.datasets import TextMelDataset, AutoregressivePreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging import SummaryManager
+from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
 
 np.random.seed(42)
 tf.random.set_seed(42)
 
-# dynamically allocate GPU
-gpus = tf.config.experimental.list_physical_devices('GPU')
-if gpus:
-    try:
-        # Currently, memory growth needs to be the same across GPUs
-        for gpu in gpus:
-            tf.config.experimental.set_memory_growth(gpu, True)
-        logical_gpus = tf.config.experimental.list_logical_devices('GPU')
-        print(len(gpus), 'Physical GPUs,', len(logical_gpus), 'Logical GPUs')
-    except Exception:
-        traceback.print_exc()
+dynamic_memory_allocation()
+parser = basic_train_parser()
+args = parser.parse_args()
 
 
 @ignore_exception
@@ -51,50 +41,26 @@ def validate(model,
     return val_loss['loss']
 
 
-# consuming CLI, creating paths and directories, load data
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--config', dest='config', type=str)
-parser.add_argument('--reset_dir', dest='clear_dir', action='store_true',
-                    help="deletes everything under this config's folder.")
-parser.add_argument('--reset_logs', dest='clear_logs', action='store_true',
-                    help="deletes logs under this config's folder.")
-parser.add_argument('--reset_weights', dest='clear_weights', action='store_true',
-                    help="deletes weights under this config's folder.")
-parser.add_argument('--session_name', dest='session_name', default=None)
-args = parser.parse_args()
-config_manager = ConfigManager(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
+config_manager = Config(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
 config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,
                                   clear_weights=args.clear_weights)
 config_manager.dump_config()
 config_manager.print_config()
+#
 
-train_samples, _ = load_files(metafile=str(config_manager.train_datadir / 'train_metafile.txt'),
-                              meldir=str(config_manager.train_datadir / 'mels'),
-                              num_samples=config['n_samples'])  # (phonemes, mel)
-val_samples, _ = load_files(metafile=str(config_manager.train_datadir / 'test_metafile.txt'),
-                            meldir=str(config_manager.train_datadir / 'mels'),
-                            num_samples=config['n_samples'])  # (phonemes, text, mel)
 
 # get model, prepare data for model, create datasets
 model = config_manager.get_model()
 config_manager.compile_model(model)
-data_prep = DataPrepper(config=config,
-                        tokenizer=model.text_pipeline.tokenizer)
-
-test_list = [data_prep(s) for s in val_samples]
-train_dataset = Dataset(samples=train_samples,
-                        preprocessor=data_prep,
-                        batch_size=config['batch_size'],
-                        mel_channels=config['mel_channels'],
-                        shuffle=True)
-val_dataset = Dataset(samples=val_samples,
-                      preprocessor=data_prep,
-                      batch_size=config['batch_size'],
-                      mel_channels=config['mel_channels'],
-                      shuffle=False)
+data_prep = AutoregressivePreprocessor(config=config, tokenizer=model.text_pipeline.tokenizer)
+train_data_handler = TextMelDataset.default_training_from_config(config_manager,
+                                                                 preprocessor=data_prep)
+valid_data_handler = TextMelDataset.default_validation_from_config(config_manager,
+                                                                   preprocessor=data_prep)
+train_dataset = train_data_handler.get_dataset(batch_size=config['batch_size'], shuffle=True)
+valid_dataset = valid_data_handler.get_dataset(batch_size=config['batch_size'], shuffle=False, drop_remainder=True)
 
 # create logger and checkpointer and restore latest model
 
@@ -110,17 +76,18 @@ if manager.latest_checkpoint:
     print(f'\nresuming training from step {model.step} ({manager.latest_checkpoint})')
 else:
     print(f'\nstarting training from scratch')
-    
+
 if config['debug'] is True:
     print('\nWARNING: DEBUG is set to True. Training in eager mode.')
 # main event
 print('\nTRAINING')
 losses = []
+test_batch = valid_dataset.next_batch()
 _ = train_dataset.next_batch()
 t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
-    mel, phonemes, stop = train_dataset.next_batch()
+    mel, phonemes, stop, sample_name = train_dataset.next_batch()
     decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_prenet_dropout_schedule'])
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
@@ -159,14 +126,14 @@ for _ in t:
     
     if model.step % config['validation_frequency'] == 0:
         val_loss, time_taken = validate(model=model,
-                                        val_dataset=val_dataset,
+                                        val_dataset=valid_dataset,
                                         summary_manager=summary_manager)
         t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
                   pos=len(config['n_steps_avg_losses']) + 3)
     
     if model.step % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
         for j in range(config['n_predictions']):
-            mel, phonemes, stop = test_list[j]
+            mel, phonemes, stop = test_batch[j]
             t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
             pred = model.predict(phonemes,
                                  max_length=mel.shape[0] + 50,
