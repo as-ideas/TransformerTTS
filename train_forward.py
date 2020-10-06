@@ -1,4 +1,3 @@
-from pathlib import Path
 from time import time
 
 import tensorflow as tf
@@ -10,12 +9,13 @@ from preprocessing.datasets import TextMelDurDataset, ForwardPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging import SummaryManager
-from models.transformer.transformer_utils import create_mel_padding_mask
+from model.transformer_utils import create_mel_padding_mask
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
 
 np.random.seed(42)
 tf.random.set_seed(42)
 dynamic_memory_allocation()
+
 
 @ignore_exception
 @time_it
@@ -24,7 +24,7 @@ def validate(model,
              summary_manager):
     val_loss = {'loss': 0.}
     norm = 0.
-    for mel, phonemes, durations in val_dataset.all_batches():
+    for mel, phonemes, durations, fname in val_dataset.all_batches():
         model_out = model.val_step(input_sequence=phonemes,
                                    target_sequence=mel,
                                    target_durations=durations)
@@ -43,52 +43,58 @@ def validate(model,
 parser = basic_train_parser()
 args = parser.parse_args()
 
-config_manager = Config(config_path=args.config, model_kind='forward')
-config = config_manager.config
-config_manager.create_remove_dirs(clear_dir=args.clear_dir,
-                                  clear_logs=args.clear_logs,
-                                  clear_weights=args.clear_weights)
-config_manager.dump_config()
-config_manager.print_config()
+config = Config(config_path=args.config_dict, model_kind='forward')
+config_dict = config.config
+config.create_remove_dirs(clear_dir=args.clear_dir,
+                          clear_logs=args.clear_logs,
+                          clear_weights=args.clear_weights)
+config.dump_config()
+config.print_config()
 
-model = config_manager.get_model()
-config_manager.compile_model(model)
+model = config.get_model()
+config.compile_model(model)
 
-data_prep = ForwardPreprocessor(config=config, tokenizer=model.text_pipeline.tokenizer)
-train_data_handler = TextMelDurDataset.default_training_from_config(config_manager,
-                                                                 preprocessor=data_prep)
-valid_data_handler = TextMelDurDataset.default_validation_from_config(config_manager,
-                                                                   preprocessor=data_prep)
-train_dataset = train_data_handler.get_dataset(batch_size=config['batch_size'], shuffle=True)
-valid_dataset = valid_data_handler.get_dataset(batch_size=config['batch_size'], shuffle=False, drop_remainder=True)
+data_prep = ForwardPreprocessor.from_config(config=config,
+                                            tokenizer=model.text_pipeline.tokenizer)
+train_data_handler = TextMelDurDataset.from_config(config,
+                                                   preprocessor=data_prep,
+                                                   kind='training')
+valid_data_handler = TextMelDurDataset.from_config(config,
+                                                   preprocessor=data_prep,
+                                                   kind='valid')
+train_dataset = train_data_handler.get_dataset(shuffle=True)
+valid_dataset = valid_data_handler.get_dataset(shuffle=False, drop_remainder=True)
 
 # create logger and checkpointer and restore latest model
-summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir, config=config)
+summary_manager = SummaryManager(model=model, log_dir=config.log_dir, config=config_dict)
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
                                  optimizer=model.optimizer,
                                  net=model)
-manager = tf.train.CheckpointManager(checkpoint, config_manager.weights_dir,
-                                     max_to_keep=config['keep_n_weights'],
-                                     keep_checkpoint_every_n_hours=config['keep_checkpoint_every_n_hours'])
-checkpoint.restore(manager.latest_checkpoint)
-if manager.latest_checkpoint:
-    print(f'\nresuming training from step {model.step} ({manager.latest_checkpoint})')
+manager = tf.train.CheckpointManager(checkpoint, config.weights_dir,
+                                     max_to_keep=config_dict['keep_n_weights'],
+                                     keep_checkpoint_every_n_hours=config_dict['keep_checkpoint_every_n_hours'])
+manager_training = tf.train.CheckpointManager(checkpoint, str(config.weights_dir / 'latest'),
+                                     max_to_keep=1, checkpoint_name='latest')
+
+checkpoint.restore(manager_training.latest_checkpoint)
+if manager_training.latest_checkpoint:
+    print(f'\nresuming training from step {model.step} ({manager_training.latest_checkpoint})')
 else:
     print(f'\nstarting training from scratch')
 
-if config['debug'] is True:
+if config_dict['debug'] is True:
     print('\nWARNING: DEBUG is set to True. Training in eager mode.')
 # main event
 print('\nTRAINING')
 losses = []
-test_batch = valid_dataset.next_batch()
-t = trange(model.step, config['max_steps'], leave=True)
+test_mel, test_phonemes, test_durs, test_fname = valid_dataset.next_batch()
+t = trange(model.step, config_dict['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
-    mel, phonemes, durations = train_dataset.next_batch()
-    learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
-    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_prenet_dropout_schedule'])
-    drop_n_heads = tf.cast(reduction_schedule(model.step, config['head_drop_schedule']), tf.int32)
+    mel, phonemes, durations, fname = train_dataset.next_batch()
+    learning_rate = piecewise_linear_schedule(model.step, config_dict['learning_rate_schedule'])
+    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config_dict['decoder_prenet_dropout_schedule'])
+    drop_n_heads = tf.cast(reduction_schedule(model.step, config_dict['head_drop_schedule']), tf.int32)
     model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
                         learning_rate=learning_rate,
                         drop_n_heads=drop_n_heads)
@@ -98,7 +104,7 @@ for _ in t:
     losses.append(float(output['loss']))
     
     t.display(f'step loss: {losses[-1]}', pos=1)
-    for pos, n_steps in enumerate(config['n_steps_avg_losses']):
+    for pos, n_steps in enumerate(config_dict['n_steps_avg_losses']):
         if len(losses) > n_steps:
             t.display(f'{n_steps}-steps average loss: {sum(losses[-n_steps:]) / n_steps}', pos=pos + 2)
     
@@ -106,51 +112,50 @@ for _ in t:
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet.rate)
     summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
-    if model.step % config['train_images_plotting_frequency'] == 0:
+    if model.step % config_dict['train_images_plotting_frequency'] == 0:
         summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/predicted_mel')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
         summary_manager.add_histogram(tag=f'Train/Predicted durations', values=output['duration'])
         summary_manager.add_histogram(tag=f'Train/Target durations', values=durations)
     
-    if model.step % config['weights_save_frequency'] == 0:
+    if model.step % config_dict['weights_save_frequency'] == 0:
         save_path = manager.save()
-        t.display(f'checkpoint at step {model.step}: {save_path}', pos=len(config['n_steps_avg_losses']) + 2)
+        t.display(f'checkpoint at step {model.step}: {save_path}', pos=len(config_dict['n_steps_avg_losses']) + 2)
     
-    if model.step % config['validation_frequency'] == 0:
-        t.display(f'Validating', pos=len(config['n_steps_avg_losses']) + 3)
+    if model.step % config_dict['validation_frequency'] == 0:
+        t.display(f'Validating', pos=len(config_dict['n_steps_avg_losses']) + 3)
         val_loss, time_taken = validate(model=model,
                                         val_dataset=valid_dataset,
                                         summary_manager=summary_manager)
         t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
-                  pos=len(config['n_steps_avg_losses']) + 3)
+                  pos=len(config_dict['n_steps_avg_losses']) + 3)
     
-    if model.step % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
-        tar_mel, phonemes, durs = test_batch
-        t.display(f'Predicting', pos=len(config['n_steps_avg_losses']) + 4)
+    if model.step % config_dict['prediction_frequency'] == 0 and (model.step >= config_dict['prediction_start_step']):
+        t.display(f'Predicting', pos=len(config_dict['n_steps_avg_losses']) + 4)
         timed_pred = time_it(model.predict)
-        model_out, time_taken = timed_pred(phonemes, encode=False)
+        model_out, time_taken = timed_pred(test_phonemes, encode=False)
         summary_manager.display_attention_heads(model_out, tag='TestAttentionHeads')
         summary_manager.add_histogram(tag=f'Test/Predicted durations', values=model_out['duration'])
-        summary_manager.add_histogram(tag=f'Test/Target durations', values=durs)
+        summary_manager.add_histogram(tag=f'Test/Target durations', values=test_durs)
         pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
         pred_lengths = tf.squeeze(pred_lengths)
-        tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(tar_mel), axis=-1), tf.int32)
+        tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(test_mel), axis=-1), tf.int32)
         tar_lengths = tf.squeeze(tar_lengths)
         display_start = time()
         for j, pred_mel in enumerate(model_out['mel']):
             predval = pred_mel[:pred_lengths[j], :]
-            tar_value = tar_mel[j, :tar_lengths[j], :]
-            summary_manager.display_mel(mel=predval, tag=f'Test/sample {j}/predicted_mel')
-            summary_manager.display_mel(mel=tar_value, tag=f'Test/sample {j}/target_mel')
-            if j < config['n_predictions']:
-                if model.step >= config['audio_start_step'] and (
-                        model.step % config['audio_prediction_frequency'] == 0):
-                    summary_manager.display_audio(tag=f'Target/sample {j}', mel=tar_value)
-                    summary_manager.display_audio(tag=f'Prediction/sample {j}', mel=predval)
+            tar_value = test_mel[j, :tar_lengths[j], :]
+            summary_manager.display_mel(mel=predval, tag=f'Test/{test_fname}/predicted_mel')
+            summary_manager.display_mel(mel=tar_value, tag=f'Test/{test_fname}/target_mel')
+            if j < config_dict['n_predictions']:
+                if model.step >= config_dict['audio_start_step'] and (
+                        model.step % config_dict['audio_prediction_frequency'] == 0):
+                    summary_manager.display_audio(tag=f'Target/{test_fname}', mel=tar_value)
+                    summary_manager.display_audio(tag=f'Prediction/{test_fname}', mel=predval)
             else:
                 break
         display_end = time()
         t.display(f'Predictions took {time_taken}. Displaying took {display_end - display_start}.',
-                  pos=len(config['n_steps_avg_losses']) + 4)
+                  pos=len(config_dict['n_steps_avg_losses']) + 4)
 print('Done.')

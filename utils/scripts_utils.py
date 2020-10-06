@@ -26,5 +26,4 @@ def basic_train_parser():
                         help="deletes logs under this config's folder.")
     parser.add_argument('--reset_weights', dest='clear_weights', action='store_true',
                         help="deletes weights under this config's folder.")
-    parser.add_argument('--session_name', dest='session_name', default=None)
     return parser

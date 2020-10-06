@@ -24,7 +24,7 @@ def validate(model,
              summary_manager):
     val_loss = {'loss': 0.}
     norm = 0.
-    for val_mel, val_text, val_stop in val_dataset.all_batches():
+    for val_mel, val_text, val_stop, fname in val_dataset.all_batches():
         model_out = model.val_step(inp=val_text,
                                    tar=val_mel,
                                    stop_prob=val_stop)
@@ -33,15 +33,15 @@ def validate(model,
     val_loss['loss'] /= norm
     summary_manager.display_loss(model_out, tag='Validation', plot_all=True)
     summary_manager.display_attention_heads(model_out, tag='ValidationAttentionHeads')
-    summary_manager.display_mel(mel=model_out['mel_linear'][0], tag=f'Validation/linear_mel_out')
-    summary_manager.display_mel(mel=model_out['final_output'][0], tag=f'Validation/predicted_mel')
-    residual = abs(model_out['mel_linear'] - model_out['final_output'])
-    summary_manager.display_mel(mel=residual[0], tag=f'Validation/conv-linear_residual')
-    summary_manager.display_mel(mel=val_mel[0], tag=f'Validation/target_mel')
+    # summary_manager.display_mel(mel=model_out['mel_linear'][0], tag=f'Validation/linear_mel_out')
+    summary_manager.display_mel(mel=model_out['final_output'][0], tag=f'Validation/predicted_mel_{fname[0].numpy().decode("utf-8")}')
+    # residual = abs(model_out['mel_linear'] - model_out['final_output'])
+    # summary_manager.display_mel(mel=residual[0], tag=f'Validation/conv-linear_residual')
+    summary_manager.display_mel(mel=val_mel[0], tag=f'Validation/target_mel_{fname[0].numpy().decode("utf-8")}')
     return val_loss['loss']
 
 
-config_manager = Config(config_path=args.config, model_kind='autoregressive', session_name=args.session_name)
+config_manager = Config(config_path=args.config, model_kind='autoregressive')
 config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,
@@ -54,13 +54,16 @@ config_manager.print_config()
 # get model, prepare data for model, create datasets
 model = config_manager.get_model()
 config_manager.compile_model(model)
-data_prep = AutoregressivePreprocessor(config=config, tokenizer=model.text_pipeline.tokenizer)
-train_data_handler = TextMelDataset.default_training_from_config(config_manager,
-                                                                 preprocessor=data_prep)
-valid_data_handler = TextMelDataset.default_validation_from_config(config_manager,
-                                                                   preprocessor=data_prep)
-train_dataset = train_data_handler.get_dataset(batch_size=config['batch_size'], shuffle=True)
-valid_dataset = valid_data_handler.get_dataset(batch_size=config['batch_size'], shuffle=False, drop_remainder=True)
+data_prep = AutoregressivePreprocessor.from_config(config_manager,
+                                                   tokenizer=model.text_pipeline.tokenizer)
+train_data_handler = TextMelDataset.from_config(config_manager,
+                                                preprocessor=data_prep,
+                                                kind='train')
+valid_data_handler = TextMelDataset.from_config(config_manager,
+                                                preprocessor=data_prep,
+                                                kind='valid')
+train_dataset = train_data_handler.get_dataset(shuffle=True)
+valid_dataset = valid_data_handler.get_dataset(shuffle=False, drop_remainder=True)
 
 # create logger and checkpointer and restore latest model
 
@@ -71,9 +74,12 @@ checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
 manager = tf.train.CheckpointManager(checkpoint, str(config_manager.weights_dir),
                                      max_to_keep=config['keep_n_weights'],
                                      keep_checkpoint_every_n_hours=config['keep_checkpoint_every_n_hours'])
-checkpoint.restore(manager.latest_checkpoint)
-if manager.latest_checkpoint:
-    print(f'\nresuming training from step {model.step} ({manager.latest_checkpoint})')
+manager_training = tf.train.CheckpointManager(checkpoint, str(config_manager.weights_dir / 'latest'),
+                                     max_to_keep=1, checkpoint_name='latest')
+
+checkpoint.restore(manager_training.latest_checkpoint)
+if manager_training.latest_checkpoint:
+    print(f'\nresuming training from step {model.step} ({manager_training.latest_checkpoint})')
 else:
     print(f'\nstarting training from scratch')
 
@@ -82,7 +88,7 @@ if config['debug'] is True:
 # main event
 print('\nTRAINING')
 losses = []
-test_batch = valid_dataset.next_batch()
+test_mel, test_phonemes, test_stop, test_fname = valid_dataset.next_batch()
 _ = train_dataset.next_batch()
 t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
@@ -119,7 +125,9 @@ for _ in t:
         residual = abs(output['mel_linear'] - output['final_output'])
         summary_manager.display_mel(mel=residual[0], tag=f'Train/conv-linear_residual')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
-    
+        
+    if model.step % 1000 == 0:
+        save_path = manager_training.save()
     if model.step % config['weights_save_frequency'] == 0:
         save_path = manager.save()
         t.display(f'checkpoint at step {model.step}: {save_path}', pos=len(config['n_steps_avg_losses']) + 2)
@@ -133,7 +141,9 @@ for _ in t:
     
     if model.step % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
         for j in range(config['n_predictions']):
-            mel, phonemes, stop = test_batch[j]
+            mel, phonemes, stop, fname = test_mel[j], test_phonemes[j], test_stop[j], test_fname[j]
+            mel = mel[tf.reduce_sum(tf.cast(mel != 0, tf.int32), axis=1) > 0]
+            mel = mel[1:-1]
             t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
             pred = model.predict(phonemes,
                                  max_length=mel.shape[0] + 50,
@@ -141,11 +151,11 @@ for _ in t:
                                  verbose=False)
             pred_mel = pred['mel']
             target_mel = mel
-            summary_manager.display_attention_heads(outputs=pred, tag=f'TestAttentionHeads/sample {j}')
-            summary_manager.display_mel(mel=pred_mel, tag=f'Test/sample {j}/predicted_mel')
-            summary_manager.display_mel(mel=target_mel, tag=f'Test/sample {j}/target_mel')
-            if model.step > config['audio_start_step']:
-                summary_manager.display_audio(tag=f'Target/sample {j}', mel=target_mel)
-                summary_manager.display_audio(tag=f'Prediction/sample {j}', mel=pred_mel)
+            summary_manager.display_attention_heads(outputs=pred, tag=f'TestAttentionHeads/{fname.numpy().decode("utf-8")}')
+            summary_manager.display_mel(mel=pred_mel, tag=f'Test {fname.numpy().decode("utf-8")}/predicted')
+            summary_manager.display_mel(mel=target_mel, tag=f'Test {fname.numpy().decode("utf-8")}/target')
+            if model.step >= config['audio_start_step']:
+                summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/target', mel=target_mel)
+                summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/prediction', mel=pred_mel)
 
 print('Done.')

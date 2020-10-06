@@ -37,7 +37,7 @@ class Audio():
         """ This is what the model is trained to reproduce. """
         D = self._stft(wav)
         S = self._linear_to_mel(np.abs(D))
-        return self._normalize(S)
+        return self._normalize(S).T
     
     def reconstruct_waveform(self, mel, n_iter=32):
         """ Uses Griffin-Lim phase reconstruction to convert from a normalized

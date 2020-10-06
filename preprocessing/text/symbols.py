@@ -10,3 +10,5 @@ _punctuations = '!,-.:;? '
 _alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzäüöß'
 _not_end_punctuation = ',-.:; '
 _numbers = '1234567890'
+
+all_phonemes = sorted(list(_phonemes) + list(_punctuations))

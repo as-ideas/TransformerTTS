@@ -5,9 +5,10 @@ import numpy as np
 import tqdm
 
 from preprocessing.text import Pipeline
-from preprocessing.datasets import MetadataReader
+from preprocessing.datasets import DataReader
 from utils.config_manager import Config
 from utils.audio import Audio
+from multiprocessing import Pool, cpu_count
 
 np.random.seed(42)
 
@@ -15,7 +16,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, required=True)
 parser.add_argument('--skip_phonemes', action='store_true')
 parser.add_argument('--skip_mels', action='store_true')
-parser.add_argument('--skip_wavs', action='store_true')
 parser.add_argument('--phonemizer_parallel_jobs', type=int, default=16)
 parser.add_argument('--phonemizer_batch_size', type=int, default=16)
 
@@ -25,67 +25,72 @@ for arg in vars(args):
 
 cm = Config(args.config, model_kind='autoregressive')
 cm.create_remove_dirs()
-metadatareader = MetadataReader.default_original_from_config(cm, metadata_reading_function=None)
-np_data = np.array(metadatareader.data)
-texts = np_data[:, 1]
-filenames = np_data[:, 0]
+metadatareader = DataReader.from_config(cm, kind='original', scan_wavs=True)
 
 if not args.skip_phonemes:
-    phonemized_metadata_path = Path(cm.train_datadir) / 'phonemized_metadata.txt'
-    train_metadata_path = Path(cm.train_datadir) / cm.config['train_metadata_filename']
-    test_metadata_path = Path(cm.train_datadir) / cm.config['valid_metadata_filename']
-    metadata_len = len(metadatareader.data)
+    phonemized_metadata_path = Path(cm.data_dir) / 'phonemized_metadata.txt'
+    train_metadata_path = Path(cm.data_dir) / cm.config['train_metadata_filename']
+    test_metadata_path = Path(cm.data_dir) / cm.config['valid_metadata_filename']
+    metadata_len = len(metadatareader.filenames)
+    sample_items = np.random.choice(metadatareader.filenames, 5)
     test_len = cm.config['n_test']
     train_len = metadata_len - test_len
     print(f'\nReading metadata from {metadatareader.metadata_path}')
     print(f'\nMetadata contains {metadata_len} lines.')
-    print(f'Files will be stored under {cm.train_datadir}')
+    print(f'Files will be stored under {cm.data_dir}')
     print(f' - all: {phonemized_metadata_path}')
     print(f' - {train_len} training lines: {train_metadata_path}')
     print(f' - {test_len} validation lines: {test_metadata_path}')
     
-    print('\nMetadata head:')
-    for i in range(5):
-        print(f'{metadatareader.data[i]}')
-    print('\nMetadata tail:')
-    for i in range(1, 5):
-        print(f'{metadatareader.data[-i]}')
+    print('\nMetadata samples:')
+    for i in sample_items:
+        print(f'{i}:{metadatareader.text_dict[i]}')
     
     # run cleaner on raw text
     text_proc = Pipeline.default_training_pipeline(cm.config['phoneme_language'], add_start_end=False,
                                                    with_stress=cm.config['with_stress'])
+    texts = [metadatareader.text_dict[k] for k in metadatareader.filenames]
     clean_texts = text_proc.cleaner(list(texts))
-    print('\nCleaned metadata head:')
-    for i in range(5):
-        print(f'{(filenames[i], clean_texts[i])}')
-    print('\nCleaned metadata tail:')
-    for i in range(1, 5):
-        print(f'{(filenames[-i], clean_texts[-i])}')
+    clean_texts = dict(zip(metadatareader.filenames, clean_texts))
+    key_list = list(clean_texts.keys())
+    print('\nCleaned metadata samples:')
+    for i in sample_items:
+        print(f'{i}:{clean_texts[i]}')
     
     print('\nPHONEMIZING')
-    phonemes = []
-    for i in tqdm.tqdm(range(0, len(clean_texts), args.phonemizer_batch_size)):
-        batch = clean_texts[i: i + args.phonemizer_batch_size]
-        batch = text_proc.phonemizer(batch, njobs=args.phonemizer_parallel_jobs)
-        phonemes.extend(batch)
-    
-    new_metadata = [''.join([fname, '|', ph, '\n']) for fname, ph in zip(filenames, phonemes)]
+    batch_size = args.phonemizer_batch_size
+    failed_files = []
+    phonemized_data = {}
+    for i in tqdm.tqdm(range(0, len(key_list) + batch_size, batch_size)):
+        batch_keys = key_list[i:i + batch_size]
+        try:
+            batch_text = [clean_texts[k] for k in batch_keys]
+            if len(batch_text) == 0:
+                break
+            phonemized_batch = text_proc.phonemizer(batch_text, njobs=args.phonemizer_parallel_jobs)
+            phonemized_data.update(dict(zip(batch_keys, phonemized_batch)))
+        except:
+            failed_files.extend(batch_keys)
+
+    for file in failed_files: # phonemizer sometimes breaks when computing batches or when multiproc.
+        text = clean_texts[file]
+        phonemized_text = text_proc.phonemizer(text, njobs=1)
+        phonemized_data.update({file: phonemized_text})
+        
+    print('\nPhonemized metadata samples:')
+    for i in sample_items:
+        print(f'{i}:{phonemized_data[i]}')
+        
+    new_metadata = [''.join([key, '|', phonemized_data[key], '\n']) for key in phonemized_data]
     shuffled_metadata = np.random.permutation(new_metadata)
     train_metadata = shuffled_metadata[0:train_len]
     test_metadata = shuffled_metadata[:test_len]
     
     # some checks
-    assert metadata_len == len(phonemes), \
-        f'Length of metadata ({metadata_len}) does not match the length of the phoneme array ({len(phonemes)}). Check for empty text lines in metadata.'
+    assert metadata_len == len(set(list(phonemized_data.keys()))), \
+        f'Length of metadata ({metadata_len}) does not match the length of the phoneme array ({len(set(list(phonemized_data.keys())))}). Check for empty text lines in metadata.'
     assert len(train_metadata) + len(test_metadata) == metadata_len, \
         'Train and/or validation lengths incorrect.'
-    
-    print('\nPhonemized metadata head:')
-    for i in range(5):
-        print(f'{new_metadata[i]}')
-    print('\nPhonemized metadata tail:')
-    for i in range(1, 5):
-        print(f'{new_metadata[-i]}')
     
     with open(phonemized_metadata_path, 'w+', encoding='utf-8') as file:
         file.writelines(new_metadata)
@@ -94,26 +99,31 @@ if not args.skip_phonemes:
     with open(test_metadata_path, 'w+', encoding='utf-8') as file:
         file.writelines(test_metadata)
 
-if (not args.skip_mels) or (not args.skip_wavs):
-    print(f"\nMels and resampled wavs will be respectibvely stored under")
-    print(f"{cm.train_datadir / 'mels'} and {cm.train_datadir / 'resampled_wavs'}")
-    print(f'RESAMPLING WAVS and COMPUTING MELS')
-    (cm.train_datadir / 'resampled_wavs').mkdir(exist_ok=True)
-    (cm.train_datadir / 'mels').mkdir(exist_ok=True)
-    audio = Audio(config=cm.config)
-    for i in tqdm.tqdm(range(len(filenames))):
-        wav_path = (metadatareader.wav_directory / filenames[i]).with_suffix('.wav')
+if not args.skip_mels:
+    import sys
+    def process_wav(wav_path: Path):
+        file_name = wav_path.stem
         y, sr = audio.load_wav(str(wav_path))
-        if not args.skip_mels:
-            mel = audio.mel_spectrogram(y)
-            assert mel.shape[1] == audio.config['mel_channels']
-            mel_path = (cm.train_datadir / 'mels' / filenames[i]).with_suffix('.npy')
-            np.save(mel_path, mel)
-            # TODO: switch to padding = -1 (or wav pad value)
-            y = np.pad(y, (0, cm.config['n_fft']), constant_values=cm.config['wav_padding_value'])
-            # y = np.pad(y, (0, cm.config['n_fft']), mode='edge')
-            y = y [:mel.shape[0]*audio.config['hop_length']]
-            assert len(y) == mel.shape[0]*audio.config['hop_length']
-            wav_path = (cm.train_datadir / 'resampled_wavs' / filenames[i]).with_suffix('.npy')
-            np.save(wav_path, y)
+        mel = audio.mel_spectrogram(y)
+        assert mel.shape[1] == audio.config['mel_channels'], len(mel.shape) == 2
+        mel_path = (cm.data_dir / 'mels' / file_name).with_suffix('.npy')
+        np.save(mel_path, mel)
+
+    def progbar(i, n, size=16):
+        done = (i * size) // n
+        bar = ''
+        for i in range(size):
+            bar += '█' if i <= done else '░'
+        return bar
+    
+    print(f"\nMels will be stored stored under")
+    print(f"{cm.data_dir / 'mels'}")
+    (cm.data_dir / 'mels').mkdir(exist_ok=True)
+    audio = Audio(config=cm.config)
+    pool = Pool(processes=cpu_count()-1)
+    wav_files = [metadatareader.wav_paths[k] for k in metadatareader.wav_paths]
+    for i, fname_len in enumerate(pool.imap_unordered(process_wav, wav_files), 1):
+        bar = progbar(i, len(wav_files))
+        message = f'{bar} {i}/{len(wav_files)} '
+        sys.stdout.write(f"\r{message}")
 print('\nDone')

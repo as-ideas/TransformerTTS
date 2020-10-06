@@ -34,7 +34,8 @@ parser.add_argument('--fill_mode_next', dest='fill_mode_next', action='store_tru
                     help='Fill zero durations with ones. Reduces next non-zero phoneme duration in sequence to compensate.')
 parser.add_argument('--use_GT', action='store_true',
                     help='Use ground truth mel instead of predicted mel to train forward model.')
-parser.add_argument('--autoregressive_weights', type=str, default='', help='Explicit path to autoregressive model weights.')
+parser.add_argument('--autoregressive_weights', type=str, default='',
+                    help='Explicit path to autoregressive model weights.')
 args = parser.parse_args()
 assert (args.fill_mode_max is False) or (args.fill_mode_next is False), 'Choose one gap filling mode.'
 weighted = not args.best
@@ -60,12 +61,13 @@ else:
 if model.r != 1:
     print(f"ERROR: model's reduction factor is greater than 1, check config. (r={model.r}")
 
-data_prep = AutoregressivePreprocessor(config=config,
-                                       tokenizer=model.text_pipeline.tokenizer)
-data_handler = TextMelDataset.default_all_from_config(config_manager,
-                                                      preprocessor=data_prep)
+data_prep = AutoregressivePreprocessor.from_config(config=config,
+                                                   tokenizer=model.text_pipeline.tokenizer)
+data_handler = TextMelDataset.from_config(config_manager,
+                                          preprocessor=data_prep,
+                                          kind='phonemized')
 
-target_dir = config_manager.train_datadir / f'durations'
+target_dir = config_manager.data_dir / f'durations'
 target_dir.mkdir(exist_ok=True)
 config_manager.dump_config()
 script_batch_size = 5 * config['batch_size']
