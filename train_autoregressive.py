@@ -34,7 +34,8 @@ def validate(model,
     summary_manager.display_loss(model_out, tag='Validation', plot_all=True)
     summary_manager.display_attention_heads(model_out, tag='ValidationAttentionHeads')
     # summary_manager.display_mel(mel=model_out['mel_linear'][0], tag=f'Validation/linear_mel_out')
-    summary_manager.display_mel(mel=model_out['final_output'][0], tag=f'Validation/predicted_mel_{fname[0].numpy().decode("utf-8")}')
+    summary_manager.display_mel(mel=model_out['final_output'][0],
+                                tag=f'Validation/predicted_mel_{fname[0].numpy().decode("utf-8")}')
     # residual = abs(model_out['mel_linear'] - model_out['final_output'])
     # summary_manager.display_mel(mel=residual[0], tag=f'Validation/conv-linear_residual')
     summary_manager.display_mel(mel=val_mel[0], tag=f'Validation/target_mel_{fname[0].numpy().decode("utf-8")}')
@@ -62,8 +63,11 @@ train_data_handler = TextMelDataset.from_config(config_manager,
 valid_data_handler = TextMelDataset.from_config(config_manager,
                                                 preprocessor=data_prep,
                                                 kind='valid')
-train_dataset = train_data_handler.get_dataset(shuffle=True)
-valid_dataset = valid_data_handler.get_dataset(shuffle=False, drop_remainder=True)
+
+train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=[64, 42, 32, 25, 21, 18, 16, 14, 12, 11, 1],
+                                               shuffle=True)
+valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1],
+                                               shuffle=False, drop_remainder=True)
 
 # create logger and checkpointer and restore latest model
 
@@ -75,7 +79,7 @@ manager = tf.train.CheckpointManager(checkpoint, str(config_manager.weights_dir)
                                      max_to_keep=config['keep_n_weights'],
                                      keep_checkpoint_every_n_hours=config['keep_checkpoint_every_n_hours'])
 manager_training = tf.train.CheckpointManager(checkpoint, str(config_manager.weights_dir / 'latest'),
-                                     max_to_keep=1, checkpoint_name='latest')
+                                              max_to_keep=1, checkpoint_name='latest')
 
 checkpoint.restore(manager_training.latest_checkpoint)
 if manager_training.latest_checkpoint:
@@ -125,7 +129,7 @@ for _ in t:
         residual = abs(output['mel_linear'] - output['final_output'])
         summary_manager.display_mel(mel=residual[0], tag=f'Train/conv-linear_residual')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
-        
+    
     if model.step % 1000 == 0:
         save_path = manager_training.save()
     if model.step % config['weights_save_frequency'] == 0:
@@ -151,7 +155,8 @@ for _ in t:
                                  verbose=False)
             pred_mel = pred['mel']
             target_mel = mel
-            summary_manager.display_attention_heads(outputs=pred, tag=f'TestAttentionHeads/{fname.numpy().decode("utf-8")}')
+            summary_manager.display_attention_heads(outputs=pred,
+                                                    tag=f'TestAttentionHeads/{fname.numpy().decode("utf-8")}')
             summary_manager.display_mel(mel=pred_mel, tag=f'Test {fname.numpy().decode("utf-8")}/predicted')
             summary_manager.display_mel(mel=target_mel, tag=f'Test {fname.numpy().decode("utf-8")}/target')
             if model.step >= config['audio_start_step']:

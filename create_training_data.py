@@ -9,6 +9,7 @@ from preprocessing.datasets import DataReader
 from utils.config_manager import Config
 from utils.audio import Audio
 from multiprocessing import Pool, cpu_count
+import pickle
 
 np.random.seed(42)
 
@@ -27,15 +28,59 @@ cm = Config(args.config, model_kind='autoregressive')
 cm.create_remove_dirs()
 metadatareader = DataReader.from_config(cm, kind='original', scan_wavs=True)
 
+if not args.skip_mels:
+    import sys
+    
+    
+    def process_wav(wav_path: Path):
+        file_name = wav_path.stem
+        y, sr = audio.load_wav(str(wav_path))
+        mel = audio.mel_spectrogram(y)
+        assert mel.shape[1] == audio.config['mel_channels'], len(mel.shape) == 2
+        mel_path = (cm.data_dir / 'mels' / file_name).with_suffix('.npy')
+        np.save(mel_path, mel)
+        return (file_name, mel.shape[0])
+    
+    
+    def progbar(i, n, size=16):
+        done = (i * size) // n
+        bar = ''
+        for i in range(size):
+            bar += '█' if i <= done else '░'
+        return bar
+    
+    
+    print(f"\nMels will be stored stored under")
+    print(f"{cm.data_dir / 'mels'}")
+    (cm.data_dir / 'mels').mkdir(exist_ok=True)
+    audio = Audio(config=cm.config)
+    pool = Pool(processes=cpu_count() - 1)
+    wav_files = [metadatareader.wav_paths[k] for k in metadatareader.wav_paths]
+    len_dict = {}
+    remove_files = []
+    for i, (fname, mel_len) in enumerate(pool.imap_unordered(process_wav, wav_files), 1):
+        bar = progbar(i, len(wav_files))
+        message = f'{bar} {i}/{len(wav_files)} '
+        sys.stdout.write(f"\r{message}")
+        len_dict.update({fname: mel_len})
+        if mel_len > cm.config['max_mel_len'] or mel_len < cm.config['min_mel_len']:
+            remove_files.append(fname)
+    pickle.dump(len_dict, open(cm.data_dir / 'mel_len.pkl', 'wb'))
+    pickle.dump(remove_files, open(cm.data_dir / 'under-over_sized_mels.pkl', 'wb'))
+
 if not args.skip_phonemes:
+    remove_files = pickle.load(open(cm.data_dir / 'under-over_sized_mels.pkl', 'rb'))
     phonemized_metadata_path = Path(cm.data_dir) / 'phonemized_metadata.txt'
     train_metadata_path = Path(cm.data_dir) / cm.config['train_metadata_filename']
     test_metadata_path = Path(cm.data_dir) / cm.config['valid_metadata_filename']
+    metadata_len_tot = len(metadatareader.filenames)
+    metadatareader.filenames = [fname for fname in metadatareader.filenames if fname not in remove_files]
     metadata_len = len(metadatareader.filenames)
     sample_items = np.random.choice(metadatareader.filenames, 5)
     test_len = cm.config['n_test']
     train_len = metadata_len - test_len
     print(f'\nReading metadata from {metadatareader.metadata_path}')
+    print(f'\nRemoving {len(remove_files)} lines out of {metadata_len_tot}.')
     print(f'\nMetadata contains {metadata_len} lines.')
     print(f'Files will be stored under {cm.data_dir}')
     print(f' - all: {phonemized_metadata_path}')
@@ -98,32 +143,4 @@ if not args.skip_phonemes:
         file.writelines(train_metadata)
     with open(test_metadata_path, 'w+', encoding='utf-8') as file:
         file.writelines(test_metadata)
-
-if not args.skip_mels:
-    import sys
-    def process_wav(wav_path: Path):
-        file_name = wav_path.stem
-        y, sr = audio.load_wav(str(wav_path))
-        mel = audio.mel_spectrogram(y)
-        assert mel.shape[1] == audio.config['mel_channels'], len(mel.shape) == 2
-        mel_path = (cm.data_dir / 'mels' / file_name).with_suffix('.npy')
-        np.save(mel_path, mel)
-
-    def progbar(i, n, size=16):
-        done = (i * size) // n
-        bar = ''
-        for i in range(size):
-            bar += '█' if i <= done else '░'
-        return bar
-    
-    print(f"\nMels will be stored stored under")
-    print(f"{cm.data_dir / 'mels'}")
-    (cm.data_dir / 'mels').mkdir(exist_ok=True)
-    audio = Audio(config=cm.config)
-    pool = Pool(processes=cpu_count()-1)
-    wav_files = [metadatareader.wav_paths[k] for k in metadatareader.wav_paths]
-    for i, fname_len in enumerate(pool.imap_unordered(process_wav, wav_files), 1):
-        bar = progbar(i, len(wav_files))
-        message = f'{bar} {i}/{len(wav_files)} '
-        sys.stdout.write(f"\r{message}")
 print('\nDone')

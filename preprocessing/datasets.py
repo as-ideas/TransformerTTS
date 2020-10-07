@@ -74,7 +74,7 @@ class TextMelDataset:
         mel, text = self._read_sample(sample_name)
         return self.preprocessor(mel=mel, text=text, sample_name=sample_name)
     
-    def get_dataset(self, shuffle=True, drop_remainder=False):
+    def get_dataset(self, bucket_batch_sizes, shuffle=True, drop_remainder=False):
         return Dataset(
             samples=self.metadata_reader.filenames,
             preprocessor=self._process_sample,
@@ -82,7 +82,8 @@ class TextMelDataset:
             padded_shapes=self.preprocessor.padded_shapes,
             shuffle=shuffle,
             drop_remainder=drop_remainder,
-            len_function=self.preprocessor.get_sample_length)
+            len_function=self.preprocessor.get_sample_length,
+            bucket_batch_sizes=bucket_batch_sizes)
     
     @classmethod
     def from_config(cls,
@@ -121,7 +122,7 @@ class TextMelDurDataset:
         mel, text, durations = self._read_sample(sample_name)
         return self.preprocessor(mel=mel, text=text, durations=durations, sample_name=sample_name)
     
-    def get_dataset(self, shuffle=True, drop_remainder=False):
+    def get_dataset(self, bucket_batch_sizes, shuffle=True, drop_remainder=False, ):
         return Dataset(
             samples=self.metadata_reader.filenames,
             preprocessor=self._process_sample,
@@ -129,7 +130,8 @@ class TextMelDurDataset:
             padded_shapes=self.preprocessor.padded_shapes,
             len_function=self.preprocessor.get_sample_length,
             shuffle=shuffle,
-            drop_remainder=drop_remainder)
+            drop_remainder=drop_remainder,
+            bucket_batch_sizes=bucket_batch_sizes)
     
     @classmethod
     def from_config(cls,
@@ -158,26 +160,31 @@ class Dataset:
                  len_function,
                  padded_shapes: tuple,
                  output_types: tuple,
+                 bucket_batch_sizes: list,
                  padding_values: tuple = None,
                  shuffle=True,
                  drop_remainder=True,
                  seed=42):
         self._random = Random(seed)
-        self._samples = samples
+        self._samples = samples[:]
+        print(len(self._samples))
         self.preprocessor = preprocessor
         dataset = tf.data.Dataset.from_generator(lambda: self._datagen(shuffle),
                                                  output_types=output_types)
+        # TODO: pass bin args
         binned_data = dataset.apply(
             tf.data.experimental.bucket_by_sequence_length(
                 len_function,
-                bucket_boundaries=     [500, 600, 700, 800, 900, 1000, 1200, 1500, 1700],
-                bucket_batch_sizes=[16, 16,  16,  16,  16,  16,  12,   12,   8,    8],
+                bucket_boundaries=[200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200],
+                bucket_batch_sizes=bucket_batch_sizes,
+                # bucket_batch_sizes= [   64,  42,  32,  25,  21,  18,  16,  14,  12,   11,    1],
+                # bucket_batch_sizes= [   32,  32,  32,  16,  16,  16,  16,  14,  12,   11,    1],
                 padded_shapes=padded_shapes,
                 drop_remainder=drop_remainder,
                 padding_values=padding_values
             ))
         self.dataset = binned_data
-        self.data_iter = iter(binned_data)
+        self.data_iter = iter(binned_data.repeat(-1))
     
     def next_batch(self):
         return next(self.data_iter)
@@ -189,7 +196,7 @@ class Dataset:
         """
         Shuffle once before generating to avoid buffering
         """
-        samples = self._samples
+        samples = self._samples[:]
         if shuffle:
             self._random.shuffle(samples)
         return (self.preprocessor(s) for s in samples)
