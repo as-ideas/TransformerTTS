@@ -105,7 +105,7 @@ class StyleAttention(tf.keras.layers.Layer):
         dk = tf.cast(tf.shape(k)[-1], tf.float32)
         scaled_attention_logits = matmul_qk / tf.math.sqrt(dk)
         attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)  # (..., seq_len_q, seq_len_k)
-        attention_weights = tf.squeeze(attention_weights)
+        attention_weights = tf.squeeze(attention_weights, 2) # remove ref_mel dimension
         attention_values = tf.matmul(attention_weights, keys) # multiply attention scalars with token embeddings directly
         output = tf.reshape(attention_values, (batch_size, -1))
         return output, attention_weights
@@ -127,15 +127,15 @@ if __name__ == '__main__':
     assert all(tf.shape(style_embed) == (bs, model_size))
     
     # display
-    cos_los = tf.keras.losses.CosineSimilarity(axis=-1,  reduction=tf.keras.losses.Reduction.NONE)
-    tk = gst.stl.tokens
-    similarity =  []
-    for token in range(tf.shape(tk)[0]):
-        similarity.append(-cos_los(tk[token], tk))
-    from matplotlib import pyplot as plt
-    plt.imshow(tf.stack(similarity))
-    plt.colorbar()
-    plt.show()
-    plt.figure(figsize=(12,6))
-    plt.imshow(attn_weights[0])
-    plt.show()
+    # cos_los = tf.keras.losses.CosineSimilarity(axis=-1,  reduction=tf.keras.losses.Reduction.NONE)
+    # tk = gst.stl.tokens
+    # similarity =  []
+    # for token in range(tf.shape(tk)[0]):
+    #     similarity.append(-cos_los(tk[token], tk))
+    # from matplotlib import pyplot as plt
+    # plt.imshow(tf.stack(similarity))
+    # plt.colorbar()
+    # plt.show()
+    # plt.figure(figsize=(12,6))
+    # plt.imshow(attn_weights[0])
+    # plt.show()
