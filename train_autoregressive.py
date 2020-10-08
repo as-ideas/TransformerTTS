@@ -152,7 +152,8 @@ for _ in t:
             pred = model.predict(phonemes,
                                  max_length=mel.shape[0] + 50,
                                  encode=False,
-                                 verbose=False)
+                                 verbose=False,
+                                 ref_mel=mel)
             pred_mel = pred['mel']
             target_mel = mel
             summary_manager.display_attention_heads(outputs=pred,

@@ -118,7 +118,9 @@ class Config:
                                              mel_end_value=self.config['mel_end_value'],
                                              phoneme_language=self.config['phoneme_language'],
                                              with_stress=self.config['with_stress'],
-                                             debug=self.config['debug'])
+                                             debug=self.config['debug'],
+                                             num_style_heads=self.config['num_style_heads'],
+                                             num_style_tokens=self.config['num_style_tokens'])
         
         else:
             return ForwardTransformer(encoder_model_dimension=self.config['encoder_model_dimension'],
