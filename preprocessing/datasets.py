@@ -253,11 +253,10 @@ class AutoregressivePreprocessor:
 
 
 if __name__ == '__main__':
-    ljspeech_folder = '/Volumes/data/datasets/LJSpeech-1.1'
-    # metadata_path = '/Volumes/data/datasets/LJSpeech-1.1/metadata.csv'
-    metadata_path = '/Volumes/data/datasets/LJSpeech-1.1/phonemized_metadata.txt'
-    metadata_reader = get_preprocessor_by_name('ljspeech')
-    data_reader = DataReader(data_directory=ljspeech_folder, metadata_path=metadata_path,
+    data_folder = Path('/Volumes/data/datasets/blizzard')
+    metadata_path = data_folder / 'original_metadata.txt'
+    metadata_reader = get_preprocessor_by_name('blizzard')
+    data_reader = DataReader(data_directory=data_folder, metadata_path=metadata_path,
                              metadata_reading_function=metadata_reader, scan_wavs=True)
     key_list = data_reader.filenames
     print('metadata head')
@@ -272,7 +271,7 @@ if __name__ == '__main__':
     print('wav paths tail')
     for key in key_list[-5:]:
         print(f'{key}: {data_reader.wav_paths[key]}')
-    mel_dir = Path('/Volumes/data/datasets/LJSpeech-1.1/mels')
+    mel_dir = data_folder / 'mels'
     if mel_dir.exists():
         from preprocessing.text.tokenizer import Tokenizer
         from preprocessing.text.symbols import all_phonemes
@@ -286,9 +285,6 @@ if __name__ == '__main__':
                                          preprocessor=preprocessor,
                                          mel_directory=mel_dir)
         dataset = dataset_creator.get_dataset(shuffle=True, drop_remainder=False)
-        for i in range(10):
-            batch = dataset.next_batch()
-            bsh = tf.shape(batch[0])
+        for mel, text, stop, fname in dataset.all_batches():
+            bsh = tf.shape(mel)
             print(f'bs{bsh[0]} | len {bsh[1]}')
-
-print('DONE')
