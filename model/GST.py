@@ -113,12 +113,15 @@ class StyleAttention(tf.keras.layers.Layer):
 if __name__ == '__main__':
     bs = 2
     mel_len = 100
+    token_len = 60
     mel_channels = 80
     model_size = 256
     num_heads = 4
     token_num = 10
     mel_batch = tf.random.uniform((bs, mel_len, mel_channels))
+    encoder_output = tf.random.uniform((bs, token_len, model_size))
     gst = GST(model_size=model_size, num_heads=num_heads, token_num=token_num)
     style_embed, attn_weights = gst(mel_batch)
+    conditioned_out = encoder_output + style_embed
     assert all(tf.shape(attn_weights) == (bs, num_heads, token_num))
     assert all(tf.shape(style_embed) == (bs, model_size))

@@ -7,6 +7,7 @@ from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_sc
 from preprocessing.text import Pipeline
 from model.layers import DecoderPrenet, Postnet, DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks, \
     CNNResNorm
+from model.GST import GST
 
 
 class AutoregressiveTransformer(tf.keras.models.Model):
@@ -26,11 +27,13 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                  postnet_conv_layers: int,
                  postnet_kernel_size: int,
                  dropout_rate: float,
-                 mel_start_value: int,
-                 mel_end_value: int,
+                 mel_start_value: float,
+                 mel_end_value: float,
                  mel_channels: int,
                  phoneme_language: str,
                  with_stress: bool,
+                 num_style_heads: int,
+                 num_style_tokens: int,
                  encoder_attention_conv_filters: int = None,
                  decoder_attention_conv_filters: int = None,
                  encoder_attention_conv_kernel: int = None,
@@ -65,6 +68,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                                            kernel_size=encoder_attention_conv_kernel,
                                            conv_activation='relu',
                                            name='Encoder')
+        self.gst = GST(model_size=encoder_model_dimension,
+                       num_heads=num_style_heads,
+                       token_num=num_style_tokens)
         self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
                                             dense_hidden_units=decoder_prenet_dimension,
                                             dropout_rate=decoder_prenet_dropout,
@@ -104,6 +110,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
             tf.TensorSpec(shape=(None, None, None, None), dtype=tf.float32),
         ]
+        self.gst_signature = [
+            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
+        ]
         self.debug = debug
         self._apply_all_signatures()
     
@@ -123,6 +132,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
         self.forward_encoder = self._apply_signature(self._forward_encoder, self.encoder_signature)
         self.forward_decoder = self._apply_signature(self._forward_decoder, self.decoder_signature)
+        self.forward_gst = self._apply_signature(self._forward_gst, self.gst_signature)
     
     def _call_encoder(self, inputs, training):
         padding_mask = create_encoder_padding_mask(inputs)
@@ -165,6 +175,10 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     
     def _forward_decoder(self, encoder_output, targets, encoder_padding_mask):
         return self._call_decoder(encoder_output, targets, encoder_padding_mask, training=False)
+    
+    def _forward_gst(self, reference_mel):
+        style_emb, style_attn = self.gst(reference_mel)
+        return style_emb, style_attn
     
     def _gta_forward(self, inp, tar, stop_prob, training):
         tar_inp = tar[:, :-1]
@@ -223,11 +237,14 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     
     def call(self, inputs, targets, training):
         encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)
+        style_emb, style_attn = self.gst(targets)
+        encoder_output = encoder_output + tf.expand_dims(style_emb, 1)
         model_out = self._call_decoder(encoder_output, targets, padding_mask, training)
         model_out.update({'encoder_attention': encoder_attention})
+        model_out.update({'style_attn': style_attn})
         return model_out
     
-    def predict(self, inp, max_length=1000, encode=True, verbose=True):
+    def predict(self, inp, ref_mel, max_length=1000, encode=True, verbose=True):
         if encode:
             inp = self.encode_text(inp)
         inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
@@ -235,6 +252,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
         out_dict = {}
         encoder_output, padding_mask, encoder_attention = self.forward_encoder(inp)
+        style_emb, style_attn = self.forward_gst(ref_mel)
+        encoder_output = encoder_output + tf.expand_dims(style_emb, 1)
         for i in range(int(max_length // self.r) + 1):
             model_out = self.forward_decoder(encoder_output, output, padding_mask)
             output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
@@ -243,7 +262,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             stop_pred = model_out['stop_prob'][:, -1]
             out_dict = {'mel': output_concat[0, 1:, :],
                         'decoder_attention': model_out['decoder_attention'],
-                        'encoder_attention': encoder_attention}
+                        'encoder_attention': encoder_attention,
+                        'style_attention': style_attn}
             if verbose:
                 sys.stdout.write(f'\rpred text mel: {i} stop out: {float(stop_pred[0, 2])}')
             if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
@@ -462,3 +482,36 @@ class ForwardTransformer(tf.keras.models.Model):
         out = self.forward(inp, durations_scalar=duration_scalar)
         out['mel'] = tf.squeeze(out['mel'])
         return out
+
+
+if __name__ == '__main__':
+    bs = 3
+    input_text = tf.random.uniform((bs, 60))
+    target_mel = tf.random.uniform((bs, 100, 80))
+    model = AutoregressiveTransformer(
+        decoder_model_dimension=256,
+        encoder_model_dimension=512,
+        decoder_num_heads=[4, 4, 4, 4],
+        encoder_num_heads=[4, 4, 4, 4],
+        encoder_maximum_position_encoding=1000,
+        decoder_maximum_position_encoding=10000,
+        encoder_dense_blocks=4,
+        decoder_dense_blocks=4,
+        encoder_prenet_dimension=512,
+        decoder_prenet_dimension=256,
+        postnet_conv_filters=256,
+        postnet_conv_layers=2,
+        postnet_kernel_size=5,
+        dropout_rate=0.1,
+        mel_start_value=-.5,
+        mel_end_value=.5,
+        mel_channels=80,
+        phoneme_language='en',
+        with_stress=True,
+        num_style_heads=8,
+        num_style_tokens=10,
+        encoder_feed_forward_dimension=1024,
+        decoder_feed_forward_dimension=1024,
+        debug=True, )
+    model_out = model.forward(input_text, target_mel)
+    pass
