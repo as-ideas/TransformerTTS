@@ -122,6 +122,20 @@ if __name__ == '__main__':
     encoder_output = tf.random.uniform((bs, token_len, model_size))
     gst = GST(model_size=model_size, num_heads=num_heads, token_num=token_num)
     style_embed, attn_weights = gst(mel_batch)
-    conditioned_out = encoder_output + style_embed
+    conditioned_out = encoder_output + tf.expand_dims(style_embed, 1)
     assert all(tf.shape(attn_weights) == (bs, num_heads, token_num))
     assert all(tf.shape(style_embed) == (bs, model_size))
+    
+    # display
+    cos_los = tf.keras.losses.CosineSimilarity(axis=-1,  reduction=tf.keras.losses.Reduction.NONE)
+    tk = gst.stl.tokens
+    similarity =  []
+    for token in range(tf.shape(tk)[0]):
+        similarity.append(-cos_los(tk[token], tk))
+    from matplotlib import pyplot as plt
+    plt.imshow(tf.stack(similarity))
+    plt.colorbar()
+    plt.show()
+    plt.figure(figsize=(12,6))
+    plt.imshow(attn_weights[0])
+    plt.show()

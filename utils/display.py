@@ -1,5 +1,6 @@
 import io
 
+import tensorflow as tf
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -11,13 +12,17 @@ def buffer_image(figure):
     plt.close('all')
     return buf
 
-def gen_plot(image, title=''):
+
+def gen_plot(image, with_bar, figsize=None, title=''):
     """Create a pyplot plot and save to buffer."""
-    f = plt.figure()
-    plt.plot(image)
+    f = plt.figure(figsize)
+    plt.imshow(image)
     plt.title(title)
+    if with_bar:
+        plt.colorbar()
     buf = buffer_image(f)
     return buf
+
 
 def tight_grid(images):
     images = np.array(images)
@@ -40,3 +45,11 @@ def tight_grid(images):
     tot = np.append(images, np.zeros((extra, y, x)), axis=0)
     img = np.block([[*tot[i * nx:(i + 1) * nx]] for i in range(ny)])
     return img
+
+
+def cosine_similarity_matrix(items):
+    cos_los = tf.keras.losses.CosineSimilarity(axis=-1, reduction=tf.keras.losses.Reduction.NONE)
+    similarity = []
+    for index in range(tf.shape(items)[0]):
+        similarity.append(-cos_los(items[index], items))
+    return tf.stack(similarity)

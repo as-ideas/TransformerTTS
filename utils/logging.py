@@ -109,8 +109,8 @@ class SummaryManager:
         self.add_image(tag, tf.expand_dims(img_tf, 0), step=step)
     
     @ignore_exception
-    def display_plot(self, plot, tag=''):
-        buf = gen_plot(plot)
+    def display_image(self, image, with_bar=False, figsize=None, tag=''):
+        buf = gen_plot(image, with_bar=with_bar, figsize=figsize)
         image = tf.image.decode_png(buf.getvalue(), channels=4)
         image = tf.expand_dims(image, 0)
         self.add_image(tag=tag, image=image)

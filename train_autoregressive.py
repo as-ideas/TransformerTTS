@@ -8,6 +8,7 @@ from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging import SummaryManager
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
+from utils.display import cosine_similarity_matrix
 
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -15,7 +16,6 @@ tf.random.set_seed(42)
 dynamic_memory_allocation()
 parser = basic_train_parser()
 args = parser.parse_args()
-
 
 @ignore_exception
 @time_it
@@ -129,7 +129,10 @@ for _ in t:
         residual = abs(output['mel_linear'] - output['final_output'])
         summary_manager.display_mel(mel=residual[0], tag=f'Train/conv-linear_residual')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
-    
+        token_similarity  = cosine_similarity_matrix(model.gst.stl.tokens)
+        summary_manager.display_image(token_similarity, with_bar=True, tag='TokenSimilarity/train')
+        summary_manager.display_image(output['style_attention'][0], with_bar=False, figsize=(12,6), tag='StyleAttention/train')
+
     if model.step % 1000 == 0:
         save_path = manager_training.save()
     if model.step % config['weights_save_frequency'] == 0:
@@ -160,6 +163,8 @@ for _ in t:
                                                     tag=f'TestAttentionHeads/{fname.numpy().decode("utf-8")}')
             summary_manager.display_mel(mel=pred_mel, tag=f'Test {fname.numpy().decode("utf-8")}/predicted')
             summary_manager.display_mel(mel=target_mel, tag=f'Test {fname.numpy().decode("utf-8")}/target')
+            summary_manager.display_image(output['style_attention'][0], with_bar=False, figsize=(12, 6),
+                                          tag=f'StyleAttention/{fname.numpy().decode("utf-8")}')
             if model.step >= config['audio_start_step']:
                 summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/target', mel=target_mel)
                 summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/prediction', mel=pred_mel)
