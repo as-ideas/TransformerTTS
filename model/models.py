@@ -178,7 +178,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         return self._call_decoder(encoder_output, targets, encoder_padding_mask, training=False)
     
     def _forward_gst(self, reference_mel):
-        style_emb, style_attn = self.gst(reference_mel)
+        style_emb, style_attn = self.gst(reference_mel, training=False)
         return style_emb, style_attn
     
     def _gta_forward(self, inp, tar, stop_prob, training):
@@ -238,7 +238,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     
     def call(self, inputs, targets, training):
         encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)
-        style_emb, style_attn = self.gst(targets)
+        style_emb, style_attn = self.gst(targets, training=training)
         encoder_output = encoder_output + tf.expand_dims(style_emb, 1)
         model_out = self._call_decoder(encoder_output, targets, padding_mask, training)
         model_out.update({'encoder_attention': encoder_attention})

@@ -6,8 +6,8 @@ class GST(tf.keras.layers.Layer):
         self.reference_encoder = ReferenceEncoder(model_size=model_size, mel_channels=mel_channels)
         self.stl = STL(token_num=token_num, embed_dims=model_size, num_heads=num_heads)
         
-    def call(self, inputs, **kwargs):
-        ref_embedding = self.reference_encoder(inputs)
+    def call(self, inputs, training, **kwargs):
+        ref_embedding = self.reference_encoder(inputs, training)
         style_embedding, attention_weights = self.stl(ref_embedding)
         return style_embedding, attention_weights
         
@@ -34,11 +34,11 @@ class ReferenceEncoder(tf.keras.layers.Layer):
         # TODO: adjust this value. The mel channels are reduced to 2 instead of 80//64=1
         self.gru_last_input_dim = (mel_channels//(2**self.K)) * (model_size // 2) # tf can't reshape in graph mode otherwise
     
-    def call(self, inputs):
+    def call(self, inputs, training):
         out = tf.expand_dims(inputs, -1)  # [N, mel_len, mel_channels, 1]
         for i in range(self.K):
             out = self.convs[i](out)
-            out = self.bns[i](out)
+            out = self.bns[i](out, training=training)
             out = self.relus[i](out)  # [N, mel_len//2^K, mel_channels//2^K, 128]
         batch_size = tf.shape(out)[0]
         # mel_out = tf.shape(out)[2]
@@ -124,7 +124,7 @@ if __name__ == '__main__':
     mel_batch = tf.random.uniform((bs, mel_len, mel_channels))
     encoder_output = tf.random.uniform((bs, token_len, model_size))
     gst = GST(model_size=model_size, num_heads=num_heads, token_num=token_num, mel_channels=mel_channels)
-    style_embed, attn_weights = gst(mel_batch)
+    style_embed, attn_weights = gst(mel_batch, training=False)
     conditioned_out = encoder_output + tf.expand_dims(style_embed, 1)
     assert all(tf.shape(attn_weights) == (bs, num_heads, token_num))
     assert all(tf.shape(style_embed) == (bs, model_size))
