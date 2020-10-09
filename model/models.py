@@ -70,7 +70,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                                            name='Encoder')
         self.gst = GST(model_size=encoder_model_dimension,
                        num_heads=num_style_heads,
-                       token_num=num_style_tokens)
+                       token_num=num_style_tokens,
+                       mel_channels=mel_channels)
         self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
                                             dense_hidden_units=decoder_prenet_dimension,
                                             dropout_rate=decoder_prenet_dropout,
@@ -241,7 +242,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         encoder_output = encoder_output + tf.expand_dims(style_emb, 1)
         model_out = self._call_decoder(encoder_output, targets, padding_mask, training)
         model_out.update({'encoder_attention': encoder_attention})
-        model_out.update({'style_attn': style_attn})
+        model_out.update({'style_attention': style_attn})
         return model_out
     
     def predict(self, inp, ref_mel, max_length=1000, encode=True, verbose=True):
@@ -252,6 +253,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
         out_dict = {}
         encoder_output, padding_mask, encoder_attention = self.forward_encoder(inp)
+        if len(tf.shape(ref_mel)) < 3:
+            ref_mel = tf.expand_dims(ref_mel, 0)
         style_emb, style_attn = self.forward_gst(ref_mel)
         encoder_output = encoder_output + tf.expand_dims(style_emb, 1)
         for i in range(int(max_length // self.r) + 1):

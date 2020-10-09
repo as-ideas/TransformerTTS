@@ -150,7 +150,6 @@ for _ in t:
         for j in range(config['n_predictions']):
             mel, phonemes, stop, fname = test_mel[j], test_phonemes[j], test_stop[j], test_fname[j]
             mel = mel[tf.reduce_sum(tf.cast(mel != 0, tf.int32), axis=1) > 0]
-            mel = mel[1:-1]
             t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
             pred = model.predict(phonemes,
                                  max_length=mel.shape[0] + 50,
@@ -158,12 +157,13 @@ for _ in t:
                                  verbose=False,
                                  ref_mel=mel)
             pred_mel = pred['mel']
+            mel = mel[1:-1]
             target_mel = mel
             summary_manager.display_attention_heads(outputs=pred,
                                                     tag=f'TestAttentionHeads/{fname.numpy().decode("utf-8")}')
             summary_manager.display_mel(mel=pred_mel, tag=f'Test {fname.numpy().decode("utf-8")}/predicted')
             summary_manager.display_mel(mel=target_mel, tag=f'Test {fname.numpy().decode("utf-8")}/target')
-            summary_manager.display_image(output['style_attention'][0], with_bar=False, figsize=(12, 6),
+            summary_manager.display_image(pred['style_attention'][0], with_bar=False, figsize=(12, 6),
                                           tag=f'StyleAttention/{fname.numpy().decode("utf-8")}')
             if model.step >= config['audio_start_step']:
                 summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/target', mel=target_mel)

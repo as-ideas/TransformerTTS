@@ -15,7 +15,7 @@ def buffer_image(figure):
 
 def gen_plot(image, with_bar, figsize=None, title=''):
     """Create a pyplot plot and save to buffer."""
-    f = plt.figure(figsize)
+    f = plt.figure(figsize=figsize)
     plt.imshow(image)
     plt.title(title)
     if with_bar:
