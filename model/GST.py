@@ -28,6 +28,7 @@ class ReferenceEncoder(tf.keras.layers.Layer):
                                              padding='same'
                                              ) for i in range(self.K)]
         self.bns = [tf.keras.layers.BatchNormalization() for _ in range(self.K)]
+        # self.bns = [tf.keras.layers.LayerNormalization() for _ in range(self.K)]
         self.relus = [tf.keras.layers.ReLU() for _ in range(self.K)]
         self.gru = tf.keras.layers.GRU(units=model_size // 2, dropout=0.1)
         self.out_proj = tf.keras.layers.Dense(model_size)
@@ -39,11 +40,11 @@ class ReferenceEncoder(tf.keras.layers.Layer):
         for i in range(self.K):
             out = self.convs[i](out)
             out = self.bns[i](out, training=training)
-            out = self.relus[i](out)  # [N, mel_len//2^K, mel_channels//2^K, 128]
+            out = self.relus[i](out)  # [N, mel_len//2^K, mel_channels  //2^K, 128]
         batch_size = tf.shape(out)[0]
         # mel_out = tf.shape(out)[2]
         out = tf.reshape(out, (batch_size, -1, 256))  # [N, mel_len//2^K, mel_channels//2^K * 128]
-        out = self.gru(out)  # [N, model_size//2]
+        out = self.gru(out, training=training)  # [N, model_size//2]
         out = self.out_proj(out)  # [N, model_size]
         return tf.keras.activations.tanh(out)
 
@@ -74,34 +75,35 @@ class STL(tf.keras.layers.Layer):
     #
     #     return style_embed, attn_score
 
+# TODO: ADD ATTENTION MEL MASK
 
 class StyleAttention(tf.keras.layers.Layer):
-    
+
     def __init__(self, model_dim: int, num_heads: int, **kwargs):
         super(StyleAttention, self).__init__(**kwargs)
         self.num_heads = num_heads
         self.model_dim = model_dim
-        
+
         assert model_dim % self.num_heads == 0
-        
+
         self.depth = model_dim // self.num_heads
         self.wq = tf.keras.layers.Dense(model_dim)
         self.wk = tf.keras.layers.Dense(model_dim)
-    
+
     def split_heads(self, x, batch_size: int):
         """ Split the last dimension into (num_heads, depth).
         Transpose the result such that the shape is (batch_size, num_heads, seq_len, depth)
         """
-        
+
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
         return tf.transpose(x, perm=[0, 2, 1, 3])
-    
+
     def call(self, keys, query):
         batch_size = tf.shape(query)[0]
-        
+
         q = self.wq(query)  # (batch_size, seq_len, model_dim)
         k = self.wk(keys)  # (batch_size, seq_len, model_dim)
-        
+
         q = self.split_heads(q, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
         k = self.split_heads(k, batch_size)  # (batch_size, num_heads, seq_len_k, depth)
         matmul_qk = tf.matmul(q, k, transpose_b=True)  # (..., seq_len_q, seq_len_k)
@@ -112,6 +114,54 @@ class StyleAttention(tf.keras.layers.Layer):
         attention_values = tf.matmul(attention_weights, keys) # multiply attention scalars with token embeddings directly
         output = tf.reshape(attention_values, (batch_size, -1))
         return output, attention_weights
+
+# from model.transformer_utils import scaled_dot_product_attention
+#
+# class StyleAttention(tf.keras.layers.Layer):
+#
+#     def __init__(self, model_dim: int, num_heads: int, **kwargs):
+#         super(StyleAttention, self).__init__(**kwargs)
+#         self.num_heads = num_heads
+#         self.model_dim = model_dim
+#
+#         assert model_dim % self.num_heads == 0
+#
+#         self.depth = model_dim // self.num_heads
+#
+#         self.wq = tf.keras.layers.Dense(model_dim)
+#         self.wk = tf.keras.layers.Dense(model_dim)
+#         self.wv = tf.keras.layers.Dense(model_dim)
+#
+#
+#     def split_heads(self, x, batch_size: int):
+#         """ Split the last dimension into (num_heads, depth).
+#         Transpose the result such that the shape is (batch_size, num_heads, seq_len, depth)
+#         """
+#
+#         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
+#         return tf.transpose(x, perm=[0, 2, 1, 3])
+#
+#     def call(self, v, k, q_in, mask):
+#         batch_size = tf.shape(q_in)[0]
+#
+#         q = self.wq(q_in)  # (batch_size, seq_len, model_dim)
+#         k = self.wk(k)  # (batch_size, seq_len, model_dim)
+#         v = self.wv(v)  # (batch_size, seq_len, model_dim)
+#
+#         q = self.split_heads(q, batch_size)  # (batch_size, num_heads, seq_len_q, depth)
+#         k = self.split_heads(k, batch_size)  # (batch_size, num_heads, seq_len_k, depth)
+#         v = self.split_heads(v, batch_size)  # (batch_size, num_heads, seq_len_v, depth)
+#
+#         scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
+#
+#         scaled_attention = tf.transpose(scaled_attention,
+#                                         perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
+#         output = tf.reshape(scaled_attention,
+#                                       (batch_size, -1, self.model_dim))  # (batch_size, seq_len_q, model_dim)
+#         # concat_query = tf.concat([q_in, concat_attention], axis=-1)
+#         # output = self.dense(concat_query)  # (batch_size, seq_len_q, model_dim)
+#
+#         return output, attention_weights
 
 if __name__ == '__main__':
     bs = 2

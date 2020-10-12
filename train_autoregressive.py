@@ -132,6 +132,8 @@ for _ in t:
         token_similarity  = cosine_similarity_matrix(model.gst.stl.tokens)
         summary_manager.display_image(token_similarity, with_bar=True, tag='TokenSimilarity/train')
         summary_manager.display_image(output['style_attention'][0], with_bar=False, figsize=(12,6), tag='StyleAttention/train')
+        summary_manager.display_audio(tag=f'Train/prediction', mel=output['final_output'][0])
+        summary_manager.display_audio(tag=f'Train/target', mel=mel[0])
 
     if model.step % 1000 == 0:
         save_path = manager_training.save()
@@ -161,8 +163,8 @@ for _ in t:
             target_mel = mel
             summary_manager.display_attention_heads(outputs=pred,
                                                     tag=f'TestAttentionHeads/{fname.numpy().decode("utf-8")}')
-            summary_manager.display_mel(mel=pred_mel, tag=f'Test {fname.numpy().decode("utf-8")}/predicted')
-            summary_manager.display_mel(mel=target_mel, tag=f'Test {fname.numpy().decode("utf-8")}/target')
+            summary_manager.display_mel(mel=pred_mel, tag=f'Test/{fname.numpy().decode("utf-8")}/predicted')
+            summary_manager.display_mel(mel=target_mel, tag=f'Test/{fname.numpy().decode("utf-8")}/target')
             summary_manager.display_image(pred['style_attention'][0], with_bar=False, figsize=(12, 6),
                                           tag=f'StyleAttention/{fname.numpy().decode("utf-8")}')
             if model.step >= config['audio_start_step']:
