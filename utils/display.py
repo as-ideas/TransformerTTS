@@ -11,13 +11,17 @@ def buffer_image(figure):
     plt.close('all')
     return buf
 
-def gen_plot(image, title=''):
+
+def gen_plot(image, with_bar, figsize=None, title=''):
     """Create a pyplot plot and save to buffer."""
-    f = plt.figure()
-    plt.plot(image)
+    f = plt.figure(figsize=figsize)
+    plt.imshow(image)
     plt.title(title)
+    if with_bar:
+        plt.colorbar()
     buf = buffer_image(f)
     return buf
+
 
 def tight_grid(images):
     images = np.array(images)
