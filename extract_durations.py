@@ -36,6 +36,7 @@ parser.add_argument('--use_GT', action='store_true',
                     help='Use ground truth mel instead of predicted mel to train forward model.')
 parser.add_argument('--autoregressive_weights', type=str, default='',
                     help='Explicit path to autoregressive model weights.')
+parser.add_argument('--extract_from_layer', dest='extract_layer', type=int, default=-1)
 args = parser.parse_args()
 assert (args.fill_mode_max is False) or (args.fill_mode_next is False), 'Choose one gap filling mode.'
 weighted = not args.best
@@ -45,10 +46,13 @@ fix_jumps = args.fix_jumps
 fill_mode = f"{f'max' * args.fill_mode_max}{f'next' * args.fill_mode_next}"
 filling_tag = f"{f'(max)' * args.fill_mode_max}{f'(next)' * args.fill_mode_next}"
 tag_description = ''.join(
-    [f'{"_weighted" * weighted}{"_best" * (not weighted)}',
-     f'{"_binary" * binary}',
-     f'{"_filled" * fill_gaps}{filling_tag}',
-     f'{"_fix_jumps" * fix_jumps}'])
+    [
+        f'{"_weighted" * weighted}{"_best" * (not weighted)}',
+        f'{"_binary" * binary}',
+        f'{"_filled" * fill_gaps}{filling_tag}',
+        f'{"_fix_jumps" * fix_jumps}',
+        f'_layer{args.extract_layer}'
+    ])
 writer_tag = f'DurationExtraction{tag_description}'
 print(writer_tag)
 config_manager = Config(config_path=args.config, model_kind='autoregressive')
@@ -77,10 +81,16 @@ dataset = data_handler.get_dataset(script_batch_size, shuffle=False, drop_remain
 n_layers = len(config_manager.config['decoder_num_heads'])
 n_dense = int(config_manager.config['decoder_dense_blocks'])
 n_convs = int(n_layers - n_dense)
-if n_convs > 0:
-    last_layer_key = f'Decoder_ConvBlock{n_convs}_CrossAttention'
+if args.extract_layer > 0:
+    if n_convs > 0:
+        last_layer_key = f'Decoder_ConvBlock{args.extract_layer}_CrossAttention'
+    else:
+        last_layer_key = f'Decoder_DenseBlock{args.extract_layer}_CrossAttention'
 else:
-    last_layer_key = f'Decoder_DenseBlock{n_dense}_CrossAttention'
+    if n_convs > 0:
+        last_layer_key = f'Decoder_ConvBlock{n_convs}_CrossAttention'
+    else:
+        last_layer_key = f'Decoder_DenseBlock{n_dense}_CrossAttention'
 print(f'Extracting attention from layer {last_layer_key}')
 
 all_durations = np.array([])
