@@ -167,7 +167,6 @@ class Dataset:
                  seed=42):
         self._random = Random(seed)
         self._samples = samples[:]
-        print(len(self._samples))
         self.preprocessor = preprocessor
         dataset = tf.data.Dataset.from_generator(lambda: self._datagen(shuffle),
                                                  output_types=output_types)
@@ -290,5 +289,3 @@ if __name__ == '__main__':
             batch = dataset.next_batch()
             bsh = tf.shape(batch[0])
             print(f'bs{bsh[0]} | len {bsh[1]}')
-
-print('DONE')

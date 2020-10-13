@@ -2,6 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from model.transformer_utils import create_mel_padding_mask, create_encoder_padding_mask
+from utils.metrics import weight_mask
 
 logger = tf.get_logger()
 logger.setLevel('ERROR')
@@ -26,14 +27,6 @@ def clean_attention(binary_attention, jump_threshold):
         phon_idx = next_phon_idx
         clean_attn[i, min(phon_idx, clean_attn.shape[1] - 1)] = 1
     return clean_attn
-
-
-def weight_mask(attention_weights):
-    """ Exponential loss mask based on distance from approximate diagonal"""
-    max_m, max_n = attention_weights.shape
-    I = np.tile(np.arange(max_n), (max_m, 1)) / max_n
-    J = np.swapaxes(np.tile(np.arange(max_m), (max_n, 1)), 0, 1) / max_m
-    return np.sqrt(np.square(I - J))
 
 
 def fill_zeros(duration, take_from='next'):

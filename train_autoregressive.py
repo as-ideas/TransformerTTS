@@ -8,6 +8,7 @@ from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging_utils import SummaryManager
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
+from utils.metrics import attention_score
 
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -131,7 +132,16 @@ for _ in t:
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
         summary_manager.display_audio(tag=f'Train/prediction', mel=output['final_output'][0])
         summary_manager.display_audio(tag=f'Train/target', mel=mel[0])
-
+        for layer, k in enumerate(output['decoder_attention'].keys()):
+            loc_score, peak_score = attention_score(att=output['decoder_attention'][k], mels=mel, r=model.r)
+            loc_score = tf.reduce_mean(loc_score, axis=0)
+            peak_score = tf.reduce_mean(peak_score, axis=0)
+            for i in range(tf.shape(loc_score)[0]):
+                summary_manager.display_scalar(tag=f'TrainDecoderAttentionJumpiness/layer{layer}_head{i}',
+                                               scalar_value=loc_score[i])
+                summary_manager.display_scalar(tag=f'TrainDecoderAttentionPeakiness/layer{layer}_head{i}',
+                                               scalar_value=peak_score[i])
+    
     if model.step % 1000 == 0:
         save_path = manager_training.save()
     if model.step % config['weights_save_frequency'] == 0:
