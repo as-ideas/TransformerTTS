@@ -6,7 +6,7 @@ from utils.config_manager import Config
 from preprocessing.datasets import TextMelDataset, AutoregressivePreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
-from utils.logging import SummaryManager
+from utils.logging_utils import SummaryManager
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
 
 np.random.seed(42)

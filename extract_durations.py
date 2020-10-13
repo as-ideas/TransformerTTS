@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import tqdm
 
 from utils.config_manager import Config
-from utils.logging import SummaryManager
+from utils.logging_utils import SummaryManager
 from preprocessing.datasets import AutoregressivePreprocessor
 from model.transformer_utils import create_mel_padding_mask
 from utils.alignments import get_durations_from_alignment
