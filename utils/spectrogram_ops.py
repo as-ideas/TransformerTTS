@@ -12,6 +12,9 @@ def mel_lengths(mel_batch, padding_value=0):
     idxs = tf.cast(tf.reduce_sum(mask, axis=-1) != sum_tot, tf.int32)
     return tf.reduce_sum(idxs, axis=-1)
 
+def phoneme_lengths(phonemes, phoneme_padding=0):
+    return tf.reduce_sum(tf.cast(phonemes != phoneme_padding, tf.int32), axis=-1)
+
 
 if __name__ == '__main__':
     from preprocessing.metadata_readers import get_preprocessor_by_name
