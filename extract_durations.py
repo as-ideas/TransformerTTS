@@ -58,14 +58,14 @@ print(writer_tag)
 config_manager = Config(config_path=args.config, model_kind='autoregressive')
 config = config_manager.config
 config_manager.print_config()
-if args.forward_weights != '':
+if args.autoregressive_weights != '':
     model = config_manager.load_model(args.autoregressive_weights)
 else:
     model = config_manager.load_model()
 if model.r != 1:
     print(f"ERROR: model's reduction factor is greater than 1, check config. (r={model.r}")
 
-data_prep = AutoregressivePreprocessor.from_config(config=config,
+data_prep = AutoregressivePreprocessor.from_config(config=config_manager,
                                                    tokenizer=model.text_pipeline.tokenizer)
 data_handler = TextMelDataset.from_config(config_manager,
                                           preprocessor=data_prep,
@@ -74,8 +74,7 @@ data_handler = TextMelDataset.from_config(config_manager,
 target_dir = config_manager.data_dir / f'durations'
 target_dir.mkdir(exist_ok=True)
 config_manager.dump_config()
-script_batch_size = 5 * config['batch_size']
-dataset = data_handler.get_dataset(script_batch_size, shuffle=False, drop_remainder=False)
+dataset = data_handler.get_dataset(bucket_batch_sizes=[64, 42, 32, 25, 21, 18, 16, 14, 12, 11, 1], shuffle=False, drop_remainder=False)
 
 # identify last decoder block
 n_layers = len(config_manager.config['decoder_num_heads'])
@@ -109,10 +108,10 @@ for c, (mel_batch, text_batch, stop_batch, file_name_batch) in iterator:
     else:
         pred_mel = outputs['final_output'].numpy()
         mask = create_mel_padding_mask(mel_batch)
-        pred_mel = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(mel_batch[:, 1:, :])), -1) * pred_mel
+        pred_mel = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(mel_batch[:, 1:, :])), -1) * pred_mel # TODO: why mel_batch[:, 1:..
         mel = pred_mel.numpy()
     
-    durations, _, _, final_align = get_durations_from_alignment(
+    durations, final_align = get_durations_from_alignment(
         batch_alignments=attention_values,
         mels=mel,
         phonemes=text,
