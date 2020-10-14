@@ -111,7 +111,7 @@ for c, (mel_batch, text_batch, stop_batch, file_name_batch) in iterator:
     else:
         pred_mel = outputs['final_output'].numpy()
         mask = create_mel_padding_mask(mel_batch)
-        pred_mel = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(mel_batch[:, 1:, :])), -1) * pred_mel # TODO: why mel_batch[:, 1:..
+        pred_mel = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(mel_batch[:, 1:, :])), -1) * pred_mel
         mel = pred_mel.numpy()
     
     durations, final_align, jumpiness, peakiness, diag_measure = get_durations_from_alignment(
