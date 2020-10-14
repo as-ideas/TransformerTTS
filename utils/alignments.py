@@ -143,10 +143,10 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
         
         else:  # takes actual attention values and normalizes to mel_len
             attention_durations = np.sum(ref_attention_weights, axis=0)
-            normalized_durations = attention_durations * ((mel_len) / np.sum(attention_durations))
+            normalized_durations = attention_durations * ((unpad_mel_len) / np.sum(attention_durations))
             integer_durations = np.round(normalized_durations)
             tot_duration = np.sum(integer_durations)
-            duration_diff = tot_duration - (mel_len)
+            duration_diff = tot_duration - (unpad_mel_len)
             while duration_diff != 0:
                 rounding_diff = integer_durations - normalized_durations
                 if duration_diff > 0:  # duration is too long -> reduce highest (positive) rounding difference
@@ -156,7 +156,7 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
                     min_error_idx = np.argmin(rounding_diff)
                     integer_durations[min_error_idx] += 1
                 tot_duration = np.sum(integer_durations)
-                duration_diff = tot_duration - (mel_len)
+                duration_diff = tot_duration - (unpad_mel_len)
         
         if fill_gaps:  # fill zeros durations
             integer_durations = fill_zeros(integer_durations, take_from=fill_mode)
