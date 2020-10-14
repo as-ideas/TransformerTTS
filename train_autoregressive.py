@@ -6,8 +6,10 @@ from utils.config_manager import Config
 from preprocessing.datasets import TextMelDataset, AutoregressivePreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
-from utils.logging import SummaryManager
+from utils.logging_utils import SummaryManager
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
+from utils.metrics import attention_score
+from utils.spectrogram_ops import mel_lengths, phoneme_lengths
 from utils.display import cosine_similarity_matrix
 
 np.random.seed(42)
@@ -16,6 +18,7 @@ tf.random.set_seed(42)
 dynamic_memory_allocation()
 parser = basic_train_parser()
 args = parser.parse_args()
+
 
 @ignore_exception
 @time_it
@@ -110,6 +113,13 @@ for _ in t:
     output = model.train_step(inp=phonemes,
                               tar=mel,
                               stop_prob=stop)
+    for layer, k in enumerate(output['decoder_attention'].keys()):
+        mel_lens = mel_lengths(mel_batch=mel, padding_value=0) // model.r  # [N]
+        phon_len = phoneme_lengths(phonemes)
+        loc_score, peak_score, diag_measure = attention_score(att=output['decoder_attention'][k],
+                                                              mel_len=mel_lens,
+                                                              phon_len=phon_len,
+                                                              r=model.r)
     losses.append(float(output['loss']))
     
     t.display(f'step loss: {losses[-1]}', pos=1)
@@ -134,7 +144,24 @@ for _ in t:
         summary_manager.display_image(output['style_attention'][0], with_bar=False, figsize=(12,6), tag='StyleAttention/train')
         summary_manager.display_audio(tag=f'Train/prediction', mel=output['final_output'][0])
         summary_manager.display_audio(tag=f'Train/target', mel=mel[0])
-
+        for layer, k in enumerate(output['decoder_attention'].keys()):
+            mel_lens = mel_lengths(mel_batch=mel, padding_value=0) // model.r  # [N]
+            phon_len = phoneme_lengths(phonemes)
+            loc_score, peak_score, diag_measure = attention_score(att=output['decoder_attention'][k],
+                                                                  mel_len=mel_lens,
+                                                                  phon_len=phon_len,
+                                                                  r=model.r)
+            loc_score = tf.reduce_mean(loc_score, axis=0)
+            peak_score = tf.reduce_mean(peak_score, axis=0)
+            diag_measure = tf.reduce_mean(diag_measure, axis=0)
+            for i in range(tf.shape(loc_score)[1]):
+                summary_manager.display_scalar(tag=f'TrainDecoderAttentionJumpiness/layer{layer}_head{i}',
+                                               scalar_value=tf.reduce_mean(loc_score[i]))
+                summary_manager.display_scalar(tag=f'TrainDecoderAttentionPeakiness/layer{layer}_head{i}',
+                                               scalar_value=tf.reduce_mean(peak_score[i]))
+                summary_manager.display_scalar(tag=f'TrainDecoderAttentionDiagonality/layer{layer}_head{i}',
+                                               scalar_value=tf.reduce_mean(diag_measure[i]))
+    
     if model.step % 1000 == 0:
         save_path = manager_training.save()
     if model.step % config['weights_save_frequency'] == 0:

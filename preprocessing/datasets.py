@@ -167,7 +167,6 @@ class Dataset:
                  seed=42):
         self._random = Random(seed)
         self._samples = samples[:]
-        print(len(self._samples))
         self.preprocessor = preprocessor
         dataset = tf.data.Dataset.from_generator(lambda: self._datagen(shuffle),
                                                  output_types=output_types)
