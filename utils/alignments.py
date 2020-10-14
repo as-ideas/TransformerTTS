@@ -56,30 +56,36 @@ def fix_attention_jumps(binary_attn, binary_score, mel_len, phon_len):
     for jumpth in [2, 3, 4, 5]:
         cl_at = clean_attention(binary_attention=binary_attn, jump_threshold=jumpth)
         clean_attns.append(cl_at)
-        sclean_score = attention_score(att=tf.cast(cl_at, tf.float32)[None, None,:,:],
+        sclean_score = attention_score(att=tf.cast(cl_at[None, None,:,:], tf.float32),
                                        mel_len=mel_len,
                                        phon_len=phon_len,
                                        r=1)
-        clean_scores.append(np.sum(sclean_score))
-    best_idx = np.argmin(clean_scores)
+        clean_scores.append(tf.reduce_mean(sclean_score))
+    best_idx = np.argmax(clean_scores)
     best_score = clean_scores[best_idx]
     best_cleaned_attention = clean_attns[best_idx]
-    while ((best_score - binary_score) > 2.) and (jumpth < 20):
+    while (binary_score > best_score) and (jumpth < 20):
         jumpth += 1
         best_cleaned_attention = clean_attention(binary_attention=binary_attn, jump_threshold=jumpth)
-        best_score = attention_score(att=best_cleaned_attention[None, None,:,:],
+        best_score = attention_score(att=tf.cast(best_cleaned_attention[None, None,:,:], tf.float32),
                                        mel_len=mel_len,
                                        phon_len=phon_len,
                                        r=1)
-        best_score = np.sum(best_score)
+        best_score = tf.reduce_mean(best_score)
+    if binary_score > best_score:
+        best_cleaned_attention = binary_attn
     return best_cleaned_attention
 
 
 def binary_attention(attention_weights):
     attention_peak_per_phoneme = attention_weights.max(axis=1)
     binary_attn = (attention_weights.T == attention_peak_per_phoneme).astype(int).T
-    assert np.sum(
-        np.sum(attention_weights.T == attention_peak_per_phoneme, axis=0) != 1) == 0  # single peak per mel step
+    check = np.sum(binary_attn, axis=1) != 1 # more than one max per row
+    if sum(check) != 0: # set every entry after first to zero
+        flt_row = np.where(check == True)[0]
+        for row in flt_row:
+            flt_col = np.where(binary_attn[row] == 1)[0]
+            binary_attn[row][flt_col[1:]] = 0
     return binary_attn
 
 
@@ -116,23 +122,24 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
         if weighted:
             ref_attention_weights = np.sum(scored_attention, axis=0)
         else:
-            best_head = np.argmin(attn_scores[batch_num])
+            best_head = np.argmax(attn_scores[batch_num])
             ref_attention_weights = unpad_alignments[best_head]
         
         if binary:  # pick max attention for each mel time-step
             binary_attn = binary_attention(ref_attention_weights)
-            binary_score = attention_score(tf.cast(binary_attn, tf.float32)[None, None,:,:],
+            binary_attn_score = attention_score(tf.cast(binary_attn, tf.float32)[None, None,:,:],
                                            mel_len=unpad_mel_len[None],
                                            phon_len=unpad_phon_len[None]-1,
                                            r=1)
-            binary_score =  sum(binary_score)
+            binary_score =  tf.reduce_mean(binary_attn_score)
             if fix_jumps:
                 binary_attn = fix_attention_jumps(
                     binary_attn=binary_attn,
                     mel_len=unpad_mel_len[None],
                     phon_len=unpad_phon_len[None]-1,
-                    binary_score=binary_score[0])
+                    binary_score=binary_score)
             integer_durations = binary_attn.sum(axis=0)
+            # integer_durations = tf.reduce_sum(binary_attn, axis=0)
         
         else:  # takes actual attention values and normalizes to mel_len
             attention_durations = np.sum(ref_attention_weights, axis=0)
@@ -156,8 +163,8 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
         
         assert np.sum(integer_durations) == mel_len[batch_num], f'{np.sum(integer_durations)} vs {mel_len[batch_num]}'
         new_alignment = duration_to_alignment_matrix(integer_durations.astype(int))
-        best_head = np.argmin(attn_scores[batch_num])
+        best_head = np.argmax(attn_scores[batch_num])
         best_attention = unpad_alignments[best_head]
         final_alignment.append(best_attention.T + new_alignment)
         durations.append(integer_durations)
-    return durations, final_alignment
+    return durations, final_alignment, jumpiness, peakiness, diag_measure

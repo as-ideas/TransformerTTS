@@ -22,7 +22,7 @@ def attention_score(att, mel_len, phon_len, r):
     # diagonality
     diag_score = diagonality_measure(att, mel_len, phon_len)
     
-    return loc_score, peak_score, 1./diag_score
+    return loc_score, peak_score, 3./diag_score
 
 
 def attention_jumps_score(att, mel_mask, mel_len, r):

@@ -149,13 +149,14 @@ for _ in t:
                                                                   r=model.r)
             loc_score = tf.reduce_mean(loc_score, axis=0)
             peak_score = tf.reduce_mean(peak_score, axis=0)
-            for i in range(tf.shape(loc_score)[0]):
+            diag_measure = tf.reduce_mean(diag_measure, axis=0)
+            for i in range(tf.shape(loc_score)[1]):
                 summary_manager.display_scalar(tag=f'TrainDecoderAttentionJumpiness/layer{layer}_head{i}',
-                                               scalar_value=loc_score[i])
+                                               scalar_value=tf.reduce_mean(loc_score[i]))
                 summary_manager.display_scalar(tag=f'TrainDecoderAttentionPeakiness/layer{layer}_head{i}',
-                                               scalar_value=peak_score[i])
+                                               scalar_value=tf.reduce_mean(peak_score[i]))
                 summary_manager.display_scalar(tag=f'TrainDecoderAttentionDiagonality/layer{layer}_head{i}',
-                                               scalar_value=diag_measure[i])
+                                               scalar_value=tf.reduce_mean(diag_measure[i]))
     
     if model.step % 1000 == 0:
         save_path = manager_training.save()

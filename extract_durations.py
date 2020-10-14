@@ -92,9 +92,12 @@ else:
         last_layer_key = f'Decoder_DenseBlock{n_dense}_CrossAttention'
 print(f'Extracting attention from layer {last_layer_key}')
 
+summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir / writer_tag, config=config,
+                                 default_writer=writer_tag)
 all_durations = np.array([])
 new_alignments = []
 iterator = tqdm(enumerate(dataset.all_batches()))
+step = 0
 for c, (mel_batch, text_batch, stop_batch, file_name_batch) in iterator:
     iterator.set_description(f'Processing dataset')
     outputs = model.val_step(inp=text_batch,
@@ -111,7 +114,7 @@ for c, (mel_batch, text_batch, stop_batch, file_name_batch) in iterator:
         pred_mel = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(mel_batch[:, 1:, :])), -1) * pred_mel # TODO: why mel_batch[:, 1:..
         mel = pred_mel.numpy()
     
-    durations, final_align = get_durations_from_alignment(
+    durations, final_align, jumpiness, peakiness, diag_measure = get_durations_from_alignment(
         batch_alignments=attention_values,
         mels=mel,
         phonemes=text,
@@ -120,20 +123,26 @@ for c, (mel_batch, text_batch, stop_batch, file_name_batch) in iterator:
         fill_gaps=fill_gaps,
         fill_mode=fill_mode,
         fix_jumps=fix_jumps)
-    
+    batch_avg_jumpiness = tf.reduce_mean(jumpiness, axis=0)
+    batch_avg_peakiness = tf.reduce_mean(peakiness, axis=0)
+    batch_avg_diag_measure = tf.reduce_mean(diag_measure, axis=0)
+    for i in range(tf.shape(jumpiness)[1]):
+        summary_manager.display_scalar(tag=f'TrainDecoderAttentionJumpiness/head{i}',
+                                       scalar_value=tf.reduce_mean(batch_avg_jumpiness[i]), step=c)
+        summary_manager.display_scalar(tag=f'TrainDecoderAttentionPeakiness/head{i}',
+                                       scalar_value=tf.reduce_mean(batch_avg_peakiness[i]), step=c)
+        summary_manager.display_scalar(tag=f'TrainDecoderAttentionDiagonality/head{i}',
+                                       scalar_value=tf.reduce_mean(batch_avg_diag_measure[i]), step=c)
+        
     for i, name in enumerate(file_name_batch):
         all_durations = np.append(all_durations, durations[i])  # for plotting only
-        new_alignments.append(final_align[i])  # for plotting only
+        summary_manager.add_image(tag='ExtractedAlignments', image=tf.expand_dims(tf.expand_dims(final_align[i], 0), -1),
+                                  step=step)
+        
+        step += 1
         np.save(str(target_dir / f"{name.numpy().decode('utf-8')}.npy"), durations[i])
 
 all_durations[all_durations >= 20] = 20  # for plotting only
 buckets = len(set(all_durations))  # for plotting only
-
-summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir / writer_tag, config=config,
-                                 default_writer=writer_tag)
 summary_manager.add_histogram(values=all_durations, tag='ExtractedDurations', buckets=buckets)
-for i, alignment in enumerate(new_alignments):
-    summary_manager.add_image(tag='ExtractedAlignments', image=tf.expand_dims(tf.expand_dims(alignment, 0), -1),
-                              step=i)
-
 print('Done.')
