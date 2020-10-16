@@ -178,6 +178,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         return self._call_decoder(encoder_output, targets, encoder_padding_mask, training=False)
     
     def _forward_gst(self, reference_mel):
+        # TODO: add mask
         style_emb, style_attn = self.gst(reference_mel, training=False)
         return style_emb, style_attn
     
@@ -188,7 +189,6 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         
         mel_len = int(tf.shape(tar_inp)[1])
         tar_mel = tar_inp[:, 0::self.r, :]
-        
         with tf.GradientTape() as tape:
             model_out = self.__call__(inputs=inp,
                                       targets=tar_mel,
@@ -307,6 +307,8 @@ class ForwardTransformer(tf.keras.models.Model):
                  mel_channels: int,
                  phoneme_language: str,
                  with_stress: bool,
+                 num_style_heads: int,
+                 num_style_tokens: int,
                  encoder_attention_conv_filters: int = None,
                  decoder_attention_conv_filters: int = None,
                  encoder_attention_conv_kernel: int = None,
@@ -335,6 +337,10 @@ class ForwardTransformer(tf.keras.models.Model):
                                            kernel_size=encoder_attention_conv_kernel,
                                            conv_activation='relu',
                                            name='Encoder')
+        self.gst = GST(model_size=encoder_model_dimension,
+                       num_heads=num_style_heads,
+                       token_num=num_style_tokens,
+                       mel_channels=mel_channels)
         self.dur_pred = DurationPredictor(model_dim=encoder_model_dimension,
                                           kernel_size=3,
                                           conv_padding='same',
@@ -374,6 +380,7 @@ class ForwardTransformer(tf.keras.models.Model):
         ]
         self.forward_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),  # reference mel
             tf.TensorSpec(shape=(), dtype=tf.float32),
         ]
         self.debug = debug
@@ -400,7 +407,10 @@ class ForwardTransformer(tf.keras.models.Model):
         target_durations = tf.expand_dims(target_durations, -1)
         mel_len = int(tf.shape(target_sequence)[1])
         with tf.GradientTape() as tape:
-            model_out = self.__call__(input_sequence, target_durations, training=True)
+            model_out = self.__call__(input_sequence,
+                                      target_durations=target_durations,
+                                      reference_mel=target_sequence,
+                                      training=True)
             loss, loss_vals = weighted_sum_losses((target_sequence,
                                                    target_durations),
                                                   (model_out['mel'][:, :mel_len, :],
@@ -423,7 +433,10 @@ class ForwardTransformer(tf.keras.models.Model):
     def _val_step(self, input_sequence, target_sequence, target_durations):
         target_durations = tf.expand_dims(target_durations, -1)
         mel_len = int(tf.shape(target_sequence)[1])
-        model_out = self.__call__(input_sequence, target_durations, training=False)
+        model_out = self.__call__(input_sequence,
+                                  target_durations=target_durations,
+                                  reference_mel=target_sequence,
+                                  training=False)
         loss, loss_vals = weighted_sum_losses((target_sequence,
                                                target_durations),
                                               (model_out['mel'][:, :mel_len, :],
@@ -434,18 +447,21 @@ class ForwardTransformer(tf.keras.models.Model):
         model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1]}})
         return model_out
     
-    def _forward(self, input_sequence, durations_scalar):
-        return self.__call__(input_sequence, target_durations=None, training=False, durations_scalar=durations_scalar)
+    def _forward(self, input_sequence, reference_mel, durations_scalar):
+        return self.__call__(input_sequence, target_durations=None, reference_mel=reference_mel, training=False,
+                             durations_scalar=durations_scalar)
     
     @property
     def step(self):
         return int(self.optimizer.iterations)
     
-    def call(self, x, target_durations, training, durations_scalar=1.):
+    def call(self, x, target_durations, reference_mel, training, durations_scalar=1.):
         padding_mask = create_encoder_padding_mask(x)
         x = self.encoder_prenet(x)
         x, encoder_attention = self.encoder(x, training=training, padding_mask=padding_mask,
                                             drop_n_heads=self.drop_n_heads)
+        style_emb, style_attn = self.gst(reference_mel, training=training)  # TODO: add mask
+        x = x + tf.expand_dims(style_emb, 1)
         durations = self.dur_pred(x, training=training) * durations_scalar
         durations = (1. - tf.reshape(padding_mask, tf.shape(durations))) * durations
         if target_durations is not None:
@@ -462,7 +478,8 @@ class ForwardTransformer(tf.keras.models.Model):
                      'duration': durations,
                      'expanded_mask': expanded_mask,
                      'encoder_attention': encoder_attention,
-                     'decoder_attention': decoder_attention}
+                     'decoder_attention': decoder_attention,
+                     'style_attention': style_attn}
         return model_out
     
     def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
@@ -477,12 +494,12 @@ class ForwardTransformer(tf.keras.models.Model):
     def encode_text(self, text):
         return self.text_pipeline(text)
     
-    def predict(self, inp, encode=True, speed_regulator=1.):
+    def predict(self, inp, reference_mel, encode=True, speed_regulator=1.):
         if encode:
             inp = self.encode_text(inp)
             inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
         duration_scalar = tf.cast(1. / speed_regulator, tf.float32)
-        out = self.forward(inp, durations_scalar=duration_scalar)
+        out = self.forward(inp, reference_mel=reference_mel, durations_scalar=duration_scalar)
         out['mel'] = tf.squeeze(out['mel'])
         return out
 

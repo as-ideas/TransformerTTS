@@ -11,6 +11,7 @@ from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging_utils import SummaryManager
 from model.transformer_utils import create_mel_padding_mask
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
+from utils.display import cosine_similarity_matrix
 
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -43,7 +44,7 @@ def validate(model,
 parser = basic_train_parser()
 args = parser.parse_args()
 
-config = Config(config_path=args.config_dict, model_kind='forward')
+config = Config(config_path=args.config, model_kind='forward')
 config_dict = config.config
 config.create_remove_dirs(clear_dir=args.clear_dir,
                           clear_logs=args.clear_logs,
@@ -58,12 +59,14 @@ data_prep = ForwardPreprocessor.from_config(config=config,
                                             tokenizer=model.text_pipeline.tokenizer)
 train_data_handler = TextMelDurDataset.from_config(config,
                                                    preprocessor=data_prep,
-                                                   kind='training')
+                                                   kind='train')
 valid_data_handler = TextMelDurDataset.from_config(config,
                                                    preprocessor=data_prep,
                                                    kind='valid')
-train_dataset = train_data_handler.get_dataset(shuffle=True)
-valid_dataset = valid_data_handler.get_dataset(shuffle=False, drop_remainder=True)
+train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=[64, 42, 32, 25, 21, 18, 16, 14, 12, 6, 1],
+                                               shuffle=True)
+valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1],
+                                               shuffle=False, drop_remainder=True)
 
 # create logger and checkpointer and restore latest model
 summary_manager = SummaryManager(model=model, log_dir=config.log_dir, config=config_dict)
@@ -118,7 +121,15 @@ for _ in t:
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
         summary_manager.add_histogram(tag=f'Train/Predicted durations', values=output['duration'])
         summary_manager.add_histogram(tag=f'Train/Target durations', values=durations)
-    
+        token_similarity = cosine_similarity_matrix(model.gst.stl.tokens)
+        summary_manager.display_image(token_similarity, with_bar=True, tag='TokenSimilarity/train')
+        summary_manager.display_image(output['style_attention'][0], with_bar=False, figsize=(12, 6),
+                                      tag='StyleAttention/train')
+        summary_manager.display_audio(tag=f'Train/prediction', mel=output['mel'][0])
+        summary_manager.display_audio(tag=f'Train/target', mel=mel[0])
+        
+    if model.step % 1000 == 0:
+        save_path = manager_training.save()
     if model.step % config_dict['weights_save_frequency'] == 0:
         save_path = manager.save()
         t.display(f'checkpoint at step {model.step}: {save_path}', pos=len(config_dict['n_steps_avg_losses']) + 2)
@@ -134,7 +145,7 @@ for _ in t:
     if model.step % config_dict['prediction_frequency'] == 0 and (model.step >= config_dict['prediction_start_step']):
         t.display(f'Predicting', pos=len(config_dict['n_steps_avg_losses']) + 4)
         timed_pred = time_it(model.predict)
-        model_out, time_taken = timed_pred(test_phonemes, encode=False)
+        model_out, time_taken = timed_pred(test_phonemes, reference_mel=test_mel, encode=False)
         summary_manager.display_attention_heads(model_out, tag='TestAttentionHeads')
         summary_manager.add_histogram(tag=f'Test/Predicted durations', values=model_out['duration'])
         summary_manager.add_histogram(tag=f'Test/Target durations', values=test_durs)
@@ -146,13 +157,15 @@ for _ in t:
         for j, pred_mel in enumerate(model_out['mel']):
             predval = pred_mel[:pred_lengths[j], :]
             tar_value = test_mel[j, :tar_lengths[j], :]
-            summary_manager.display_mel(mel=predval, tag=f'Test/{test_fname}/predicted_mel')
-            summary_manager.display_mel(mel=tar_value, tag=f'Test/{test_fname}/target_mel')
+            summary_manager.display_mel(mel=predval, tag=f'Test/{test_fname[j].numpy().decode("utf-8")}/predicted')
+            summary_manager.display_mel(mel=tar_value, tag=f'Test/{test_fname[j].numpy().decode("utf-8")}/target')
+            summary_manager.display_image(model_out['style_attention'][j], with_bar=False, figsize=(12, 6),
+                                          tag=f'StyleAttention/{test_fname[j].numpy().decode("utf-8")}')
             if j < config_dict['n_predictions']:
                 if model.step >= config_dict['audio_start_step'] and (
                         model.step % config_dict['audio_prediction_frequency'] == 0):
-                    summary_manager.display_audio(tag=f'Target/{test_fname}', mel=tar_value)
-                    summary_manager.display_audio(tag=f'Prediction/{test_fname}', mel=predval)
+                    summary_manager.display_audio(tag=f'{test_fname[j].numpy().decode("utf-8")}/target', mel=tar_value)
+                    summary_manager.display_audio(tag=f'{test_fname[j].numpy().decode("utf-8")}/prediction', mel=predval)
             else:
                 break
         display_end = time()

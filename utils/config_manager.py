@@ -107,8 +107,10 @@ class Config:
                                              encoder_prenet_dimension=self.config['encoder_prenet_dimension'],
                                              encoder_attention_conv_kernel=self.config['encoder_attention_conv_kernel'],
                                              decoder_attention_conv_kernel=self.config['decoder_attention_conv_kernel'],
-                                             encoder_attention_conv_filters=self.config['encoder_attention_conv_filters'],
-                                             decoder_attention_conv_filters=self.config['decoder_attention_conv_filters'],
+                                             encoder_attention_conv_filters=self.config[
+                                                 'encoder_attention_conv_filters'],
+                                             decoder_attention_conv_filters=self.config[
+                                                 'decoder_attention_conv_filters'],
                                              postnet_conv_filters=self.config['postnet_conv_filters'],
                                              postnet_conv_layers=self.config['postnet_conv_layers'],
                                              postnet_kernel_size=self.config['postnet_kernel_size'],
@@ -146,7 +148,9 @@ class Config:
                                       decoder_dense_blocks=self.config['decoder_dense_blocks'],
                                       phoneme_language=self.config['phoneme_language'],
                                       with_stress=self.config['with_stress'],
-                                      debug=self.config['debug'])
+                                      debug=self.config['debug'],
+                                      num_style_heads=self.config['num_style_heads'],
+                                      num_style_tokens=self.config['num_style_tokens'])
     
     def compile_model(self, model):
         if self.model_kind == 'autoregressive':
