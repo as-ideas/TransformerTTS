@@ -62,10 +62,13 @@ train_data_handler = TextMelDurDataset.from_config(config,
 valid_data_handler = TextMelDurDataset.from_config(config,
                                                    preprocessor=data_prep,
                                                    kind='valid')
-train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=[64, 42, 32, 25, 21, 18, 16, 14, 12, 6, 1],
+train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=config_dict['bucket_batch_sizes'],
+                                               bucket_boundaries=config_dict['bucket_boundaries'],
                                                shuffle=True)
 valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1],
-                                               shuffle=False, drop_remainder=True)
+                                               bucket_boundaries=config_dict['bucket_boundaries'],
+                                               shuffle=False,
+                                               drop_remainder=True)
 
 # create logger and checkpointer and restore latest model
 summary_manager = SummaryManager(model=model, log_dir=config.log_dir, config=config_dict)
@@ -76,7 +79,7 @@ manager = tf.train.CheckpointManager(checkpoint, config.weights_dir,
                                      max_to_keep=config_dict['keep_n_weights'],
                                      keep_checkpoint_every_n_hours=config_dict['keep_checkpoint_every_n_hours'])
 manager_training = tf.train.CheckpointManager(checkpoint, str(config.weights_dir / 'latest'),
-                                     max_to_keep=1, checkpoint_name='latest')
+                                              max_to_keep=1, checkpoint_name='latest')
 
 checkpoint.restore(manager_training.latest_checkpoint)
 if manager_training.latest_checkpoint:
@@ -122,7 +125,7 @@ for _ in t:
         summary_manager.add_histogram(tag=f'Train/Target durations', values=durations)
         summary_manager.display_audio(tag=f'Train/prediction', mel=output['mel'][0])
         summary_manager.display_audio(tag=f'Train/target', mel=mel[0])
-        
+    
     if model.step % 1000 == 0:
         save_path = manager_training.save()
     if model.step % config_dict['weights_save_frequency'] == 0:
@@ -158,7 +161,8 @@ for _ in t:
                 if model.step >= config_dict['audio_start_step'] and (
                         model.step % config_dict['audio_prediction_frequency'] == 0):
                     summary_manager.display_audio(tag=f'{test_fname[j].numpy().decode("utf-8")}/target', mel=tar_value)
-                    summary_manager.display_audio(tag=f'{test_fname[j].numpy().decode("utf-8")}/prediction', mel=predval)
+                    summary_manager.display_audio(tag=f'{test_fname[j].numpy().decode("utf-8")}/prediction',
+                                                  mel=predval)
             else:
                 break
         display_end = time()

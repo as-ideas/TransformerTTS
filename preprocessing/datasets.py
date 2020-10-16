@@ -74,7 +74,7 @@ class TextMelDataset:
         mel, text = self._read_sample(sample_name)
         return self.preprocessor(mel=mel, text=text, sample_name=sample_name)
     
-    def get_dataset(self, bucket_batch_sizes, shuffle=True, drop_remainder=False):
+    def get_dataset(self, bucket_batch_sizes, bucket_boundaries, shuffle=True, drop_remainder=False):
         return Dataset(
             samples=self.metadata_reader.filenames,
             preprocessor=self._process_sample,
@@ -83,7 +83,8 @@ class TextMelDataset:
             shuffle=shuffle,
             drop_remainder=drop_remainder,
             len_function=self.preprocessor.get_sample_length,
-            bucket_batch_sizes=bucket_batch_sizes)
+            bucket_batch_sizes=bucket_batch_sizes,
+            bucket_boundaries=bucket_boundaries)
     
     @classmethod
     def from_config(cls,
@@ -122,7 +123,7 @@ class TextMelDurDataset:
         mel, text, durations = self._read_sample(sample_name)
         return self.preprocessor(mel=mel, text=text, durations=durations, sample_name=sample_name)
     
-    def get_dataset(self, bucket_batch_sizes, shuffle=True, drop_remainder=False, ):
+    def get_dataset(self, bucket_batch_sizes, bucket_boundaries, shuffle=True, drop_remainder=False):
         return Dataset(
             samples=self.metadata_reader.filenames,
             preprocessor=self._process_sample,
@@ -131,7 +132,8 @@ class TextMelDurDataset:
             len_function=self.preprocessor.get_sample_length,
             shuffle=shuffle,
             drop_remainder=drop_remainder,
-            bucket_batch_sizes=bucket_batch_sizes)
+            bucket_batch_sizes=bucket_batch_sizes,
+            bucket_boundaries=bucket_boundaries)
     
     @classmethod
     def from_config(cls,
@@ -160,6 +162,7 @@ class Dataset:
                  len_function,
                  padded_shapes: tuple,
                  output_types: tuple,
+                 bucket_boundaries: list,
                  bucket_batch_sizes: list,
                  padding_values: tuple = None,
                  shuffle=True,
@@ -174,10 +177,8 @@ class Dataset:
         binned_data = dataset.apply(
             tf.data.experimental.bucket_by_sequence_length(
                 len_function,
-                bucket_boundaries=[200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200],
+                bucket_boundaries=bucket_boundaries,
                 bucket_batch_sizes=bucket_batch_sizes,
-                # bucket_batch_sizes= [   64,  42,  32,  25,  21,  18,  16,  14,  12,   11,    1],
-                # bucket_batch_sizes= [   32,  32,  32,  16,  16,  16,  16,  14,  12,   11,    1],
                 padded_shapes=padded_shapes,
                 drop_remainder=drop_remainder,
                 padding_values=padding_values

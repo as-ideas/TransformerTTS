@@ -66,9 +66,11 @@ valid_data_handler = TextMelDataset.from_config(config_manager,
                                                 preprocessor=data_prep,
                                                 kind='valid')
 
-train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=[64, 42, 32, 25, 21, 18, 16, 14, 12, 11, 1],
+train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=config['bucket_batch_sizes'],
+                                               bucket_boundaries=config['bucket_boundaries'],
                                                shuffle=True)
 valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1],
+                                               bucket_boundaries=config['bucket_boundaries'],
                                                shuffle=False, drop_remainder=True)
 
 # create logger and checkpointer and restore latest model
