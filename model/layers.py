@@ -34,16 +34,16 @@ class CNNResNorm(tf.keras.layers.Layer):
     def call_convs(self, x, training):
         for i in range(0, len(self.convolutions)):
             x = self.convolutions[i](x)
-            x = self.normalization[i](x, training=training)
             x = self.inner_activations[i](x)
+            x = self.normalization[i](x, training=training)
         return x
     
     def call(self, inputs, training):
         x = self.call_convs(inputs, training=training)
         x = self.last_conv(x)
-        x = self.normalization[-2](x, training=training)
         x = self.last_activation(x)
-        return self.normalization[-1](inputs + x)
+        x = self.normalization[-2](x, training=training)
+        return self.normalization[-1](inputs + x, training=training)
 
 
 class FFNResNorm(tf.keras.layers.Layer):

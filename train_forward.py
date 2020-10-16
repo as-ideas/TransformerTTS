@@ -43,7 +43,7 @@ def validate(model,
 parser = basic_train_parser()
 args = parser.parse_args()
 
-config = Config(config_path=args.config_dict, model_kind='forward')
+config = Config(config_path=args.config, model_kind='forward')
 config_dict = config.config
 config.create_remove_dirs(clear_dir=args.clear_dir,
                           clear_logs=args.clear_logs,
@@ -58,12 +58,14 @@ data_prep = ForwardPreprocessor.from_config(config=config,
                                             tokenizer=model.text_pipeline.tokenizer)
 train_data_handler = TextMelDurDataset.from_config(config,
                                                    preprocessor=data_prep,
-                                                   kind='training')
+                                                   kind='train')
 valid_data_handler = TextMelDurDataset.from_config(config,
                                                    preprocessor=data_prep,
                                                    kind='valid')
-train_dataset = train_data_handler.get_dataset(shuffle=True)
-valid_dataset = valid_data_handler.get_dataset(shuffle=False, drop_remainder=True)
+train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=[64, 42, 32, 25, 21, 18, 16, 14, 12, 6, 1],
+                                               shuffle=True)
+valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1],
+                                               shuffle=False, drop_remainder=True)
 
 # create logger and checkpointer and restore latest model
 summary_manager = SummaryManager(model=model, log_dir=config.log_dir, config=config_dict)
@@ -118,7 +120,11 @@ for _ in t:
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
         summary_manager.add_histogram(tag=f'Train/Predicted durations', values=output['duration'])
         summary_manager.add_histogram(tag=f'Train/Target durations', values=durations)
-    
+        summary_manager.display_audio(tag=f'Train/prediction', mel=output['mel'][0])
+        summary_manager.display_audio(tag=f'Train/target', mel=mel[0])
+        
+    if model.step % 1000 == 0:
+        save_path = manager_training.save()
     if model.step % config_dict['weights_save_frequency'] == 0:
         save_path = manager.save()
         t.display(f'checkpoint at step {model.step}: {save_path}', pos=len(config_dict['n_steps_avg_losses']) + 2)
@@ -146,13 +152,13 @@ for _ in t:
         for j, pred_mel in enumerate(model_out['mel']):
             predval = pred_mel[:pred_lengths[j], :]
             tar_value = test_mel[j, :tar_lengths[j], :]
-            summary_manager.display_mel(mel=predval, tag=f'Test/{test_fname}/predicted_mel')
-            summary_manager.display_mel(mel=tar_value, tag=f'Test/{test_fname}/target_mel')
+            summary_manager.display_mel(mel=predval, tag=f'Test/{test_fname[j].numpy().decode("utf-8")}/predicted')
+            summary_manager.display_mel(mel=tar_value, tag=f'Test/{test_fname[j].numpy().decode("utf-8")}/target')
             if j < config_dict['n_predictions']:
                 if model.step >= config_dict['audio_start_step'] and (
                         model.step % config_dict['audio_prediction_frequency'] == 0):
-                    summary_manager.display_audio(tag=f'Target/{test_fname}', mel=tar_value)
-                    summary_manager.display_audio(tag=f'Prediction/{test_fname}', mel=predval)
+                    summary_manager.display_audio(tag=f'{test_fname[j].numpy().decode("utf-8")}/target', mel=tar_value)
+                    summary_manager.display_audio(tag=f'{test_fname[j].numpy().decode("utf-8")}/prediction', mel=predval)
             else:
                 break
         display_end = time()
