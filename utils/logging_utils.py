@@ -3,7 +3,7 @@ from pathlib import Path
 import tensorflow as tf
 
 from utils.audio import Audio
-from utils.display import tight_grid, buffer_image
+from utils.display import tight_grid, buffer_image, gen_plot
 from utils.vec_ops import norm_tensor
 from utils.decorators import ignore_exception
 
@@ -63,14 +63,18 @@ class SummaryManager:
     def global_step(self):
         return self.model.step
     
-    def add_scalars(self, tag, dictionary):
+    def add_scalars(self, tag, dictionary, step=None):
+        if step is None:
+            step = self.global_step
         for k in dictionary.keys():
             with self.add_writer(str(self.log_dir / k)).as_default():
-                tf.summary.scalar(name=tag, data=dictionary[k], step=self.global_step)
+                tf.summary.scalar(name=tag, data=dictionary[k], step=step)
     
-    def add_scalar(self, tag, scalar_value):
+    def add_scalar(self, tag, scalar_value, step=None):
+        if step is None:
+            step = self.global_step
         with self.writers[self.default_writer].as_default():
-            tf.summary.scalar(name=tag, data=scalar_value, step=self.global_step)
+            tf.summary.scalar(name=tag, data=scalar_value, step=step)
     
     def add_image(self, tag, image, step=None):
         if step is None:
@@ -82,45 +86,64 @@ class SummaryManager:
         with self.writers[self.default_writer].as_default():
             tf.summary.histogram(name=tag, data=values, step=self.global_step, buckets=buckets)
     
-    def add_audio(self, tag, wav, sr):
+    def add_audio(self, tag, wav, sr, step=None):
+        if step is None:
+            step = self.global_step
         with self.writers[self.default_writer].as_default():
             tf.summary.audio(name=tag,
                              data=wav,
                              sample_rate=sr,
-                             step=self.global_step)
+                             step=step)
     
     @ignore_exception
-    def display_attention_heads(self, outputs, tag=''):
+    def display_attention_heads(self, outputs, tag='', step=None):
+        if step is None:
+            step = self.global_step
         for layer in ['encoder_attention', 'decoder_attention']:
             for k in outputs[layer].keys():
                 image = tight_grid(norm_tensor(outputs[layer][k][0]))
                 # dim 0 of image_batch is now number of heads
                 batch_plot_path = f'{tag}/{layer}/{k}'
-                self.add_image(str(batch_plot_path), tf.expand_dims(tf.expand_dims(image, 0), -1))
+                self.add_image(str(batch_plot_path), tf.expand_dims(tf.expand_dims(image, 0), -1), step=step)
     
     @ignore_exception
-    def display_mel(self, mel, tag=''):
+    def display_mel(self, mel, tag='', step=None):
+        if step is None:
+            step = self.global_step
         img = tf.transpose(mel)
         figure = self.audio.display_mel(img, is_normal=True)
         buf = buffer_image(figure)
         img_tf = tf.image.decode_png(buf.getvalue(), channels=3)
-        self.add_image(tag, tf.expand_dims(img_tf, 0))
+        self.add_image(tag, tf.expand_dims(img_tf, 0), step=step)
+    
+    @ignore_exception
+    def display_image(self, image, with_bar=False, figsize=None, tag='', step=None):
+        if step is None:
+            step = self.global_step
+        buf = gen_plot(image, with_bar=with_bar, figsize=figsize)
+        image = tf.image.decode_png(buf.getvalue(), channels=4)
+        image = tf.expand_dims(image, 0)
+        self.add_image(tag=tag, image=image, step=step)
     
     @control_frequency
     @ignore_exception
-    def display_loss(self, output, tag='', plot_all=False):
-        self.add_scalars(tag=f'{tag}/losses', dictionary=output['losses'])
-        self.add_scalar(tag=f'{tag}/loss', scalar_value=output['loss'])
+    def display_loss(self, output, tag='', plot_all=False, step=None):
+        if step is None:
+            step = self.global_step
+        self.add_scalars(tag=f'{tag}/losses', dictionary=output['losses'], step=step)
+        self.add_scalar(tag=f'{tag}/loss', scalar_value=output['loss'], step=step)
     
     @control_frequency
     @ignore_exception
-    def display_scalar(self, tag, scalar_value, plot_all=False):
-        self.add_scalar(tag=tag, scalar_value=scalar_value)
+    def display_scalar(self, tag, scalar_value, plot_all=False, step=None):
+        if step is None:
+            step = self.global_step
+        self.add_scalar(tag=tag, scalar_value=scalar_value, step=step)
     
     @ignore_exception
-    def display_audio(self, tag, mel):
+    def display_audio(self, tag, mel, step=None):
         wav = tf.transpose(mel)
         wav = self.audio.reconstruct_waveform(wav)
         wav = tf.expand_dims(wav, 0)
         wav = tf.expand_dims(wav, -1)
-        self.add_audio(tag, wav.numpy(), sr=self.config['sampling_rate'])
+        self.add_audio(tag, wav.numpy(), sr=self.config['sampling_rate'], step=step)

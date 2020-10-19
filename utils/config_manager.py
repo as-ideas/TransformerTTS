@@ -10,9 +10,9 @@ from model.models import AutoregressiveTransformer, ForwardTransformer
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 
 
-class ConfigManager:
+class Config:
     
-    def __init__(self, config_path: str, model_kind: str, session_name: str = None):
+    def __init__(self, config_path: str, model_kind: str):
         if model_kind not in ['autoregressive', 'forward']:
             raise TypeError(f"model_kind must be in {['autoregressive', 'forward']}")
         self.config_path = Path(config_path)
@@ -20,11 +20,19 @@ class ConfigManager:
         self.yaml = ruamel.yaml.YAML()
         self.config, self.data_config, self.model_config = self._load_config()
         self.git_hash = self._get_git_hash()
-        if session_name is None:
-            if self.config['session_name'] is None:
-                session_name = self.git_hash
-        self.session_name = '_'.join(filter(None, [self.config_path.name, session_name]))
-        self.base_dir, self.log_dir, self.train_datadir, self.weights_dir = self._make_folder_paths()
+        self.session_name = '.'.join([self.config['data_name'], self.config['session_name'], f'{model_kind}'])
+        # create paths
+        self.data_dir = Path(self.config['data_directory']) / 'transformer_tts'
+        # self.data_dir = self._train_datadir()
+        self.metadata_path = self.data_dir / self.config['metadata_filename']
+        # self.wav_dir = self.data_dir / self.config['wav_subdir_name']
+        self.base_dir = Path(self.config['log_directory']) / self.session_name
+        self.log_dir = self.base_dir / 'logs'
+        self.weights_dir = self.base_dir / 'weights'
+        self.train_metadata_path = self.data_dir / self.config['train_metadata_filename']
+        self.valid_metadata_path = self.data_dir / self.config['valid_metadata_filename']
+        self.phonemized_metadata_path = self.data_dir / 'phonemized_metadata.txt'
+        # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         if model_kind == 'autoregressive':
             self.max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
@@ -55,16 +63,6 @@ class ConfigManager:
         except Exception as e:
             print(f'WARNING: could not check git hash. {e}')
     
-    def _make_folder_paths(self):
-        base_dir = Path(self.config['log_directory']) / self.session_name
-        log_dir = base_dir / f'{self.model_kind}_logs'
-        weights_dir = base_dir / f'{self.model_kind}_weights'
-        train_datadir = self.config['train_data_directory']
-        if train_datadir is None:
-            train_datadir = self.config['data_directory']
-        train_datadir = Path(train_datadir)
-        return base_dir, log_dir, train_datadir, weights_dir
-    
     @staticmethod
     def _print_dict_values(values, key_name, level=0, tab_size=2):
         tab = level * tab_size * ' '
@@ -85,9 +83,6 @@ class ConfigManager:
     def update_config(self):
         self.config['git_hash'] = self.git_hash
         self.model_config['git_hash'] = self.git_hash
-        self.data_config['session_name'] = self.session_name
-        self.model_config['session_name'] = self.session_name
-        self.config['session_name'] = self.session_name
     
     def get_model(self, ignore_hash=False):
         if not ignore_hash:
@@ -159,10 +154,10 @@ class ConfigManager:
     
     # TODO: move to model
     @staticmethod
-    def new_adam(learning_rate):
+    def new_adam(learning_rate, beta_1=0.9, beta_2=0.98, ):
         return tf.keras.optimizers.Adam(learning_rate,
-                                        beta_1=0.9,
-                                        beta_2=0.98,
+                                        beta_1=beta_1,
+                                        beta_2=beta_2,
                                         epsilon=1e-9)
     
     def dump_config(self):
@@ -172,8 +167,9 @@ class ConfigManager:
         with open(self.base_dir / 'data_config.yaml', 'w') as data_yaml:
             self.yaml.dump(self.data_config, data_yaml)
     
-    def create_remove_dirs(self, clear_dir: False, clear_logs: False, clear_weights: False):
-        self.base_dir.mkdir(exist_ok=True)
+    def create_remove_dirs(self, clear_dir=False, clear_logs=False, clear_weights=False):
+        # self.train_datadir.mkdir(exist_ok=True)
+        self.base_dir.mkdir(exist_ok=True, parents=True)
         if clear_dir:
             delete = input(f'Delete {self.log_dir} AND {self.weights_dir}? (y/[n])')
             if delete == 'y':

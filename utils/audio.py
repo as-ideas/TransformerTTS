@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 class Audio():
     def __init__(self, config: dict):
         self.config = config
-        self.normalizer = getattr(sys.modules[__name__], config['normalizer'])(config)
+        self.normalizer = getattr(sys.modules[__name__], config['normalizer'])()
     
     def _normalize(self, S):
         return self.normalizer.normalize(S)
@@ -37,7 +37,7 @@ class Audio():
         """ This is what the model is trained to reproduce. """
         D = self._stft(wav)
         S = self._linear_to_mel(np.abs(D))
-        return self._normalize(S)
+        return self._normalize(S).T
     
     def reconstruct_waveform(self, mel, n_iter=32):
         """ Uses Griffin-Lim phase reconstruction to convert from a normalized
@@ -70,22 +70,23 @@ class Audio():
                                       fmax=self.config['f_max'])
         f.add_subplot(ax)
         return f
+    
+    def load_wav(self, wav_path):
+        y, sr = librosa.load(wav_path, sr=self.config['sampling_rate'])
+        return y, sr
 
 
 class Normalizer:
-    def __init__(self, config: dict):
-        self.config = config
-    
-    def normalize(self):
+    def normalize(self, S):
         raise NotImplementedError
     
-    def denormalize(self):
+    def denormalize(self, S):
         raise NotImplementedError
 
 
 class MelGAN(Normalizer):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self):
+        super().__init__()
         self.clip_min = 1.0e-5
     
     def normalize(self, S):
@@ -97,8 +98,8 @@ class MelGAN(Normalizer):
 
 
 class WaveRNN(Normalizer):
-    def __init__(self, config: dict):
-        super().__init__(config)
+    def __init__(self):
+        super().__init__()
         self.min_level_db = - 100
         self.max_norm = 4
     

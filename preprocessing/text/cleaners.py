@@ -72,7 +72,6 @@ class English(Cleaner):
         text = self._expand_numbers(text)
         text = re.sub(self.abbreviations_pattern, lambda m: self.abbreviations.get(m.group(0)), text)
         return text
-
     
     def _expand_numbers(self, text):
         ends_with_dot = text.endswith('.')
@@ -113,7 +112,7 @@ class German(Cleaner):
         text = self._filter_chars(text)
         text = self._expand_numbers(text)
         return text
-
+    
     def _fix_time(self, m):
         if int(m.group(2)):
             return m.group(1) + m.group(3) + ' ' + m.group(2)  # 9 Uhr 30

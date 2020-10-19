@@ -35,9 +35,12 @@ head_drop_schedule:  # head-level dropout: how many heads to set to zero at trai
   - [15_000, 1]
 reduction_factor_schedule:
   - [0, 10]
-  - [80_000, 1]
+  - [80_000, 5]
+  - [150_000, 3]
+  - [250_000, 1]
 max_steps: 900_000
-batch_size: 16
+bucket_boundaries: [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200] # mel bucketing
+bucket_batch_sizes: [64, 42, 32, 25, 21, 18, 16, 14, 12, 11, 1]
 debug: False
 
 # LOGGING
