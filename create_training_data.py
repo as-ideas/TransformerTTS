@@ -129,7 +129,7 @@ if not args.skip_phonemes:
     new_metadata = [''.join([key, '|', phonemized_data[key], '\n']) for key in phonemized_data]
     shuffled_metadata = np.random.permutation(new_metadata)
     train_metadata = shuffled_metadata[0:train_len]
-    test_metadata = shuffled_metadata[:test_len]
+    test_metadata = shuffled_metadata[:-test_len]
     
     # some checks
     assert metadata_len == len(set(list(phonemized_data.keys()))), \

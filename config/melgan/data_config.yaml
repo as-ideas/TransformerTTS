@@ -12,6 +12,8 @@ n_samples: 100000
 n_test: 100
 mel_start_value: .5
 mel_end_value: -.5
+max_mel_len: 1_200
+min_mel_len: 80
 
 # AUDIO
 sampling_rate: 22050
@@ -23,5 +25,5 @@ f_min: 0
 f_max: 8000
 normalizer: MelGAN                 # which mel normalization to use from utils.audio.py [MelGAN or WaveRNN]
 # TOKENIZER
-phoneme_language: 'en'
+phoneme_language: 'en-us'
 with_stress: True                  # use stress symbols in phonemization

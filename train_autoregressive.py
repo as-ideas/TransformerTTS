@@ -114,13 +114,6 @@ for _ in t:
     output = model.train_step(inp=phonemes,
                               tar=mel,
                               stop_prob=stop)
-    for layer, k in enumerate(output['decoder_attention'].keys()):
-        mel_lens = mel_lengths(mel_batch=mel, padding_value=0) // model.r  # [N]
-        phon_len = phoneme_lengths(phonemes)
-        loc_score, peak_score, diag_measure = attention_score(att=output['decoder_attention'][k],
-                                                              mel_len=mel_lens,
-                                                              phon_len=phon_len,
-                                                              r=model.r)
     losses.append(float(output['loss']))
     
     t.display(f'step loss: {losses[-1]}', pos=1)
@@ -152,7 +145,7 @@ for _ in t:
             loc_score = tf.reduce_mean(loc_score, axis=0)
             peak_score = tf.reduce_mean(peak_score, axis=0)
             diag_measure = tf.reduce_mean(diag_measure, axis=0)
-            for i in range(tf.shape(loc_score)[1]):
+            for i in range(tf.shape(loc_score)[0]):
                 summary_manager.display_scalar(tag=f'TrainDecoderAttentionJumpiness/layer{layer}_head{i}',
                                                scalar_value=tf.reduce_mean(loc_score[i]))
                 summary_manager.display_scalar(tag=f'TrainDecoderAttentionPeakiness/layer{layer}_head{i}',

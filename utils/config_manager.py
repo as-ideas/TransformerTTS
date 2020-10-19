@@ -22,7 +22,7 @@ class Config:
         self.git_hash = self._get_git_hash()
         self.session_name = '.'.join([self.config['data_name'], self.config['session_name'], f'{model_kind}'])
         # create paths
-        self.data_dir = Path(self.config['data_directory'])
+        self.data_dir = Path(self.config['data_directory']) / 'transformer_tts'
         # self.data_dir = self._train_datadir()
         self.metadata_path = self.data_dir / self.config['metadata_filename']
         # self.wav_dir = self.data_dir / self.config['wav_subdir_name']

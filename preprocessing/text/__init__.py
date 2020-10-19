@@ -1,5 +1,5 @@
 from preprocessing.text.cleaners import English, German
-from preprocessing.text.symbols import _phonemes, _punctuations
+from preprocessing.text.symbols import all_phonemes
 from preprocessing.text.tokenizer import Phonemizer, Tokenizer
 
 
@@ -24,7 +24,7 @@ class Pipeline:
         else:
             raise ValueError(f'language must be either "en" or "de", not {language}.')
         phonemizer = Phonemizer(language=language, strip=False, njobs=njobs, with_stress=with_stress)
-        tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=add_start_end)
+        tokenizer = Tokenizer(all_phonemes, add_start_end=add_start_end)
         return cls(cleaner=cleaner, phonemizer=phonemizer, tokenizer=tokenizer)
     
     @classmethod
@@ -36,5 +36,5 @@ class Pipeline:
         else:
             raise ValueError(f'language must be either "en" or "de", not {language}.')
         phonemizer = Phonemizer(language=language, strip=True, njobs=njobs, with_stress=with_stress)
-        tokenizer = Tokenizer(sorted(list(_phonemes) + list(_punctuations)), add_start_end=add_start_end)
+        tokenizer = Tokenizer(all_phonemes, add_start_end=add_start_end)
         return cls(cleaner=cleaner, phonemizer=phonemizer, tokenizer=tokenizer)
