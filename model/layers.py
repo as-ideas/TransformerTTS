@@ -346,34 +346,35 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
         self.pos_encoding_scalar = tf.Variable(1.)
         self.pos_encoding = positional_encoding(maximum_position_encoding, model_dim)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
-        self.last_layer_idx = len(num_heads) - 1
-        self.CADB = [
+        CADB_layers = [
             CrossAttentionDenseBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
-                                     dense_hidden_units=feed_forward_dimension, name=f'{self.name}_CADB_{i}')
+                                     dense_hidden_units=feed_forward_dimension,
+                                     name=f'{self.name}_DenseBlock{i + 1}_CrossAttention')
             for i, n_heads in enumerate(num_heads[:dense_blocks])]
-        self.CACB = [
+        CACB_layers = [
             CrossAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
-                                    name=f'{self.name}_CACB_{i}', conv_filters=conv_filters,
+                                    name=f'{self.name}_ConvBlock{i + 1}_CrossAttention', conv_filters=conv_filters,
                                     conv_activation=conv_activation, conv_padding=conv_padding, kernel_size=conv_kernel)
             for i, n_heads in enumerate(num_heads[dense_blocks:])]
+        attention_layers = CADB_layers + CACB_layers
+        self.inner_attention_layers = attention_layers[:-1]
+        self.last_attention_layer = attention_layers[-1]
     
     def call(self, inputs, enc_output, training, decoder_padding_mask, encoder_padding_mask, drop_n_heads,
-             reduction_factor=1):
+             reduction_factor):
         seq_len = tf.shape(inputs)[1]
         x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
         x += self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}
-        for i, block in enumerate(self.CADB):
-            drop_heads = tf.cond(tf.equal(i, self.last_layer_idx), false_fn= lambda:0, true_fn=lambda:drop_n_heads)
+        for block in self.inner_attention_layers:
             x, _, attn_weights = block(x, enc_output, training, decoder_padding_mask, encoder_padding_mask,
-                                       drop_heads)
-            attention_weights[f'{self.name}_DenseBlock{i + 1}_CrossAttention'] = attn_weights
-        for i, block in enumerate(self.CACB):
-            drop_heads = tf.cond(tf.equal(i, self.last_layer_idx), false_fn=lambda: 0, true_fn=lambda: drop_n_heads)
-            x, _, attn_weights = block(x, enc_output, training, decoder_padding_mask, encoder_padding_mask,
-                                       drop_heads)
-            attention_weights[f'{self.name}_ConvBlock{i + 1}_CrossAttention'] = attn_weights
+                                       drop_n_heads=0)
+            attention_weights[f'{block.name}'] = attn_weights
+        
+        x, _, attn_weights = self.last_attention_layer(x, enc_output, training, decoder_padding_mask, encoder_padding_mask,
+                                                       drop_n_heads)
+        attention_weights[f'{self.last_attention_layer.name}'] = attn_weights
         
         return x, attention_weights
 
