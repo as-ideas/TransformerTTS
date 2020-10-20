@@ -22,7 +22,7 @@ def attention_score(att, mel_len, phon_len, r):
     # diagonality
     diag_score = diagonality_measure(att, mel_len, phon_len)
     
-    return loc_score, peak_score, 3./diag_score
+    return loc_score, peak_score, 3. / diag_score
 
 
 def attention_jumps_score(att, mel_mask, mel_len, r):
@@ -57,10 +57,12 @@ def diagonality_measure(att, mel_len, phon_len):
 def weight_mask(mel_len, phon_len, padded_shape):
     """ exponential loss mask based on distance from euclidean diagonal"""
     max_m = mel_len
+    if max_m > padded_shape[0]:  # this can happen due to rounding errors when calculating mel lengths with r>1
+        max_m = padded_shape[0]
     max_n = phon_len
     i = np.tile(np.arange(max_n), (max_m, 1)) / max_n
     j = np.swapaxes(np.tile(np.arange(max_m), (max_n, 1)), 0, 1) / max_m
     mask = np.sqrt(np.square(i - j))
     expanded_mask = np.zeros(padded_shape)
-    expanded_mask[0:mel_len, 0:phon_len] = mask
+    expanded_mask[0:max_m, 0:max_n] = mask
     return expanded_mask

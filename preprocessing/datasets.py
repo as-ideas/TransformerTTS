@@ -255,7 +255,7 @@ class AutoregressivePreprocessor:
 if __name__ == '__main__':
     ljspeech_folder = '/Volumes/data/datasets/LJSpeech-1.1'
     # metadata_path = '/Volumes/data/datasets/LJSpeech-1.1/metadata.csv'
-    metadata_path = '/Volumes/data/datasets/LJSpeech-1.1/phonemized_metadata.txt'
+    metadata_path = '/Volumes/data/datasets/LJSpeech-1.1/transformer_tts/phonemized_metadata.txt'
     metadata_reader = get_preprocessor_by_name('ljspeech')
     data_reader = DataReader(data_directory=ljspeech_folder, metadata_path=metadata_path,
                              metadata_reading_function=metadata_reader, scan_wavs=True)
@@ -272,7 +272,7 @@ if __name__ == '__main__':
     print('wav paths tail')
     for key in key_list[-5:]:
         print(f'{key}: {data_reader.wav_paths[key]}')
-    mel_dir = Path('/Volumes/data/datasets/LJSpeech-1.1/mels')
+    mel_dir = Path('/Volumes/data/datasets/LJSpeech-1.1/transformer_tts/mels')
     if mel_dir.exists():
         from preprocessing.text.tokenizer import Tokenizer
         from preprocessing.text.symbols import all_phonemes
@@ -285,7 +285,7 @@ if __name__ == '__main__':
         dataset_creator = TextMelDataset(data_reader=data_reader,
                                          preprocessor=preprocessor,
                                          mel_directory=mel_dir)
-        dataset = dataset_creator.get_dataset(shuffle=True, drop_remainder=False)
+        dataset = dataset_creator.get_dataset(shuffle=True, drop_remainder=False, bucket_boundaries=[500], bucket_batch_sizes=[6,6])
         for i in range(10):
             batch = dataset.next_batch()
             bsh = tf.shape(batch[0])
