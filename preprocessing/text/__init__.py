@@ -17,24 +17,24 @@ class Pipeline:
     
     @classmethod
     def default_pipeline(cls, language, add_start_end, with_stress, njobs=1):
-        if language == 'en':
+        if (language == 'en') or (language == 'en-gb') or (language == 'en-us'):
             cleaner = English()
         elif language == 'de':
             cleaner = German()
         else:
-            raise ValueError(f'language must be either "en" or "de", not {language}.')
+            raise ValueError(f'language must be either "en" (en-us, en-gb) or "de", not {language}.')
         phonemizer = Phonemizer(language=language, strip=False, njobs=njobs, with_stress=with_stress)
         tokenizer = Tokenizer(all_phonemes, add_start_end=add_start_end)
         return cls(cleaner=cleaner, phonemizer=phonemizer, tokenizer=tokenizer)
     
     @classmethod
     def default_training_pipeline(cls, language, add_start_end, with_stress, njobs=4):
-        if language == 'en':
+        if (language == 'en') or (language == 'en-gb') or (language == 'en-us'):
             cleaner = English()
         elif language == 'de':
             cleaner = German()
         else:
-            raise ValueError(f'language must be either "en" or "de", not {language}.')
+            raise ValueError(f'language must be either "en" (en-us, en-gb) or "de", not {language}.')
         phonemizer = Phonemizer(language=language, strip=True, njobs=njobs, with_stress=with_stress)
         tokenizer = Tokenizer(all_phonemes, add_start_end=add_start_end)
         return cls(cleaner=cleaner, phonemizer=phonemizer, tokenizer=tokenizer)
