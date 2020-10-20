@@ -1,5 +1,7 @@
 import argparse
 from pathlib import Path
+from multiprocessing import Pool, cpu_count
+import pickle
 
 import numpy as np
 import tqdm
@@ -8,8 +10,6 @@ from preprocessing.text import Pipeline
 from preprocessing.datasets import DataReader
 from utils.config_manager import Config
 from utils.audio import Audio
-from multiprocessing import Pool, cpu_count
-import pickle
 
 np.random.seed(42)
 
@@ -116,20 +116,20 @@ if not args.skip_phonemes:
             phonemized_data.update(dict(zip(batch_keys, phonemized_batch)))
         except:
             failed_files.extend(batch_keys)
-
-    for file in failed_files: # phonemizer sometimes breaks when computing batches or when multiproc.
+    
+    for file in failed_files:  # phonemizer sometimes breaks when computing batches or when multiproc.
         text = clean_texts[file]
         phonemized_text = text_proc.phonemizer(text, njobs=1)
         phonemized_data.update({file: phonemized_text})
-        
+    
     print('\nPhonemized metadata samples:')
     for i in sample_items:
         print(f'{i}:{phonemized_data[i]}')
-        
+    
     new_metadata = [''.join([key, '|', phonemized_data[key], '\n']) for key in phonemized_data]
     shuffled_metadata = np.random.permutation(new_metadata)
     train_metadata = shuffled_metadata[0:train_len]
-    test_metadata = shuffled_metadata[:-test_len]
+    test_metadata = shuffled_metadata[-test_len:]
     
     # some checks
     assert metadata_len == len(set(list(phonemized_data.keys()))), \
