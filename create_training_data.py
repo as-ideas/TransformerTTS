@@ -37,7 +37,7 @@ if not args.skip_mels:
         y, sr = audio.load_wav(str(wav_path))
         mel = audio.mel_spectrogram(y)
         assert mel.shape[1] == audio.config['mel_channels'], len(mel.shape) == 2
-        mel_path = (cm.data_dir / 'mels' / file_name).with_suffix('.npy')
+        mel_path = (cm.mel_dir / file_name).with_suffix('.npy')
         np.save(mel_path, mel)
         return (file_name, mel.shape[0])
     
@@ -51,8 +51,9 @@ if not args.skip_mels:
     
     
     print(f"\nMels will be stored stored under")
-    print(f"{cm.data_dir / 'mels'}")
-    (cm.data_dir / 'mels').mkdir(exist_ok=True)
+    print(f"{cm.mel_dir}")
+    print(f"reading wavs from {metadatareader.data_directory}")
+    (cm.mel_dir).mkdir(exist_ok=True)
     audio = Audio(config=cm.config)
     pool = Pool(processes=cpu_count() - 1)
     wav_files = [metadatareader.wav_paths[k] for k in metadatareader.wav_paths]

@@ -8,6 +8,7 @@
 
 import sys
 
+
 def get_preprocessor_by_name(name: str):
     """
     Returns the respective preprocessing function.
@@ -16,7 +17,8 @@ def get_preprocessor_by_name(name: str):
     thismodule = sys.modules[__name__]
     return getattr(thismodule, name.lower())
 
-def ljspeech(metadata_path:str, column_sep='|') -> dict:
+
+def ljspeech(metadata_path: str, column_sep='|') -> dict:
     text_dict = {}
     with open(metadata_path, 'r', encoding='utf-8') as f:
         for l in f.readlines():

@@ -33,6 +33,7 @@ class Config:
         self.train_metadata_path = self.data_dir / self.config['train_metadata_filename']
         self.valid_metadata_path = self.data_dir / self.config['valid_metadata_filename']
         self.phonemized_metadata_path = self.data_dir / 'phonemized_metadata.txt'
+        self.mel_dir = self.data_dir / f"mels.{self.config['normalizer']}"
         # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         if model_kind == 'autoregressive':

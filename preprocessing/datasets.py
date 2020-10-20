@@ -96,7 +96,7 @@ class TextMelDataset:
         if kind not in kinds:
             raise ValueError(f'Invalid kind type. Expected one of: {kinds}')
         if mel_directory is None:
-            mel_directory = config.data_dir / 'mels'
+            mel_directory = config.mel_dir
         metadata_reader = DataReader.from_config(config, kind=kind)
         return cls(preprocessor=preprocessor,
                    data_reader=metadata_reader,
@@ -145,7 +145,7 @@ class TextMelDurDataset:
         if kind not in kinds:
             raise ValueError(f'Invalid kind type. Expected one of: {kinds}')
         if mel_directory is None:
-            mel_directory = config.data_dir / 'mels'
+            mel_directory = config.mel_dir
         metadata_reader = DataReader.from_config(config,
                                                  kind=kind)
         return cls(preprocessor=preprocessor,
