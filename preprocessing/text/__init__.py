@@ -16,14 +16,14 @@ class Pipeline:
         return tokens
     
     @classmethod
-    def default_pipeline(cls, language, add_start_end, with_stress, njobs=1):
+    def default_pipeline(cls, language, add_start_end, with_stress, njobs=1, strip=False):
         if (language == 'en') or (language == 'en-gb') or (language == 'en-us'):
             cleaner = English()
         elif language == 'de':
             cleaner = German()
         else:
             raise ValueError(f'language must be either "en" (en-us, en-gb) or "de", not {language}.')
-        phonemizer = Phonemizer(language=language, strip=False, njobs=njobs, with_stress=with_stress)
+        phonemizer = Phonemizer(language=language, strip=strip, njobs=njobs, with_stress=with_stress)
         tokenizer = Tokenizer(add_start_end=add_start_end)
         return cls(cleaner=cleaner, phonemizer=phonemizer, tokenizer=tokenizer)
     

@@ -22,8 +22,10 @@ class Tokenizer:
             self.idx_to_token[self.end_token_index] = end_token
     
     def __call__(self, sentence):
-        # sentence = sentence.replace('\n', '')
+        sentence = sentence.replace('\n', '')
         sequence = [self.token_to_idx[c] for c in sentence] # No filtering: text should only contain known chars.
+        if sequence[0]==1:
+            sequence = sequence[1:]
         if self.add_start_end:
             sequence = [self.start_token_index] + sequence + [self.end_token_index]
         return sequence
