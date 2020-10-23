@@ -170,7 +170,7 @@ class Config:
             self.yaml.dump(self.data_config, data_yaml)
     
     def create_remove_dirs(self, clear_dir=False, clear_logs=False, clear_weights=False):
-        # self.train_datadir.mkdir(exist_ok=True)
+        self.data_dir.mkdir(exist_ok=True)
         self.base_dir.mkdir(exist_ok=True, parents=True)
         if clear_dir:
             delete = input(f'Delete {self.log_dir} AND {self.weights_dir}? (y/[n])')

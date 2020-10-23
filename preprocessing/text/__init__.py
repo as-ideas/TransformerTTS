@@ -24,7 +24,7 @@ class Pipeline:
         else:
             raise ValueError(f'language must be either "en" (en-us, en-gb) or "de", not {language}.')
         phonemizer = Phonemizer(language=language, strip=False, njobs=njobs, with_stress=with_stress)
-        tokenizer = Tokenizer(all_phonemes, add_start_end=add_start_end)
+        tokenizer = Tokenizer(add_start_end=add_start_end)
         return cls(cleaner=cleaner, phonemizer=phonemizer, tokenizer=tokenizer)
     
     @classmethod
@@ -36,5 +36,5 @@ class Pipeline:
         else:
             raise ValueError(f'language must be either "en" (en-us, en-gb) or "de", not {language}.')
         phonemizer = Phonemizer(language=language, strip=True, njobs=njobs, with_stress=with_stress)
-        tokenizer = Tokenizer(all_phonemes, add_start_end=add_start_end)
+        tokenizer = Tokenizer(add_start_end=add_start_end)
         return cls(cleaner=cleaner, phonemizer=phonemizer, tokenizer=tokenizer)

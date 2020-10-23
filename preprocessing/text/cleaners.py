@@ -68,7 +68,7 @@ class English(Cleaner):
         return ''.join([c for c in text if c in self.accepted_chars])
     
     def _clean_line(self, text):
-        text = self._filter_chars(text)
+        # text = self._filter_chars(text)
         text = self._expand_numbers(text)
         text = re.sub(self.abbreviations_pattern, lambda m: self.abbreviations.get(m.group(0)), text)
         return text
@@ -109,7 +109,7 @@ class German(Cleaner):
         return ''.join([c for c in text if c in self.accepted_chars])
     
     def _clean_line(self, text):
-        text = self._filter_chars(text)
+        # text = self._filter_chars(text)
         text = self._expand_numbers(text)
         return text
     

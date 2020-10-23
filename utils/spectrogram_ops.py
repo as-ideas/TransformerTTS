@@ -30,7 +30,7 @@ if __name__ == '__main__':
                              metadata_reading_function=metadata_reader, scan_wavs=True)
     mel_dir = Path('/Volumes/data/datasets/LJSpeech-1.1/mels')
     
-    tokenizer = Tokenizer(alphabet=all_phonemes)
+    tokenizer = Tokenizer()
     preprocessor = AutoregressivePreprocessor(mel_channels=80,
                                               mel_start_value=.5,
                                               mel_end_value=-.5,
