@@ -22,7 +22,6 @@ class Tokenizer:
             self.idx_to_token[self.end_token_index] = end_token
     
     def __call__(self, sentence):
-        sentence = sentence.replace('\n', '')
         sequence = [self.token_to_idx[c] for c in sentence] # No filtering: text should only contain known chars.
         if sequence[0]==1:
             sequence = sequence[1:]
@@ -44,7 +43,7 @@ class Phonemizer:
     def _filter_string(self, text:str):
         return ''.join([c for c in text if c in all_phonemes])
     
-    def filter_punctuation(self, text: Union[str, list]) -> Union[str, list]:
+    def filter_characters(self, text: Union[str, list]) -> Union[str, list]:
         if isinstance(text, list):
             return [self._filter_string(t) for t in text]
         elif isinstance(text, str):

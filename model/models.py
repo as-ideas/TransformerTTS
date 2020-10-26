@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
-from preprocessing.text import Pipeline
+from preprocessing.text import TextToTokens
 from model.layers import DecoderPrenet, Postnet, DurationPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks, \
     CNNResNorm
 
@@ -49,9 +49,9 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.r = max_r
         self.mel_channels = mel_channels
         self.drop_n_heads = 0
-        self.text_pipeline = Pipeline.default_pipeline(phoneme_language,
-                                                       add_start_end=True,
-                                                       with_stress=with_stress)
+        self.text_pipeline = TextToTokens.default(phoneme_language,
+                                                  add_start_end=True,
+                                                  with_stress=with_stress)
         self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
                                                         encoder_prenet_dimension,
                                                         name='Embedding')
@@ -294,9 +294,9 @@ class ForwardTransformer(tf.keras.models.Model):
                  decoder_prenet_dropout=0.,
                  **kwargs):
         super(ForwardTransformer, self).__init__(**kwargs)
-        self.text_pipeline = Pipeline.default_pipeline(phoneme_language,
-                                                       add_start_end=False,
-                                                       with_stress=with_stress)
+        self.text_pipeline = TextToTokens.default(phoneme_language,
+                                                  add_start_end=False,
+                                                  with_stress=with_stress)
         self.drop_n_heads = 0
         self.mel_channels = mel_channels
         self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
