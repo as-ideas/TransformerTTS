@@ -3,7 +3,7 @@ from preprocessing.text.tokenizer import Phonemizer, Tokenizer
 
 
 class TextToTokens:
-    def __init__(self, phonemizer, tokenizer):
+    def __init__(self, phonemizer: Phonemizer, tokenizer: Tokenizer):
         self.phonemizer = phonemizer
         self.tokenizer = tokenizer
     
@@ -13,13 +13,13 @@ class TextToTokens:
         return tokens
     
     @classmethod
-    def default(cls, language, add_start_end, with_stress, njobs=1, strip=False):
-        phonemizer = Phonemizer(language=language, strip=strip, njobs=njobs, with_stress=with_stress)
+    def default(cls, language, add_start_end, with_stress, njobs=1):
+        phonemizer = Phonemizer(language=language, njobs=njobs, with_stress=with_stress)
         tokenizer = Tokenizer(add_start_end=add_start_end)
         return cls(phonemizer=phonemizer, tokenizer=tokenizer)
     
     @classmethod
     def default_training(cls, language, add_start_end, with_stress, njobs=4):
-        phonemizer = Phonemizer(language=language, strip=True, njobs=njobs, with_stress=with_stress)
+        phonemizer = Phonemizer(language=language, njobs=njobs, with_stress=with_stress)
         tokenizer = Tokenizer(add_start_end=add_start_end)
         return cls(phonemizer=phonemizer, tokenizer=tokenizer)

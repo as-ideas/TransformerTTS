@@ -457,7 +457,9 @@ class ForwardTransformer(tf.keras.models.Model):
     def predict(self, inp, encode=True, speed_regulator=1.):
         if encode:
             inp = self.encode_text(inp)
-            inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
+        if len(tf.shape(inp))<2:
+            inp = tf.expand_dims(inp, 0)
+        inp = tf.cast(inp, tf.int32)
         duration_scalar = tf.cast(1. / speed_regulator, tf.float32)
         out = self.forward(inp, durations_scalar=duration_scalar)
         out['mel'] = tf.squeeze(out['mel'])
