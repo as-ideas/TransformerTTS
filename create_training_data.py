@@ -6,7 +6,7 @@ import pickle
 import numpy as np
 import tqdm
 
-from preprocessing.text import Pipeline
+from preprocessing.text import TextToTokens
 from preprocessing.datasets import DataReader
 from utils.config_manager import Config
 from utils.audio import Audio
@@ -96,11 +96,6 @@ if not args.skip_phonemes:
     test_len = cm.config['n_test']
     train_len = metadata_len - test_len
     print(f'\nMetadata contains {metadata_len} lines.')
-    if args.clean_dataset:
-        print(f'\nMetadata will be cleaned.')
-    else:
-        print(f'\n>>> Metadata will NOT cleaned. Abbreviations and numeral will remain unchanged. <<<')
-    
     print(f'\nFiles will be stored under {cm.data_dir}')
     print(f' - all: {phonemized_metadata_path}')
     print(f' - {train_len} training lines: {train_metadata_path}')
@@ -111,17 +106,9 @@ if not args.skip_phonemes:
         print(f'{i}:{metadatareader.text_dict[i]}')
     
     # run cleaner on raw text
-    text_proc = Pipeline.default_training_pipeline(cm.config['phoneme_language'], add_start_end=False,
-                                                   with_stress=cm.config['with_stress'])
-    texts = [metadatareader.text_dict[k] for k in metadatareader.filenames]
-    if args.clean_dataset:
-        texts = text_proc.cleaner(list(texts))
-        texts = dict(zip(metadatareader.filenames, texts))
-        print('\nCleaned metadata samples:')
-        for i in sample_items:
-            print(f'{i}:{texts[i]}')
-    else:
-        texts = dict(zip(metadatareader.filenames, texts))
+    text_proc = TextToTokens.default_training(cm.config['phoneme_language'], add_start_end=False,
+                                              with_stress=cm.config['with_stress'])
+    texts = {k: metadatareader.text_dict[k] for k in metadatareader.filenames}
     key_list = list(texts.keys())
     
     print('\nPHONEMIZING')
