@@ -125,7 +125,6 @@ if not args.skip_phonemes:
         except:
             failed_files.extend(batch_keys)
     print(f'\nFailed to process {len(failed_files)} files. Retrying with reduced settings')
-    print(f'{failed_files}')
     re_failed = []
     for file in tqdm.tqdm(failed_files):  # phonemizer sometimes breaks when computing batches or when multiproc.
         text = texts[file]
