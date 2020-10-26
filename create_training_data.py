@@ -10,6 +10,7 @@ from preprocessing.text import TextToTokens
 from preprocessing.datasets import DataReader
 from utils.config_manager import Config
 from utils.audio import Audio
+from preprocessing.text.symbols import _alphabet
 
 np.random.seed(42)
 
@@ -17,7 +18,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, required=True)
 parser.add_argument('--skip_phonemes', action='store_true')
 parser.add_argument('--skip_mels', action='store_true')
-parser.add_argument('--clean_dataset', action='store_true')
 parser.add_argument('--phonemizer_parallel_jobs', type=int, default=16)
 parser.add_argument('--phonemizer_batch_size', type=int, default=16)
 
@@ -77,7 +77,6 @@ if not args.skip_phonemes:
     test_metadata_path = Path(cm.data_dir) / cm.config['valid_metadata_filename']
     print(f'\nReading metadata from {metadatareader.metadata_path}')
     print(f'\nFound {len(metadatareader.filenames)} lines.')
-    from preprocessing.text.symbols import _alphabet
     filter_metadata = []
     for fname in metadatareader.filenames:
         item = metadatareader.text_dict[fname]
@@ -135,9 +134,9 @@ if not args.skip_phonemes:
             phonemized_data.update({file: phonemized_text})
         except:
             re_failed.append(file)
-            
+    
     train_len -= len(re_failed)
-    if len(re_failed)> 0:
+    if len(re_failed) > 0:
         print(f'\nCould not phonemize {len(re_failed)} files. Excluding the following from training set.')
         print(re_failed)
     

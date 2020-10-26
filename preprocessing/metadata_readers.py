@@ -30,18 +30,6 @@ def ljspeech(metadata_path: str, column_sep='|') -> dict:
     return text_dict
 
 
-def asvoice2(metadata_path: str, column_sep='|') -> dict:
-    text_dict = {}
-    with open(metadata_path, 'r', encoding='utf-8') as f:
-        for l in f.readlines():
-            l_split = l.split(column_sep)
-            filename, text = l_split[0], l_split[-1]
-            if filename.endswith('.wav'):
-                filename = filename.split('.')[0]
-            text_dict.update({filename: text})
-    return text_dict
-
-
 if __name__ == '__main__':
     metadata_path = '/Volumes/data/datasets/LJSpeech-1.1/metadata.csv'
     d = get_preprocessor_by_name('ljspeech')(metadata_path)
