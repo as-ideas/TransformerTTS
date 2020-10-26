@@ -8,7 +8,7 @@ class Tokenizer:
         if not alphabet:
             self.alphabet = all_phonemes
         else:
-            self.alphabet = alphabet # for testing
+            self.alphabet = alphabet  # for testing
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet, start=1)}
         self.idx_to_token[0] = pad_token
         self.token_to_idx = {s: i for i, s in self.idx_to_token.items()}
@@ -30,7 +30,7 @@ class Tokenizer:
             sequence = [self.start_token_index] + sequence + [self.end_token_index]
         return sequence
     
-    def decode(self, sequence):
+    def decode(self, sequence: list) -> str:
         return ''.join([self.idx_to_token[int(t)] for t in sequence])
 
 
@@ -41,7 +41,7 @@ class Phonemizer:
         self.njobs = njobs
         self.with_stress = with_stress
     
-    def _filter_string(self, text:str):
+    def _filter_string(self, text: str):
         return ''.join([c for c in text if c in all_phonemes])
     
     def filter_punctuation(self, text: Union[str, list]) -> Union[str, list]:

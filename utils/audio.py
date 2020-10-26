@@ -4,7 +4,7 @@ import librosa
 import numpy as np
 import librosa.display
 from matplotlib import pyplot as plt
-
+import soundfile as sf
 
 class Audio():
     def __init__(self, config: dict):
@@ -74,6 +74,9 @@ class Audio():
     def load_wav(self, wav_path):
         y, sr = librosa.load(wav_path, sr=self.config['sampling_rate'])
         return y, sr
+    
+    def save_wav(self, y, wav_path):
+        sf.write(wav_path, data=y, samplerate=self.config['sampling_rate'])
 
 
 class Normalizer:
