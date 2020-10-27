@@ -17,9 +17,3 @@ class TextToTokens:
         phonemizer = Phonemizer(language=language, njobs=njobs, with_stress=with_stress)
         tokenizer = Tokenizer(add_start_end=add_start_end)
         return cls(phonemizer=phonemizer, tokenizer=tokenizer)
-    
-    @classmethod
-    def default_training(cls, language, add_start_end, with_stress, njobs=4):
-        phonemizer = Phonemizer(language=language, njobs=njobs, with_stress=with_stress)
-        tokenizer = Tokenizer(add_start_end=add_start_end)
-        return cls(phonemizer=phonemizer, tokenizer=tokenizer)

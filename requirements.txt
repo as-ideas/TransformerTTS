@@ -5,4 +5,5 @@ phonemizer~=2.2.1
 ruamel.yaml>=0.16.6
 tensorflow>=2.2.0
 tqdm
+p_tqdm
 soundfile
