@@ -167,23 +167,24 @@ for _ in t:
                   pos=len(config['n_steps_avg_losses']) + 3)
     
     if model.step % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
-        for j in range(config['n_predictions']):
-            mel, phonemes, stop, fname = test_mel[j], test_phonemes[j], test_stop[j], test_fname[j]
-            mel = mel[tf.reduce_sum(tf.cast(mel != 0, tf.int32), axis=1) > 0]
-            t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
-            pred = model.predict(phonemes,
-                                 max_length=mel.shape[0] + 50,
-                                 encode=False,
-                                 verbose=False)
-            pred_mel = pred['mel']
-            mel = mel[1:-1]
-            target_mel = mel
-            summary_manager.display_attention_heads(outputs=pred,
-                                                    tag=f'TestAttentionHeads/{fname.numpy().decode("utf-8")}')
-            summary_manager.display_mel(mel=pred_mel, tag=f'Test/{fname.numpy().decode("utf-8")}/predicted')
-            summary_manager.display_mel(mel=target_mel, tag=f'Test/{fname.numpy().decode("utf-8")}/target')
-            if model.step >= config['audio_start_step']:
-                summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/target', mel=target_mel)
-                summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/prediction', mel=pred_mel)
+        for j in range(len(test_mel)):
+            if j < config['n_predictions']:
+                mel, phonemes, stop, fname = test_mel[j], test_phonemes[j], test_stop[j], test_fname[j]
+                mel = mel[tf.reduce_sum(tf.cast(mel != 0, tf.int32), axis=1) > 0]
+                t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
+                pred = model.predict(phonemes,
+                                     max_length=mel.shape[0] + 50,
+                                     encode=False,
+                                     verbose=False)
+                pred_mel = pred['mel']
+                mel = mel[1:-1]
+                target_mel = mel
+                summary_manager.display_attention_heads(outputs=pred,
+                                                        tag=f'TestAttentionHeads/{fname.numpy().decode("utf-8")}')
+                summary_manager.display_mel(mel=pred_mel, tag=f'Test/{fname.numpy().decode("utf-8")}/predicted')
+                summary_manager.display_mel(mel=target_mel, tag=f'Test/{fname.numpy().decode("utf-8")}/target')
+                if model.step >= config['audio_start_step']:
+                    summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/target', mel=target_mel)
+                    summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/prediction', mel=pred_mel)
 
 print('Done.')

@@ -35,12 +35,12 @@ class Tokenizer:
 
 
 class Phonemizer:
-    def __init__(self, language, with_stress, njobs=4):
+    def __init__(self, language: str, with_stress: bool, njobs=4):
         self.language = language
         self.njobs = njobs
         self.with_stress = with_stress
     
-    def _filter_string(self, text: str):
+    def _filter_string(self, text: str) -> str:
         return ''.join([c for c in text if c in all_phonemes])
     
     def filter_characters(self, text: Union[str, list]) -> Union[str, list]:
@@ -51,7 +51,7 @@ class Phonemizer:
         else:
             raise TypeError(f'TextCleaner.clean() input must be list or str, not {type(text)}')
     
-    def __call__(self, text, with_stress=None, njobs=None, language=None):
+    def __call__(self, text: Union[str, list], with_stress=None, njobs=None, language=None)-> Union[str, list]:
         language = language or self.language
         njobs = njobs or self.njobs
         with_stress = with_stress or self.with_stress
