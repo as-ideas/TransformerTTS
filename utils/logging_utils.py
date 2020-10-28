@@ -61,7 +61,10 @@ class SummaryManager:
     
     @property
     def global_step(self):
-        return self.model.step
+        if self.model is not None:
+            return self.model.step
+        else:
+            return 0
     
     def add_scalars(self, tag, dictionary, step=None):
         if step is None:
@@ -82,9 +85,11 @@ class SummaryManager:
         with self.writers[self.default_writer].as_default():
             tf.summary.image(name=tag, data=image, step=step, max_outputs=4)
     
-    def add_histogram(self, tag, values, buckets=None):
+    def add_histogram(self, tag, values, buckets=None, step=None):
+        if step is None:
+            step = self.global_step
         with self.writers[self.default_writer].as_default():
-            tf.summary.histogram(name=tag, data=values, step=self.global_step, buckets=buckets)
+            tf.summary.histogram(name=tag, data=values, step=step, buckets=buckets)
     
     def add_audio(self, tag, wav, sr, step=None):
         if step is None:
@@ -94,6 +99,14 @@ class SummaryManager:
                              data=wav,
                              sample_rate=sr,
                              step=step)
+    
+    def add_text(self, tag, text, step=None):
+        if step is None:
+            step = self.global_step
+        with self.writers[self.default_writer].as_default():
+            tf.summary.text(name=tag,
+                            data=text,
+                            step=step)
     
     @ignore_exception
     def display_attention_heads(self, outputs, tag='', step=None):

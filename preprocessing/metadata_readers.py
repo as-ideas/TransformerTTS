@@ -26,6 +26,7 @@ def ljspeech(metadata_path: str, column_sep='|') -> dict:
             filename, text = l_split[0], l_split[-1]
             if filename.endswith('.wav'):
                 filename = filename.split('.')[0]
+            text = text.replace('\n', '')
             text_dict.update({filename: text})
     return text_dict
 

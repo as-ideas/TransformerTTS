@@ -23,7 +23,7 @@ class Config:
         self.session_name = '.'.join([self.config['data_name'], self.config['session_name'], f'{model_kind}'])
         # create paths
         self.dataset_dir = Path(self.config['data_directory'])
-        self.data_dir = self.dataset_dir / 'transformer_tts'
+        self.data_dir = Path('.'.join([self.config['train_data_directory'], self.config['data_name']]))
         # self.data_dir = self._train_datadir()
         self.metadata_path = self.dataset_dir / self.config['metadata_filename']
         # self.wav_dir = self.data_dir / self.config['wav_subdir_name']
@@ -170,7 +170,7 @@ class Config:
             self.yaml.dump(self.data_config, data_yaml)
     
     def create_remove_dirs(self, clear_dir=False, clear_logs=False, clear_weights=False):
-        # self.train_datadir.mkdir(exist_ok=True)
+        self.data_dir.mkdir(exist_ok=True)
         self.base_dir.mkdir(exist_ok=True, parents=True)
         if clear_dir:
             delete = input(f'Delete {self.log_dir} AND {self.weights_dir}? (y/[n])')

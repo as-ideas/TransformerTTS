@@ -18,10 +18,13 @@ def get_files(path: Union[Path, str], extension='.wav') -> List[Path]:
 
 class DataReader:
     """
-    Reads data folder and constructs three useful objects:
+    Reads dataset folder and constructs three useful objects:
         text_dict: {filename: text}
         wav_paths: {filename: path/to/filename.wav}
         filenames: [filename1, filename2, ...]
+        
+    IMPORTANT: Use only for information available from source dataset, not for
+    training data.
     """
     
     def __init__(self, data_directory: str, metadata_path: str, metadata_reading_function=None, scan_wavs=False):
@@ -107,16 +110,18 @@ class TextMelDurDataset:
     def __init__(self,
                  data_reader: DataReader,
                  preprocessor,
-                 mel_directory: str):
+                 mel_directory: str,
+                 duration_directory: str):
         self.metadata_reader = data_reader
         self.preprocessor = preprocessor
         self.mel_directory = Path(mel_directory)
+        self.duration_directory = Path(duration_directory)
     
     def _read_sample(self, sample_name: str):
         text = self.metadata_reader.text_dict[sample_name]
         mel = np.load((self.mel_directory / sample_name).with_suffix('.npy').as_posix())
         durations = np.load(
-            (self.metadata_reader.data_directory / 'durations' / sample_name).with_suffix('.npy').as_posix())
+            (self.duration_directory / sample_name).with_suffix('.npy').as_posix())
         return mel, text, durations
     
     def _process_sample(self, sample_name: str):
@@ -140,17 +145,21 @@ class TextMelDurDataset:
                     config: Config,
                     preprocessor,
                     kind: str,
-                    mel_directory: str = None):
+                    mel_directory: str = None,
+                    duration_directory: str = None):
         kinds = ['phonemized', 'train', 'valid']
         if kind not in kinds:
             raise ValueError(f'Invalid kind type. Expected one of: {kinds}')
         if mel_directory is None:
             mel_directory = config.mel_dir
+        if duration_directory is None:
+            duration_directory = config.data_dir / 'durations'
         metadata_reader = DataReader.from_config(config,
                                                  kind=kind)
         return cls(preprocessor=preprocessor,
                    data_reader=metadata_reader,
-                   mel_directory=mel_directory)
+                   mel_directory=mel_directory,
+                   duration_directory=duration_directory)
 
 
 class Dataset:
@@ -277,7 +286,7 @@ if __name__ == '__main__':
         from preprocessing.text.tokenizer import Tokenizer
         from preprocessing.text.symbols import all_phonemes
         
-        tokenizer = Tokenizer(alphabet=all_phonemes)
+        tokenizer = Tokenizer()
         preprocessor = AutoregressivePreprocessor(mel_channels=80,
                                                   mel_start_value=.5,
                                                   mel_end_value=-.5,
