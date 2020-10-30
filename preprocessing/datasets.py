@@ -10,6 +10,8 @@ from preprocessing.text.tokenizer import Tokenizer
 from preprocessing.metadata_readers import get_preprocessor_by_name
 
 
+# from scipy.stats import binned_statistic
+
 def get_files(path: Union[Path, str], extension='.wav') -> List[Path]:
     """ Get all files from all subdirs with given extension. """
     path = Path(path).expanduser().resolve()
@@ -106,27 +108,59 @@ class TextMelDataset:
                    mel_directory=mel_directory)
 
 
-class TextMelDurDataset:
+class ForwardPreprocessor:
+    def __init__(self, mel_channels, tokenizer: Tokenizer):
+        self.output_types = (tf.float32, tf.int32, tf.int32, tf.float32, tf.string)
+        self.padded_shapes = ([None, mel_channels], [None], [None], [None], [])
+        self.tokenizer = tokenizer
+    
+    def __call__(self, text, mel, durations, pitch, sample_name):
+        encoded_phonemes = self.tokenizer(text)
+        return mel, encoded_phonemes, durations, pitch, sample_name
+    
+    def get_sample_length(self, mel, encoded_phonemes, durations, pitch, sample_name):
+        return tf.shape(mel)[0]
+    
+    @classmethod
+    def from_config(cls, config: Config, tokenizer: Tokenizer):
+        return cls(mel_channels=config.config['mel_channels'],
+                   tokenizer=tokenizer)
+
+
+class TextMelDurPitchDataset:
     def __init__(self,
                  data_reader: DataReader,
-                 preprocessor,
+                 preprocessor: ForwardPreprocessor,
                  mel_directory: str,
+                 pitch_directory: str,
                  duration_directory: str):
         self.metadata_reader = data_reader
         self.preprocessor = preprocessor
         self.mel_directory = Path(mel_directory)
         self.duration_directory = Path(duration_directory)
+        self.pitch_directory = Path(pitch_directory)
     
     def _read_sample(self, sample_name: str):
         text = self.metadata_reader.text_dict[sample_name]
         mel = np.load((self.mel_directory / sample_name).with_suffix('.npy').as_posix())
+        pitch = np.load((self.pitch_directory / sample_name).with_suffix('.npy').as_posix())
         durations = np.load(
             (self.duration_directory / sample_name).with_suffix('.npy').as_posix())
-        return mel, text, durations
+        # assert mel.shape[0] == np.sum(durations), f'{sample_name}: mshape {mel.shape} == dsum{np.sum(durations)}'
+        # assert durations.shape[0] == len(text) ,f'{sample_name}: dshape {durations.shape} == tshape {len(text)}'
+        return mel, text, durations, pitch
+        # char_wise_pitch = self._pitch_per_char(pitch, durations, mel.shape[0])
+        # return mel, text, durations, char_wise_pitch
+    
+    # def _pitch_per_char(self, pitch, durations, mel_len):
+    #     space = np.linspace(0,np.sum(durations), mel_len)
+    #     bin_edges = np.cumsum(np.concatenate([[0], durations]))
+    #     bstat = binned_statistic(space, pitch, bins=bin_edges, statistic='mean')
+    #     return bstat.statistic
     
     def _process_sample(self, sample_name: str):
-        mel, text, durations = self._read_sample(sample_name)
-        return self.preprocessor(mel=mel, text=text, durations=durations, sample_name=sample_name)
+        mel, text, durations, pitch = self._read_sample(sample_name)
+        return self.preprocessor(mel=mel, text=text, durations=durations, pitch=pitch, sample_name=sample_name)
     
     def get_dataset(self, bucket_batch_sizes, bucket_boundaries, shuffle=True, drop_remainder=False):
         return Dataset(
@@ -146,7 +180,8 @@ class TextMelDurDataset:
                     preprocessor,
                     kind: str,
                     mel_directory: str = None,
-                    duration_directory: str = None):
+                    duration_directory: str = None,
+                    pitch_directory: str = None):
         kinds = ['phonemized', 'train', 'valid']
         if kind not in kinds:
             raise ValueError(f'Invalid kind type. Expected one of: {kinds}')
@@ -154,12 +189,15 @@ class TextMelDurDataset:
             mel_directory = config.mel_dir
         if duration_directory is None:
             duration_directory = config.data_dir / 'durations'
+        if pitch_directory is None:
+            pitch_directory = config.pitch_dir
         metadata_reader = DataReader.from_config(config,
                                                  kind=kind)
         return cls(preprocessor=preprocessor,
                    data_reader=metadata_reader,
                    mel_directory=mel_directory,
-                   duration_directory=duration_directory)
+                   duration_directory=duration_directory,
+                   pitch_directory=pitch_directory)
 
 
 class Dataset:
@@ -209,25 +247,6 @@ class Dataset:
         if shuffle:
             self._random.shuffle(samples)
         return (self.preprocessor(s) for s in samples)
-
-
-class ForwardPreprocessor:
-    def __init__(self, mel_channels, tokenizer: Tokenizer):
-        self.output_types = (tf.float32, tf.int32, tf.int32, tf.string)
-        self.padded_shapes = ([None, mel_channels], [None], [None], [])
-        self.tokenizer = tokenizer
-    
-    def __call__(self, text, mel, durations, sample_name):
-        encoded_phonemes = self.tokenizer(text)
-        return mel, encoded_phonemes, durations, sample_name
-    
-    def get_sample_length(self, mel, encoded_phonemes, durations, sample_name):
-        return tf.shape(mel)[0]
-    
-    @classmethod
-    def from_config(cls, config: Config, tokenizer: Tokenizer):
-        return cls(mel_channels=config.config['mel_channels'],
-                   tokenizer=tokenizer)
 
 
 class AutoregressivePreprocessor:
@@ -284,7 +303,6 @@ if __name__ == '__main__':
     mel_dir = Path('/Volumes/data/datasets/LJSpeech-1.1/transformer_tts/mels')
     if mel_dir.exists():
         from preprocessing.text.tokenizer import Tokenizer
-        from preprocessing.text.symbols import all_phonemes
         
         tokenizer = Tokenizer()
         preprocessor = AutoregressivePreprocessor(mel_channels=80,
@@ -294,7 +312,8 @@ if __name__ == '__main__':
         dataset_creator = TextMelDataset(data_reader=data_reader,
                                          preprocessor=preprocessor,
                                          mel_directory=mel_dir)
-        dataset = dataset_creator.get_dataset(shuffle=True, drop_remainder=False, bucket_boundaries=[500], bucket_batch_sizes=[6,6])
+        dataset = dataset_creator.get_dataset(shuffle=True, drop_remainder=False, bucket_boundaries=[500],
+                                              bucket_batch_sizes=[6, 6])
         for i in range(10):
             batch = dataset.next_batch()
             bsh = tf.shape(batch[0])

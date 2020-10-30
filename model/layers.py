@@ -431,7 +431,7 @@ class Postnet(tf.keras.layers.Layer):
         }
 
 
-class DurationPredictor(tf.keras.layers.Layer):
+class StatPredictor(tf.keras.layers.Layer):
     def __init__(self,
                  model_dim: int,
                  kernel_size: int,
@@ -440,7 +440,7 @@ class DurationPredictor(tf.keras.layers.Layer):
                  conv_block_n: int,
                  dense_activation: str,
                  **kwargs):
-        super(DurationPredictor, self).__init__(**kwargs)
+        super(StatPredictor, self).__init__(**kwargs)
         self.conv_blocks = CNNResNorm(out_size=model_dim,
                                       kernel_size=kernel_size,
                                       padding=conv_padding,

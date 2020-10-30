@@ -7,3 +7,4 @@ tensorflow>=2.2.0
 tqdm
 p_tqdm
 soundfile
+pyworld

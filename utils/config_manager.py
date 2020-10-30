@@ -34,6 +34,7 @@ class Config:
         self.valid_metadata_path = self.data_dir / self.config['valid_metadata_filename']
         self.phonemized_metadata_path = self.data_dir / 'phonemized_metadata.txt'
         self.mel_dir = self.data_dir / f"mels.{self.config['normalizer']}"
+        self.pitch_dir = self.data_dir / f"pitch.{self.config['normalizer']}"
         # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         if model_kind == 'autoregressive':
@@ -171,6 +172,7 @@ class Config:
     
     def create_remove_dirs(self, clear_dir=False, clear_logs=False, clear_weights=False):
         self.data_dir.mkdir(exist_ok=True)
+        self.pitch_dir.mkdir(exist_ok=True)
         self.base_dir.mkdir(exist_ok=True, parents=True)
         if clear_dir:
             delete = input(f'Delete {self.log_dir} AND {self.weights_dir}? (y/[n])')

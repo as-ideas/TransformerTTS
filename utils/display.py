@@ -11,8 +11,17 @@ def buffer_image(figure):
     plt.close('all')
     return buf
 
+def plot1D(y, figsize=None, title='', x=None):
+    f = plt.figure(figsize=figsize)
+    if x is None:
+        x = np.arange(len(y))
+    plt.plot(x,y)
+    plt.title(title)
+    buf = buffer_image(f)
+    return buf
+    
 
-def gen_plot(image, with_bar, figsize=None, title=''):
+def plot_image(image, with_bar, figsize=None, title=''):
     """Create a pyplot plot and save to buffer."""
     f = plt.figure(figsize=figsize)
     plt.imshow(image)

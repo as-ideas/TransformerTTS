@@ -33,10 +33,14 @@ if not args.skip_mels:
     def process_wav(wav_path: Path):
         file_name = wav_path.stem
         y, sr = audio.load_wav(str(wav_path))
+        pitch = audio.extract_pitch(y)
         mel = audio.mel_spectrogram(y)
         assert mel.shape[1] == audio.config['mel_channels'], len(mel.shape) == 2
+        assert mel.shape[0] == pitch.shape[0], f'{mel.shape[0]} == {pitch.shape[0]}'
         mel_path = (cm.mel_dir / file_name).with_suffix('.npy')
+        pitch_path = (cm.pitch_dir / file_name).with_suffix('.npy')
         np.save(mel_path, mel)
+        np.save(pitch_path, pitch)
         return (file_name, mel.shape[0])
     
     

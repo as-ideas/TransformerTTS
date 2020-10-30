@@ -3,7 +3,7 @@ from pathlib import Path
 import tensorflow as tf
 
 from utils.audio import Audio
-from utils.display import tight_grid, buffer_image, gen_plot
+from utils.display import tight_grid, buffer_image, plot_image, plot1D
 from utils.vec_ops import norm_tensor
 from utils.decorators import ignore_exception
 
@@ -133,11 +133,20 @@ class SummaryManager:
     def display_image(self, image, with_bar=False, figsize=None, tag='', step=None):
         if step is None:
             step = self.global_step
-        buf = gen_plot(image, with_bar=with_bar, figsize=figsize)
+        buf = plot_image(image, with_bar=with_bar, figsize=figsize)
         image = tf.image.decode_png(buf.getvalue(), channels=4)
         image = tf.expand_dims(image, 0)
         self.add_image(tag=tag, image=image, step=step)
     
+    @ignore_exception
+    def display_plot1D(self, y, x=None, figsize=None, tag='', step=None):
+        if step is None:
+            step = self.global_step
+        buf = plot1D(y, x=x, figsize=figsize)
+        image = tf.image.decode_png(buf.getvalue(), channels=4)
+        image = tf.expand_dims(image, 0)
+        self.add_image(tag=tag, image=image, step=step)
+        
     @control_frequency
     @ignore_exception
     def display_loss(self, output, tag='', plot_all=False, step=None):

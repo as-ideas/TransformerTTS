@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import trange
 
 from utils.config_manager import Config
-from preprocessing.datasets import TextMelDurDataset, ForwardPreprocessor
+from preprocessing.datasets import TextMelDurPitchDataset, ForwardPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging_utils import SummaryManager
@@ -24,17 +24,20 @@ def validate(model,
              summary_manager):
     val_loss = {'loss': 0.}
     norm = 0.
-    for mel, phonemes, durations, fname in val_dataset.all_batches():
+    for mel, phonemes, durations, pitch, fname in val_dataset.all_batches():
         model_out = model.val_step(input_sequence=phonemes,
                                    target_sequence=mel,
-                                   target_durations=durations)
+                                   target_durations=durations,
+                                   target_pitch=pitch)
         norm += 1
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
     summary_manager.display_loss(model_out, tag='Validation', plot_all=True)
     summary_manager.display_attention_heads(model_out, tag='ValidationAttentionHeads')
     summary_manager.add_histogram(tag=f'Validation/Predicted durations', values=model_out['duration'])
+    summary_manager.display_plot1D(tag=f'Validation/Predicted pitch', y=model_out['pitch'][0])
     summary_manager.add_histogram(tag=f'Validation/Target durations', values=durations)
+    summary_manager.display_plot1D(tag=f'Validation/Target pitch', y=pitch[0])
     summary_manager.display_mel(mel=model_out['mel'][0], tag=f'Validation/predicted_mel')
     summary_manager.display_mel(mel=mel[0], tag=f'Validation/target_mel')
     return val_loss['loss']
@@ -56,16 +59,16 @@ config.compile_model(model)
 
 data_prep = ForwardPreprocessor.from_config(config=config,
                                             tokenizer=model.text_pipeline.tokenizer)
-train_data_handler = TextMelDurDataset.from_config(config,
+train_data_handler = TextMelDurPitchDataset.from_config(config,
                                                    preprocessor=data_prep,
                                                    kind='train')
-valid_data_handler = TextMelDurDataset.from_config(config,
+valid_data_handler = TextMelDurPitchDataset.from_config(config,
                                                    preprocessor=data_prep,
                                                    kind='valid')
 train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=config_dict['bucket_batch_sizes'],
                                                bucket_boundaries=config_dict['bucket_boundaries'],
                                                shuffle=True)
-valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1],
+valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6],
                                                bucket_boundaries=config_dict['bucket_boundaries'],
                                                shuffle=False,
                                                drop_remainder=True)
@@ -92,11 +95,11 @@ if config_dict['debug'] is True:
 # main event
 print('\nTRAINING')
 losses = []
-test_mel, test_phonemes, test_durs, test_fname = valid_dataset.next_batch()
+test_mel, test_phonemes, test_durs, test_pitch, test_fname = valid_dataset.next_batch()
 t = trange(model.step, config_dict['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
-    mel, phonemes, durations, fname = train_dataset.next_batch()
+    mel, phonemes, durations, pitch, fname = train_dataset.next_batch()
     learning_rate = piecewise_linear_schedule(model.step, config_dict['learning_rate_schedule'])
     decoder_prenet_dropout = piecewise_linear_schedule(model.step, config_dict['decoder_prenet_dropout_schedule'])
     drop_n_heads = tf.cast(reduction_schedule(model.step, config_dict['head_drop_schedule']), tf.int32)
@@ -105,7 +108,8 @@ for _ in t:
                         drop_n_heads=drop_n_heads)
     output = model.train_step(input_sequence=phonemes,
                               target_sequence=mel,
-                              target_durations=durations)
+                              target_durations=durations,
+                              target_pitch=pitch)
     losses.append(float(output['loss']))
     
     t.display(f'step loss: {losses[-1]}', pos=1)
@@ -122,7 +126,9 @@ for _ in t:
         summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/predicted_mel')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
         summary_manager.add_histogram(tag=f'Train/Predicted durations', values=output['duration'])
+        summary_manager.display_plot1D(tag=f'Train/Predicted pitch', y=output['pitch'][0])
         summary_manager.add_histogram(tag=f'Train/Target durations', values=durations)
+        summary_manager.display_plot1D(tag=f'Train/Target pitch', y=pitch[0])
         summary_manager.display_audio(tag=f'Train/prediction', mel=output['mel'][0])
         summary_manager.display_audio(tag=f'Train/target', mel=mel[0])
     
@@ -146,7 +152,9 @@ for _ in t:
         model_out, time_taken = timed_pred(test_phonemes, encode=False)
         summary_manager.display_attention_heads(model_out, tag='TestAttentionHeads')
         summary_manager.add_histogram(tag=f'Test/Predicted durations', values=model_out['duration'])
+        summary_manager.display_plot1D(tag=f'Test/Predicted pitch', y=model_out['pitch'][0])
         summary_manager.add_histogram(tag=f'Test/Target durations', values=test_durs)
+        summary_manager.display_plot1D(tag=f'Test/Target pitch', y=test_pitch[0])
         pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
         pred_lengths = tf.squeeze(pred_lengths)
         tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(test_mel), axis=-1), tf.int32)
