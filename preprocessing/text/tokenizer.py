@@ -1,5 +1,5 @@
 from typing import Union
-
+import re
 from phonemizer.phonemize import phonemize
 
 from preprocessing.text.symbols import all_phonemes
@@ -39,8 +39,14 @@ class Phonemizer:
         self.language = language
         self.njobs = njobs
         self.with_stress = with_stress
+        self._whitespace_re = re.compile(r'\s+')
+
+    def _collapse_whitespace(self, text:str):
+        return re.sub(self._whitespace_re, ' ', text)
     
     def _filter_string(self, text: str) -> str:
+        text = self._collapse_whitespace(text)
+        text = text.strip()
         return ''.join([c for c in text if c in all_phonemes])
     
     def filter_characters(self, text: Union[str, list]) -> Union[str, list]:

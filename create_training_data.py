@@ -28,6 +28,14 @@ cm.create_remove_dirs()
 metadatareader = DataReader.from_config(cm, kind='original', scan_wavs=True)
 summary_manager = SummaryManager(model=None, log_dir=cm.log_dir / 'data_preprocessing', config=cm.config,
                                  default_writer='data_preprocessing')
+file_ids_from_wavs = list(metadatareader.wav_paths.keys())
+print(f"Reading wavs from {metadatareader.data_directory}")
+print(f"Reading metadata from {metadatareader.metadata_path}")
+print(f'\nFound {len(metadatareader.filenames)} metadata lines.')
+print(f'\nFound {len(file_ids_from_wavs)} wav files.')
+cross_file_ids = [fid for fid in file_ids_from_wavs if fid in metadatareader.filenames]
+print(f'\nThere are {len(cross_file_ids)} wav file names that correspond to metadata lines.')
+
 if not args.skip_mels:
     
     def process_wav(wav_path: Path):
@@ -40,12 +48,11 @@ if not args.skip_mels:
         return (file_name, mel.shape[0])
     
     
-    print(f"Creating mels from all wavs found in {metadatareader.data_directory}")
     print(f"\nMels will be stored stored under")
     print(f"{cm.mel_dir}")
     (cm.mel_dir).mkdir(exist_ok=True)
     audio = Audio(config=cm.config)
-    wav_files = [metadatareader.wav_paths[k] for k in metadatareader.wav_paths]
+    wav_files = [metadatareader.wav_paths[k] for k in cross_file_ids]
     len_dict = {}
     remove_files = []
     mel_lens = []
@@ -73,7 +80,7 @@ if not args.skip_phonemes:
     print(f'\nReading metadata from {metadatareader.metadata_path}')
     print(f'\nFound {len(metadatareader.filenames)} lines.')
     filter_metadata = []
-    for fname in metadatareader.filenames:
+    for fname in cross_file_ids:
         item = metadatareader.text_dict[fname]
         non_p = [c for c in item if c in _alphabet]
         if len(non_p) < 1:
@@ -84,9 +91,9 @@ if not args.skip_phonemes:
             print(f'{fname}: {metadatareader.text_dict[fname]}')
     print(f'\nRemoving {len(remove_files)} line(s) due to mel filtering.')
     remove_files += filter_metadata
-    metadatareader.filenames = [fname for fname in metadatareader.filenames if fname not in remove_files]
-    metadata_len = len(metadatareader.filenames)
-    sample_items = np.random.choice(metadatareader.filenames, 5)
+    metadata_file_ids = [fname for fname in cross_file_ids if fname not in remove_files]
+    metadata_len = len(metadata_file_ids)
+    sample_items = np.random.choice(metadata_file_ids, 5)
     test_len = cm.config['n_test']
     train_len = metadata_len - test_len
     print(f'\nMetadata contains {metadata_len} lines.')
@@ -117,7 +124,7 @@ if not args.skip_phonemes:
     
     print('\nPHONEMIZING')
     phonemized_data = {}
-    phon_iter = p_uimap(process_phonemes, metadatareader.filenames)
+    phon_iter = p_uimap(process_phonemes, metadata_file_ids)
     for (file_id, phonemes) in phon_iter:
         phonemized_data.update({file_id: phonemes})
     
