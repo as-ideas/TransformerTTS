@@ -10,8 +10,6 @@ from preprocessing.text.tokenizer import Tokenizer
 from preprocessing.metadata_readers import get_preprocessor_by_name
 
 
-# from scipy.stats import binned_statistic
-
 def get_files(path: Union[Path, str], extension='.wav') -> List[Path]:
     """ Get all files from all subdirs with given extension. """
     path = Path(path).expanduser().resolve()
@@ -133,30 +131,45 @@ class TextMelDurPitchDataset:
                  preprocessor: ForwardPreprocessor,
                  mel_directory: str,
                  pitch_directory: str,
-                 duration_directory: str):
+                 duration_directory: str,
+                 pitch_per_char_directory: str):
         self.metadata_reader = data_reader
         self.preprocessor = preprocessor
         self.mel_directory = Path(mel_directory)
         self.duration_directory = Path(duration_directory)
         self.pitch_directory = Path(pitch_directory)
+        self.pitch_per_char_directory = Path(pitch_per_char_directory)
     
     def _read_sample(self, sample_name: str):
         text = self.metadata_reader.text_dict[sample_name]
         mel = np.load((self.mel_directory / sample_name).with_suffix('.npy').as_posix())
-        pitch = np.load((self.pitch_directory / sample_name).with_suffix('.npy').as_posix())
         durations = np.load(
             (self.duration_directory / sample_name).with_suffix('.npy').as_posix())
-        # assert mel.shape[0] == np.sum(durations), f'{sample_name}: mshape {mel.shape} == dsum{np.sum(durations)}'
-        # assert durations.shape[0] == len(text) ,f'{sample_name}: dshape {durations.shape} == tshape {len(text)}'
-        return mel, text, durations, pitch
-        # char_wise_pitch = self._pitch_per_char(pitch, durations, mel.shape[0])
-        # return mel, text, durations, char_wise_pitch
+        # if (self.pitch_per_char_directory / sample_name).with_suffix('.npy').exists():
+        #     char_wise_pitch = np.load((self.pitch_per_char_directory / sample_name).with_suffix('.npy').as_posix())
+        char_wise_pitch = np.load((self.pitch_per_char_directory / sample_name).with_suffix('.npy').as_posix())
+        # else:
+        #     char_wise_pitch = self._pitch_per_char(pitch, durations, mel.shape[0])
+        #     assert char_wise_pitch.shape[0] == len(
+        #         text), f'{sample_name}: dshape {char_wise_pitch.shape} == tshape {len(text)}'
+        #     np.save((self.pitch_per_char_directory / sample_name).with_suffix('.npy').as_posix(), char_wise_pitch)
+        # char_wise_pitch = np.load((self.pitch_directory / sample_name).with_suffix('.npy').as_posix())
+        return mel, text, durations, char_wise_pitch
     
     # def _pitch_per_char(self, pitch, durations, mel_len):
     #     space = np.linspace(0,np.sum(durations), mel_len)
     #     bin_edges = np.cumsum(np.concatenate([[0], durations]))
     #     bstat = binned_statistic(space, pitch, bins=bin_edges, statistic='mean')
     #     return bstat.statistic
+    
+    # def _pitch_per_char(self, pitch, durations, mel_len):
+    #     durs_cum = np.cumsum(np.pad(durations, (1, 0)))
+    #     pitch_char = np.zeros((durations.shape[0],), dtype=np.float)
+    #     for idx, a, b in zip(range(mel_len), durs_cum[:-1], durs_cum[1:]):
+    #         values = pitch[a:b][np.where(pitch[a:b] != 0.0)[0]]
+    #         values = values[np.where(values < 400)[0]]
+    #         pitch_char[idx] = np.mean(values) if len(values) > 0 else 0.0
+    #     return pitch_char
     
     def _process_sample(self, sample_name: str):
         mel, text, durations, pitch = self._read_sample(sample_name)
@@ -197,7 +210,8 @@ class TextMelDurPitchDataset:
                    data_reader=metadata_reader,
                    mel_directory=mel_directory,
                    duration_directory=duration_directory,
-                   pitch_directory=pitch_directory)
+                   pitch_directory=pitch_directory,
+                   pitch_per_char_directory=config.pitch_per_char)
 
 
 class Dataset:

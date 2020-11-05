@@ -12,7 +12,6 @@ class CNNResNorm(tf.keras.layers.Layer):
                  inner_activation: str,
                  last_activation: str,
                  padding: str,
-                 normalization: str,
                  **kwargs):
         super(CNNResNorm, self).__init__(**kwargs)
         self.convolutions = [tf.keras.layers.Conv1D(filters=hidden_size,
@@ -24,26 +23,21 @@ class CNNResNorm(tf.keras.layers.Layer):
                                                 kernel_size=kernel_size,
                                                 padding=padding)
         self.last_activation = tf.keras.layers.Activation(last_activation)
-        if normalization == 'layer':
-            self.normalization = [tf.keras.layers.LayerNormalization(epsilon=1e-6) for _ in range(n_layers + 1)]
-        elif normalization == 'batch':
-            self.normalization = [tf.keras.layers.BatchNormalization() for _ in range(n_layers + 1)]
-        else:
-            assert False is True, f'normalization must be either "layer" or "batch", not {normalization}.'
+        self.normalization = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.dropout = tf.keras.layers.Dropout(rate=0.1)
     
-    def call_convs(self, x, training):
+    def call_convs(self, x):
         for i in range(0, len(self.convolutions)):
             x = self.convolutions[i](x)
             x = self.inner_activations[i](x)
-            x = self.normalization[i](x, training=training)
         return x
     
     def call(self, inputs, training):
-        x = self.call_convs(inputs, training=training)
+        x = self.call_convs(inputs)
         x = self.last_conv(x)
         x = self.last_activation(x)
-        x = self.normalization[-2](x, training=training)
-        return self.normalization[-1](inputs + x, training=training)
+        x = self.dropout(x, training=training)
+        return self.normalization(inputs + x)
 
 
 class FFNResNorm(tf.keras.layers.Layer):
@@ -102,7 +96,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         super(MultiHeadAttention, self).__init__(**kwargs)
         self.num_heads = num_heads
         self.model_dim = model_dim
-        self.head_drop = HeadDrop()
+        # self.head_drop = HeadDrop()
         
         assert model_dim % self.num_heads == 0
         
@@ -134,7 +128,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         v = self.split_heads(v, batch_size)  # (batch_size, num_heads, seq_len_v, depth)
         
         scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
-        scaled_attention = self.head_drop(scaled_attention, training=training, drop_n_heads=drop_n_heads)
+        # scaled_attention = self.head_drop(scaled_attention, training=training, drop_n_heads=drop_n_heads)
         
         scaled_attention = tf.transpose(scaled_attention,
                                         perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
@@ -181,7 +175,9 @@ class SelfAttentionDenseBlock(tf.keras.layers.Layer):
     
     def call(self, x, training, mask, drop_n_heads):
         attn_out, attn_weights = self.sarn(x, mask=mask, training=training, drop_n_heads=drop_n_heads)
-        return self.ffn(attn_out, training=training), attn_weights
+        dense_mask = 1. - tf.squeeze(mask, axis=(1,2))[:,:,None]
+        attn_out = attn_out * dense_mask
+        return self.ffn(attn_out, training=training)*dense_mask, attn_weights
 
 
 class SelfAttentionConvBlock(tf.keras.layers.Layer):
@@ -202,13 +198,14 @@ class SelfAttentionConvBlock(tf.keras.layers.Layer):
                                kernel_size=kernel_size,
                                inner_activation=conv_activation,
                                last_activation=conv_activation,
-                               padding='same',
-                               normalization='batch')
+                               padding='same')
     
     def call(self, x, training, mask, drop_n_heads):
         attn_out, attn_weights = self.sarn(x, mask=mask, training=training, drop_n_heads=drop_n_heads)
-        conv = self.conv(attn_out)
-        return conv, attn_weights
+        conv_mask = 1. - tf.squeeze(mask, axis=(1,2))[:,:,None]
+        attn_out  = attn_out*conv_mask
+        conv = self.conv(attn_out, training=training)
+        return conv*conv_mask, attn_weights
 
 
 class SelfAttentionBlocks(tf.keras.layers.Layer):
@@ -315,8 +312,7 @@ class CrossAttentionConvBlock(tf.keras.layers.Layer):
                                kernel_size=kernel_size,
                                inner_activation=conv_activation,
                                last_activation=conv_activation,
-                               padding=conv_padding,
-                               normalization='batch')
+                               padding=conv_padding)
     
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask, drop_n_heads):
         attn1, attn_weights_block1 = self.sarn(x, mask=look_ahead_mask, training=training, drop_n_heads=drop_n_heads)
@@ -417,8 +413,7 @@ class Postnet(tf.keras.layers.Layer):
                                       inner_activation='tanh',
                                       last_activation='linear',
                                       hidden_size=conv_filters,
-                                      n_layers=conv_layers,
-                                      normalization='batch')
+                                      n_layers=conv_layers)
         self.add_layer = tf.keras.layers.Add()
     
     def call(self, x, training):
@@ -441,23 +436,62 @@ class StatPredictor(tf.keras.layers.Layer):
                  dense_activation: str,
                  **kwargs):
         super(StatPredictor, self).__init__(**kwargs)
-        self.conv_blocks = CNNResNorm(out_size=model_dim,
+        self.conv_blocks = CNNDropout(out_size=model_dim,
                                       kernel_size=kernel_size,
                                       padding=conv_padding,
                                       inner_activation=conv_activation,
                                       last_activation=conv_activation,
                                       hidden_size=model_dim,
                                       n_layers=conv_block_n,
-                                      normalization='layer')
-        self.linear = tf.keras.layers.Dense(1, activation=dense_activation,
-                                            bias_initializer=tf.keras.initializers.Constant(value=1))
+                                      dout_rate=0.5)
+        self.linear = tf.keras.layers.Dense(1, activation=dense_activation)
     
-    def call(self, x, training):
+    def call(self, x, training, mask):
+        x = x * mask
         x = self.conv_blocks(x, training=training)
         x = self.linear(x)
+        return x * mask
+
+
+class CNNDropout(tf.keras.layers.Layer):
+    def __init__(self,
+                 out_size: int,
+                 n_layers: int,
+                 hidden_size: int,
+                 kernel_size: int,
+                 inner_activation: str,
+                 last_activation: str,
+                 padding: str,
+                 dout_rate: float):
+        super(CNNDropout, self).__init__()
+        self.convolutions = [tf.keras.layers.Conv1D(filters=hidden_size,
+                                                    kernel_size=kernel_size,
+                                                    padding=padding)
+                             for _ in range(n_layers - 1)]
+        self.inner_activations = [tf.keras.layers.Activation(inner_activation) for _ in range(n_layers - 1)]
+        self.last_conv = tf.keras.layers.Conv1D(filters=out_size,
+                                                kernel_size=kernel_size,
+                                                padding=padding)
+        self.last_activation = tf.keras.layers.Activation(last_activation)
+        self.dropouts = [tf.keras.layers.Dropout(rate=dout_rate) for _ in range(n_layers)]
+        self.normalization = [tf.keras.layers.LayerNormalization(epsilon=1e-6) for _ in range(n_layers)]
+    
+    def call_convs(self, x, training):
+        for i in range(0, len(self.convolutions)):
+            x = self.convolutions[i](x)
+            x = self.inner_activations[i](x)
+            x = self.normalization[i](x)
+            x = self.dropouts[i](x, training=training)
         return x
-
-
+    
+    def call(self, inputs, training):
+        x = self.call_convs(inputs, training=training)
+        x = self.last_conv(x)
+        x = self.last_activation(x)
+        x = self.normalization[-1](x)
+        x = self.dropouts[-1](x, training=training)
+        return x
+    
 class Expand(tf.keras.layers.Layer):
     """ Expands a 3D tensor on its second axis given a list of dimensions.
         Tensor should be:

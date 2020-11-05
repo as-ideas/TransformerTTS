@@ -5,8 +5,7 @@ import tensorflow as tf
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
 from preprocessing.text import TextToTokens
-from model.layers import DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks, \
-    CNNResNorm
+from model.layers import DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
 
 
 class AutoregressiveTransformer(tf.keras.models.Model):
@@ -325,17 +324,17 @@ class ForwardTransformer(tf.keras.models.Model):
                                         conv_padding='same',
                                         conv_activation='relu',
                                         conv_block_n=2,
-                                        dense_activation='relu',
+                                        dense_activation='linear',
                                         name='pitch_pred')
         # self.pitch_embed = tf.keras.layers.Dense(encoder_model_dimension, activation='relu')
         self.pitch_embed = tf.keras.layers.Conv1D(encoder_model_dimension,
                                                   activation='relu',
                                                   kernel_size=3,
                                                   padding='same')
-        self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
-                                            dense_hidden_units=decoder_feed_forward_dimension,
-                                            dropout_rate=decoder_prenet_dropout,
-                                            name='DecoderPrenet')
+        # self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
+        #                                     dense_hidden_units=decoder_feed_forward_dimension,
+        #                                     dropout_rate=decoder_prenet_dropout,
+        #                                     name='DecoderPrenet')
         self.decoder = SelfAttentionBlocks(model_dim=decoder_model_dimension,
                                            dropout_rate=dropout_rate,
                                            num_heads=decoder_num_heads,
@@ -347,15 +346,15 @@ class ForwardTransformer(tf.keras.models.Model):
                                            conv_activation='relu',
                                            name='Decoder')
         self.out = tf.keras.layers.Dense(mel_channels)
-        self.decoder_postnet = CNNResNorm(out_size=mel_channels,
-                                          kernel_size=postnet_kernel_size,
-                                          padding='same',
-                                          inner_activation='tanh',
-                                          last_activation='linear',
-                                          hidden_size=postnet_conv_filters,
-                                          n_layers=postnet_conv_layers,
-                                          normalization='batch',
-                                          name='Postnet')
+        # self.decoder_postnet = CNNResNorm(out_size=mel_channels,
+        #                                   kernel_size=postnet_kernel_size,
+        #                                   padding='same',
+        #                                   inner_activation='tanh',
+        #                                   last_activation='linear',
+        #                                   hidden_size=postnet_conv_filters,
+        #                                   n_layers=postnet_conv_layers,
+        #                                   normalization='batch',
+        #                                   name='Postnet')
         self.training_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
@@ -391,7 +390,7 @@ class ForwardTransformer(tf.keras.models.Model):
         target_pitch = tf.expand_dims(target_pitch, -1)
         mel_len = int(tf.shape(target_sequence)[1])
         with tf.GradientTape() as tape:
-            model_out = self.__call__(input_sequence, target_durations,target_pitch=target_pitch, training=True)
+            model_out = self.__call__(input_sequence, target_durations, target_pitch=target_pitch, training=True)
             # TODO: add noise to duration and pitch targets
             loss, loss_vals = weighted_sum_losses((target_sequence,
                                                    target_durations,
@@ -421,7 +420,9 @@ class ForwardTransformer(tf.keras.models.Model):
         mel_len = int(tf.shape(target_sequence)[1])
         model_out = self.__call__(input_sequence, target_durations, target_pitch=target_pitch, training=False)
         loss, loss_vals = weighted_sum_losses((target_sequence,
+                                               # tf.math.log(1. + target_durations),
                                                target_durations,
+                                               # tf.math.log(4. + target_pitch)),
                                                target_pitch),
                                               (model_out['mel'][:, :mel_len, :],
                                                model_out['duration'],
@@ -433,35 +434,52 @@ class ForwardTransformer(tf.keras.models.Model):
         return model_out
     
     def _forward(self, input_sequence, durations_scalar):
-        return self.__call__(input_sequence, target_durations=None, target_pitch=None, training=False, durations_scalar=durations_scalar)
+        return self.__call__(input_sequence, target_durations=None, target_pitch=None, training=False,
+                             durations_scalar=durations_scalar)
     
     @property
     def step(self):
         return int(self.optimizer.iterations)
     
     def call(self, x, target_durations, target_pitch, training, durations_scalar=1.):
-        padding_mask = create_encoder_padding_mask(x)
+        encoder_padding_mask = create_encoder_padding_mask(x)
         x = self.encoder_prenet(x)
-        x, encoder_attention = self.encoder(x, training=training, padding_mask=padding_mask,
+        x, encoder_attention = self.encoder(x, training=training, padding_mask=encoder_padding_mask,
                                             drop_n_heads=self.drop_n_heads)
-        durations = self.dur_pred(x, training=training) * durations_scalar
-        durations = (1. - tf.reshape(padding_mask, tf.shape(durations))) * durations
-        if target_durations is not None:
-            mels = self.expand(x, target_durations)
-        else:
-            mels = self.expand(x, durations)
-        expanded_mask = create_mel_padding_mask(mels)
-        pitch = self.pitch_pred(mels, training=training)
+        padding_mask = 1. - tf.squeeze(encoder_padding_mask, axis=(1, 2))[:, :, None]
+        durations = self.dur_pred(x, training=training, mask=padding_mask)
+        ## CHAR WISE PITCH
+        pitch = self.pitch_pred(x, training=training, mask=padding_mask)
         if target_pitch is not None:
             pitch_embed = self.pitch_embed(target_pitch)
         else:
+            # pitch_exp = tf.exp(pitch) - 4.
+            # pitch_embed = self.pitch_embed(pitch_exp)
             pitch_embed = self.pitch_embed(pitch)
-        mels = mels + pitch_embed
-        mels = self.decoder_prenet(mels)
+        x = x + pitch_embed
+        ## END CHAR WISE
+        if target_durations is not None:
+            mels = self.expand(x, target_durations)
+        else:
+            # durations_exp = (tf.exp(durations) - 1.) * durations_scalar
+            # mels = self.expand(x, durations_exp)
+            durations = durations  * durations_scalar
+            mels = self.expand(x, durations)
+        expanded_mask = create_mel_padding_mask(mels)
+        ## MEL WISE
+        # padding_mask = 1. - tf.squeeze(expanded_mask, axis=(1, 2))[:, :, None]
+        # pitch = self.pitch_pred(mels, training=training, mask=padding_mask)
+        # if target_pitch is not None:
+        #     pitch_embed = self.pitch_embed(target_pitch)
+        # else:
+        #     # pitch_exp = tf.exp(pitch) - 4.
+        #     # pitch_embed = self.pitch_embed(pitch_exp)
+        #     pitch_embed = self.pitch_embed(pitch)
+        # mels = mels + pitch_embed
+        ## END MEL WISE
         mels, decoder_attention = self.decoder(mels, training=training, padding_mask=expanded_mask,
                                                drop_n_heads=self.drop_n_heads, reduction_factor=1)
         mels = self.out(mels)
-        mels = self.decoder_postnet(mels, training=training)
         model_out = {'mel': mels,
                      'duration': durations,
                      'pitch': pitch,
@@ -472,8 +490,8 @@ class ForwardTransformer(tf.keras.models.Model):
     
     def set_constants(self, decoder_prenet_dropout: float = None, learning_rate: float = None,
                       drop_n_heads: int = None, **kwargs):
-        if decoder_prenet_dropout is not None:
-            self.decoder_prenet.rate.assign(decoder_prenet_dropout)
+        # if decoder_prenet_dropout is not None:
+        #     self.decoder_prenet.rate.assign(decoder_prenet_dropout)
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
         if drop_n_heads is not None:

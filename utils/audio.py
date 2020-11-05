@@ -84,7 +84,9 @@ class Audio():
         _f0, t = pw.dio(y.astype(np.float64), fs=self.config['sampling_rate'],
                         frame_period=self.config['hop_length'] / self.config['sampling_rate'] * 1000)
         f0 = pw.stonemask(y.astype(np.float64), _f0, t, fs=self.config['sampling_rate'])  # pitch refinement
+        
         return f0
+
 
 class Normalizer:
     def normalize(self, S):

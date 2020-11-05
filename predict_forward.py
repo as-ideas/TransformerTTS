@@ -33,21 +33,24 @@ if __name__ == '__main__':
     else:
         outdir = Path(args.outdir)
     outdir = outdir / 'outputs'
-    outdir.mkdir(exist_ok=True)
+    outdir.mkdir(exist_ok=True, parents=True)
     audio = Audio(config_loader.config)
-    model = config_loader.load_model(args.checkpoint)
-    file_name = f'{fname}_transformer_step{model.step}'
-    print(f'Output wav under {(outdir / file_name).with_suffix(".wav")}')
-    wavs = []
-    for i, text_line in enumerate(text):
-        phons = model.text_pipeline.phonemizer(text_line)
-        tokens = model.text_pipeline.tokenizer(phons)
-        if args.verbose:
-            print(f'Predicting {text_line}')
-            print(f'Phonemes: {phons}')
-        out = model.predict(tokens, encode=False)
-        wav = audio.reconstruct_waveform(out['mel'].numpy().T)
-        wavs.append(wav)
-        if args.store_mel:
-            np.save((outdir / file_name + f'_{i}').with_suffix('.mel'), out['mel'].numpy())
-    audio.save_wav(np.concatenate(wavs), (outdir / file_name).with_suffix('.wav'))
+    all_weights = [config_loader.weights_dir / x.stem for x in config_loader.weights_dir.iterdir() if x.suffix == 'index']
+    print(f'\nWeights list: \n{all_weights}\n')
+    for weights in all_weights:
+        model = config_loader.load_model(weights)
+        file_name = f'{fname}_transformer_step{model.step}'
+        print(f'Output wav under {(outdir / file_name).with_suffix(".wav")}')
+        wavs = []
+        for i, text_line in enumerate(text):
+            phons = model.text_pipeline.phonemizer(text_line)
+            tokens = model.text_pipeline.tokenizer(phons)
+            if args.verbose:
+                print(f'Predicting {text_line}')
+                print(f'Phonemes: {phons}')
+            out = model.predict(tokens, encode=False)
+            wav = audio.reconstruct_waveform(out['mel'].numpy().T)
+            wavs.append(wav)
+            if args.store_mel:
+                np.save((outdir / file_name + f'_{i}').with_suffix('.mel'), out['mel'].numpy())
+        audio.save_wav(np.concatenate(wavs), (outdir / file_name).with_suffix('.wav'))

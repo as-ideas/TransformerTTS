@@ -95,17 +95,17 @@ if config_dict['debug'] is True:
 # main event
 print('\nTRAINING')
 losses = []
+with open(config_dict['text_prediction'], 'r') as file:
+    text = file.readlines()
 test_mel, test_phonemes, test_durs, test_pitch, test_fname = valid_dataset.next_batch()
 t = trange(model.step, config_dict['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
     mel, phonemes, durations, pitch, fname = train_dataset.next_batch()
     learning_rate = piecewise_linear_schedule(model.step, config_dict['learning_rate_schedule'])
-    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config_dict['decoder_prenet_dropout_schedule'])
-    drop_n_heads = tf.cast(reduction_schedule(model.step, config_dict['head_drop_schedule']), tf.int32)
-    model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
-                        learning_rate=learning_rate,
-                        drop_n_heads=drop_n_heads)
+    # decoder_prenet_dropout = piecewise_linear_schedule(model.step, config_dict['decoder_prenet_dropout_schedule'])
+    # drop_n_heads = tf.cast(reduction_schedule(model.step, config_dict['head_drop_schedule']), tf.int32)
+    model.set_constants(learning_rate=learning_rate)
     output = model.train_step(input_sequence=phonemes,
                               target_sequence=mel,
                               target_durations=durations,
@@ -118,19 +118,19 @@ for _ in t:
             t.display(f'{n_steps}-steps average loss: {sum(losses[-n_steps:]) / n_steps}', pos=pos + 2)
     
     summary_manager.display_loss(output, tag='Train')
-    summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
-    summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet.rate)
-    summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
+    # summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
+    # summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet.rate)
+    # summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
     if model.step % config_dict['train_images_plotting_frequency'] == 0:
         summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/predicted_mel')
         summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
-        summary_manager.add_histogram(tag=f'Train/Predicted durations', values=output['duration'])
+        # summary_manager.add_histogram(tag=f'Train/Predicted durations', values=output['duration'])
         summary_manager.display_plot1D(tag=f'Train/Predicted pitch', y=output['pitch'][0])
-        summary_manager.add_histogram(tag=f'Train/Target durations', values=durations)
+        # summary_manager.add_histogram(tag=f'Train/Target durations', values=durations)
         summary_manager.display_plot1D(tag=f'Train/Target pitch', y=pitch[0])
-        summary_manager.display_audio(tag=f'Train/prediction', mel=output['mel'][0])
-        summary_manager.display_audio(tag=f'Train/target', mel=mel[0])
+        # summary_manager.display_audio(tag=f'Train/prediction', mel=output['mel'][0])
+        # summary_manager.display_audio(tag=f'Train/target', mel=mel[0])
     
     if model.step % 1000 == 0:
         save_path = manager_training.save()
@@ -148,32 +148,42 @@ for _ in t:
     
     if model.step % config_dict['prediction_frequency'] == 0 and (model.step >= config_dict['prediction_start_step']):
         t.display(f'Predicting', pos=len(config_dict['n_steps_avg_losses']) + 4)
-        timed_pred = time_it(model.predict)
-        model_out, time_taken = timed_pred(test_phonemes, encode=False)
-        summary_manager.display_attention_heads(model_out, tag='TestAttentionHeads')
-        summary_manager.add_histogram(tag=f'Test/Predicted durations', values=model_out['duration'])
-        summary_manager.display_plot1D(tag=f'Test/Predicted pitch', y=model_out['pitch'][0])
-        summary_manager.add_histogram(tag=f'Test/Target durations', values=test_durs)
-        summary_manager.display_plot1D(tag=f'Test/Target pitch', y=test_pitch[0])
-        pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
-        pred_lengths = tf.squeeze(pred_lengths)
-        tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(test_mel), axis=-1), tf.int32)
-        tar_lengths = tf.squeeze(tar_lengths)
-        display_start = time()
-        for j, pred_mel in enumerate(model_out['mel']):
-            predval = pred_mel[:pred_lengths[j], :]
-            tar_value = test_mel[j, :tar_lengths[j], :]
-            summary_manager.display_mel(mel=predval, tag=f'Test/{test_fname[j].numpy().decode("utf-8")}/predicted')
-            summary_manager.display_mel(mel=tar_value, tag=f'Test/{test_fname[j].numpy().decode("utf-8")}/target')
-            if j < config_dict['n_predictions']:
-                if model.step >= config_dict['audio_start_step'] and (
-                        model.step % config_dict['audio_prediction_frequency'] == 0):
-                    summary_manager.display_audio(tag=f'{test_fname[j].numpy().decode("utf-8")}/target', mel=tar_value)
-                    summary_manager.display_audio(tag=f'{test_fname[j].numpy().decode("utf-8")}/prediction',
-                                                  mel=predval)
-            else:
-                break
-        display_end = time()
-        t.display(f'Predictions took {time_taken}. Displaying took {display_end - display_start}.',
-                  pos=len(config_dict['n_steps_avg_losses']) + 4)
+        # timed_pred = time_it(model.predict)
+        # model_out, time_taken = timed_pred(test_phonemes, encode=False)
+        # summary_manager.display_attention_heads(model_out, tag='TestAttentionHeads')
+        # summary_manager.add_histogram(tag=f'Test/Predicted durations', values=model_out['duration'])
+        # summary_manager.display_plot1D(tag=f'Test/Predicted pitch', y=model_out['pitch'][0])
+        # summary_manager.add_histogram(tag=f'Test/Target durations', values=test_durs)
+        # summary_manager.display_plot1D(tag=f'Test/Target pitch', y=test_pitch[0])
+        # pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
+        # pred_lengths = tf.squeeze(pred_lengths)
+        # tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(test_mel), axis=-1), tf.int32)
+        # tar_lengths = tf.squeeze(tar_lengths)
+        # display_start = time()
+        # for j, pred_mel in enumerate(model_out['mel']):
+        #     predval = pred_mel[:pred_lengths[j], :]
+        #     tar_value = test_mel[j, :tar_lengths[j], :]
+        #     summary_manager.display_mel(mel=predval, tag=f'Test/{test_fname[j].numpy().decode("utf-8")}/predicted')
+        #     summary_manager.display_mel(mel=tar_value, tag=f'Test/{test_fname[j].numpy().decode("utf-8")}/target')
+        #     if j < config_dict['n_predictions']:
+        #         if model.step >= config_dict['audio_start_step'] and (
+        #                 model.step % config_dict['audio_prediction_frequency'] == 0):
+        #             summary_manager.display_audio(tag=f'{test_fname[j].numpy().decode("utf-8")}/target', mel=tar_value)
+        #             summary_manager.display_audio(tag=f'{test_fname[j].numpy().decode("utf-8")}/prediction',
+        #                                           mel=predval)
+        #     else:
+        #         break
+        # display_end = time()
+        # t.display(f'Predictions took {time_taken}. Displaying took {display_end - display_start}.',
+        #           pos=len(config_dict['n_steps_avg_losses']) + 4)
+        wavs = []
+        for i, text_line in enumerate(text):
+            out = model.predict(text_line, encode=True)
+            wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
+            wavs.append(wav)
+        wavs = np.concatenate(wavs)
+        wavs = tf.expand_dims(wavs, 0)
+        wavs = tf.expand_dims(wavs, -1)
+        summary_manager.add_audio('Text file input', wavs.numpy(), sr=summary_manager.config['sampling_rate'], step=summary_manager.global_step)
+        
 print('Done.')
