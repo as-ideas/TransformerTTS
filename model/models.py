@@ -1,6 +1,7 @@
 import sys
 
 import tensorflow as tf
+import numpy as np
 
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
@@ -326,11 +327,11 @@ class ForwardTransformer(tf.keras.models.Model):
                                         conv_block_n=2,
                                         dense_activation='linear',
                                         name='pitch_pred')
-        # self.pitch_embed = tf.keras.layers.Dense(encoder_model_dimension, activation='relu')
-        self.pitch_embed = tf.keras.layers.Conv1D(encoder_model_dimension,
-                                                  activation='relu',
-                                                  kernel_size=3,
-                                                  padding='same')
+        self.pitch_embed = tf.keras.layers.Dense(encoder_model_dimension, activation='relu')
+        # self.pitch_embed = tf.keras.layers.Conv1D(encoder_model_dimension,
+        #                                           activation='relu',
+        #                                           kernel_size=3,
+        #                                           padding='same')
         # self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
         #                                     dense_hidden_units=decoder_feed_forward_dimension,
         #                                     dropout_rate=decoder_prenet_dropout,
@@ -365,6 +366,11 @@ class ForwardTransformer(tf.keras.models.Model):
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(), dtype=tf.float32),
         ]
+        self.forward_masked_input_signature = [
+            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+            tf.TensorSpec(shape=(), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None), dtype=tf.float32),
+        ]
         self.debug = debug
         self._apply_all_signatures()
     
@@ -376,6 +382,7 @@ class ForwardTransformer(tf.keras.models.Model):
     
     def _apply_all_signatures(self):
         self.forward = self._apply_signature(self._forward, self.forward_input_signature)
+        self.forward_masked = self._apply_signature(self._forward_masked, self.forward_masked_input_signature)
         self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
     
@@ -385,7 +392,7 @@ class ForwardTransformer(tf.keras.models.Model):
         self.drop_n_heads = heads
         self._apply_all_signatures()
     
-    def _train_step(self, input_sequence, target_sequence, target_durations, target_pitch):
+    def _train_step(self, input_sequence, target_sequence, target_durations, target_pitch, step):
         target_durations = tf.expand_dims(target_durations, -1)
         target_pitch = tf.expand_dims(target_pitch, -1)
         mel_len = int(tf.shape(target_sequence)[1])
@@ -393,23 +400,33 @@ class ForwardTransformer(tf.keras.models.Model):
             model_out = self.__call__(input_sequence, target_durations, target_pitch=target_pitch, training=True)
             # TODO: add noise to duration and pitch targets
             loss, loss_vals = weighted_sum_losses((target_sequence,
-                                                   target_durations,
-                                                   target_pitch),
+                                                   target_durations),
+                                                  # target_pitch),
                                                   (model_out['mel'][:, :mel_len, :],
-                                                   model_out['duration'],
-                                                   model_out['pitch']),
+                                                   model_out['duration']),
+                                                  # model_out['pitch']),
                                                   self.loss,
                                                   self.loss_weights)
-        model_out.update({'loss': loss})
-        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': loss_vals[2]}})
-        gradients = tape.gradient(model_out['loss'], self.trainable_variables)
+            new_loss = loss_vals[0] + loss_vals[1]
+            error_mask = tf.cast(tf.math.logical_not(tf.math.equal(target_pitch, 0.)), tf.float32)
+            abs_err = tf.abs(model_out['pitch'] - target_pitch) * error_mask
+            ts_weight = tf.square(tf.linspace(1., 2., tf.shape(target_pitch)[-1]))
+            ts_weight = tf.cast(ts_weight, tf.float32)
+            pitch_error = tf.reduce_mean(abs_err * ts_weight)
+            new_loss += pitch_error
+        model_out.update({'loss': new_loss})
+        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': pitch_error}})
+        # model_out.update({'loss': loss})
+        # model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': loss_vals[2]}})
+        gradients = tape.gradient(new_loss, self.trainable_variables)
+        # gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
     
     def _compile(self, optimizer):
-        self.loss_weights = [3., 1., 1]
+        self.loss_weights = [1., 1., 1.]
         self.compile(loss=[masked_mean_absolute_error,
-                           masked_mean_absolute_error,
+                           # masked_mean_absolute_error,
                            masked_mean_absolute_error],
                      loss_weights=self.loss_weights,
                      optimizer=optimizer)
@@ -421,27 +438,39 @@ class ForwardTransformer(tf.keras.models.Model):
         model_out = self.__call__(input_sequence, target_durations, target_pitch=target_pitch, training=False)
         loss, loss_vals = weighted_sum_losses((target_sequence,
                                                # tf.math.log(1. + target_durations),
-                                               target_durations,
-                                               # tf.math.log(4. + target_pitch)),
-                                               target_pitch),
+                                               target_durations),
+                                              # tf.math.log(4. + target_pitch)),
+                                              # target_pitch),
                                               (model_out['mel'][:, :mel_len, :],
-                                               model_out['duration'],
-                                               model_out['pitch']),
+                                               model_out['duration']),
+                                              # model_out['pitch']),
                                               self.loss,
                                               self.loss_weights)
-        model_out.update({'loss': loss})
-        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': loss_vals[2]}})
+        new_loss = loss_vals[0] + loss_vals[1]
+        error_mask = tf.cast(tf.math.logical_not(tf.math.equal(target_pitch, 0.)), tf.float32)
+        abs_err = tf.abs(model_out['pitch'] - target_pitch) * error_mask
+        ts_weight = tf.square(tf.linspace(1., 2., tf.shape(target_pitch)[-1]))
+        ts_weight = tf.cast(ts_weight, tf.float32)
+        pitch_error = tf.reduce_mean(abs_err * ts_weight)
+        new_loss += pitch_error
+        
+        model_out.update({'loss': new_loss})
+        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': pitch_error}})
         return model_out
     
     def _forward(self, input_sequence, durations_scalar):
         return self.__call__(input_sequence, target_durations=None, target_pitch=None, training=False,
-                             durations_scalar=durations_scalar)
+                             durations_scalar=durations_scalar, durations_mask=None)
+    
+    def _forward_masked(self, input_sequence, durations_scalar, durations_mask):
+        return self.__call__(input_sequence, target_durations=None, target_pitch=None, training=False,
+                             durations_scalar=durations_scalar, durations_mask=durations_mask)
     
     @property
     def step(self):
         return int(self.optimizer.iterations)
     
-    def call(self, x, target_durations, target_pitch, training, durations_scalar=1.):
+    def call(self, x, target_durations, target_pitch, training, durations_scalar=1., durations_mask=None):
         encoder_padding_mask = create_encoder_padding_mask(x)
         x = self.encoder_prenet(x)
         x, encoder_attention = self.encoder(x, training=training, padding_mask=encoder_padding_mask,
@@ -459,12 +488,14 @@ class ForwardTransformer(tf.keras.models.Model):
         x = x + pitch_embed
         ## END CHAR WISE
         if target_durations is not None:
-            mels = self.expand(x, target_durations)
+            durations = target_durations
         else:
             # durations_exp = (tf.exp(durations) - 1.) * durations_scalar
             # mels = self.expand(x, durations_exp)
-            durations = durations  * durations_scalar
-            mels = self.expand(x, durations)
+            durations = durations * durations_scalar
+        if durations_mask is not None:
+            durations = tf.math.minimum(durations, tf.expand_dims(durations_mask, -1))
+        mels = self.expand(x, durations)
         expanded_mask = create_mel_padding_mask(mels)
         ## MEL WISE
         # padding_mask = 1. - tf.squeeze(expanded_mask, axis=(1, 2))[:, :, None]
@@ -500,13 +531,30 @@ class ForwardTransformer(tf.keras.models.Model):
     def encode_text(self, text):
         return self.text_pipeline(text)
     
-    def predict(self, inp, encode=True, speed_regulator=1.):
+    def predict(self, inp, encode=True, speed_regulator=1., phoneme_max_duration=None):
         if encode:
             inp = self.encode_text(inp)
         if len(tf.shape(inp)) < 2:
             inp = tf.expand_dims(inp, 0)
         inp = tf.cast(inp, tf.int32)
         duration_scalar = tf.cast(1. / speed_regulator, tf.float32)
-        out = self.forward(inp, durations_scalar=duration_scalar)
+        if phoneme_max_duration is not None:
+            durations_mask = self._make_max_duration_mask(inp, phoneme_max_duration)
+            out = self.forward_masked(inp, durations_scalar=duration_scalar, durations_mask=durations_mask)
+        else:
+            out = self.forward(inp, durations_scalar=duration_scalar)
         out['mel'] = tf.squeeze(out['mel'])
         return out
+    
+    def _make_max_duration_mask(self, encoded_text, phoneme_max_duration=None):
+        if phoneme_max_duration is None:
+            phoneme_max_duration = {' ': 3.}
+        np_text = np.array(encoded_text)
+        if 'any' in list(phoneme_max_duration.keys()):
+            new_mask = np.ones(tf.shape(encoded_text)) * phoneme_max_duration['any']
+        else:
+            new_mask = np.ones(tf.shape(encoded_text)) * float('inf')
+        for item in phoneme_max_duration.items():
+            phon_idx = self.text_pipeline.tokenizer(item[0])[0]
+            new_mask[np_text == phon_idx] = item[1]
+        return tf.cast(tf.convert_to_tensor(new_mask), tf.float32)

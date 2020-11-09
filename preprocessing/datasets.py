@@ -27,12 +27,16 @@ class DataReader:
     training data.
     """
     
-    def __init__(self, data_directory: str, metadata_path: str, metadata_reading_function=None, scan_wavs=False):
+    def __init__(self, data_directory: str, metadata_path: str, metadata_reading_function=None, scan_wavs=False, is_training=False):
         self.metadata_reading_function = metadata_reading_function
         self.data_directory = Path(data_directory)
         self.metadata_path = Path(metadata_path)
-        self.text_dict = self.metadata_reading_function(self.metadata_path)
-        self.filenames = list(self.text_dict.keys())
+        if not is_training:
+            self.text_dict = self.metadata_reading_function(self.metadata_path)
+            self.filenames = list(self.text_dict.keys())
+        else:
+            self.text_dict, self.upsample = self.metadata_reading_function(self.metadata_path)
+            self.filenames = list(self.text_dict.keys()) + self.upsample
         if scan_wavs:
             all_wavs = get_files(self.data_directory, extension='.wav')
             self.wav_paths = {w.with_suffix('').name: w for w in all_wavs}
@@ -42,12 +46,14 @@ class DataReader:
         kinds = ['original', 'phonemized', 'train', 'valid']
         if kind not in kinds:
             raise ValueError(f'Invalid kind type. Expected one of: {kinds}')
-        
-        reader = get_preprocessor_by_name(config_manager.config['data_name'])
+        reader = get_preprocessor_by_name('post_processed_reader')
+        is_training=True
         if kind == 'train':
             metadata = config_manager.train_metadata_path
         elif kind == 'original':
             metadata = config_manager.metadata_path
+            reader = get_preprocessor_by_name(config_manager.config['data_name'])
+            is_training = False
         elif kind == 'valid':
             metadata = config_manager.valid_metadata_path
         elif kind == 'phonemized':
@@ -56,7 +62,8 @@ class DataReader:
         return cls(data_directory=config_manager.dataset_dir,
                    metadata_reading_function=reader,
                    metadata_path=metadata,
-                   scan_wavs=scan_wavs)
+                   scan_wavs=scan_wavs,
+                   is_training=is_training)
 
 
 class TextMelDataset:

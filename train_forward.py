@@ -68,7 +68,7 @@ valid_data_handler = TextMelDurPitchDataset.from_config(config,
 train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=config_dict['bucket_batch_sizes'],
                                                bucket_boundaries=config_dict['bucket_boundaries'],
                                                shuffle=True)
-valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6],
+valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=config_dict['val_bucket_batch_size'],
                                                bucket_boundaries=config_dict['bucket_boundaries'],
                                                shuffle=False,
                                                drop_remainder=True)
@@ -95,12 +95,19 @@ if config_dict['debug'] is True:
 # main event
 print('\nTRAINING')
 losses = []
-with open(config_dict['text_prediction'], 'r') as file:
-    text = file.readlines()
+texts = []
+for text_file in config_dict['text_prediction']:
+    with open(text_file, 'r') as file:
+        text = file.readlines()
+    texts.append(text)
 test_mel, test_phonemes, test_durs, test_pitch, test_fname = valid_dataset.next_batch()
 t = trange(model.step, config_dict['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
+    # if model.step > 7_000:
+    #     model.pitch_pred.trainable = False
+    # if model.step > 20_000:
+    #     model.dur_pred.trainable = False
     mel, phonemes, durations, pitch, fname = train_dataset.next_batch()
     learning_rate = piecewise_linear_schedule(model.step, config_dict['learning_rate_schedule'])
     # decoder_prenet_dropout = piecewise_linear_schedule(model.step, config_dict['decoder_prenet_dropout_schedule'])
@@ -118,6 +125,8 @@ for _ in t:
             t.display(f'{n_steps}-steps average loss: {sum(losses[-n_steps:]) / n_steps}', pos=pos + 2)
     
     summary_manager.display_loss(output, tag='Train')
+    summary_manager.display_scalar(scalar_value=t.avg_time, tag='Meta/iter_time')
+    summary_manager.display_scalar(scalar_value=tf.shape(fname)[0], tag='Meta/batch_size')
     # summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     # summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet.rate)
     # summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
@@ -176,14 +185,15 @@ for _ in t:
         # display_end = time()
         # t.display(f'Predictions took {time_taken}. Displaying took {display_end - display_start}.',
         #           pos=len(config_dict['n_steps_avg_losses']) + 4)
-        wavs = []
-        for i, text_line in enumerate(text):
-            out = model.predict(text_line, encode=True)
-            wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
-            wavs.append(wav)
-        wavs = np.concatenate(wavs)
-        wavs = tf.expand_dims(wavs, 0)
-        wavs = tf.expand_dims(wavs, -1)
-        summary_manager.add_audio('Text file input', wavs.numpy(), sr=summary_manager.config['sampling_rate'], step=summary_manager.global_step)
+        for i, text in enumerate(texts):
+            wavs = []
+            for i, text_line in enumerate(text):
+                out = model.predict(text_line, encode=True)
+                wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
+                wavs.append(wav)
+            wavs = np.concatenate(wavs)
+            wavs = tf.expand_dims(wavs, 0)
+            wavs = tf.expand_dims(wavs, -1)
+            summary_manager.add_audio(f'Text file input {i}', wavs.numpy(), sr=summary_manager.config['sampling_rate'], step=summary_manager.global_step)
         
 print('Done.')

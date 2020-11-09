@@ -69,7 +69,7 @@ valid_data_handler = TextMelDataset.from_config(config_manager,
 train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=config['bucket_batch_sizes'],
                                                bucket_boundaries=config['bucket_boundaries'],
                                                shuffle=True)
-valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1],
+valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=config['val_bucket_batch_size'],
                                                bucket_boundaries=config['bucket_boundaries'],
                                                shuffle=False, drop_remainder=True)
 
