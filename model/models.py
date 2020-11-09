@@ -392,7 +392,7 @@ class ForwardTransformer(tf.keras.models.Model):
         self.drop_n_heads = heads
         self._apply_all_signatures()
     
-    def _train_step(self, input_sequence, target_sequence, target_durations, target_pitch, step):
+    def _train_step(self, input_sequence, target_sequence, target_durations, target_pitch):
         target_durations = tf.expand_dims(target_durations, -1)
         target_pitch = tf.expand_dims(target_pitch, -1)
         mel_len = int(tf.shape(target_sequence)[1])
@@ -488,14 +488,14 @@ class ForwardTransformer(tf.keras.models.Model):
         x = x + pitch_embed
         ## END CHAR WISE
         if target_durations is not None:
-            durations = target_durations
+            use_durations = target_durations
         else:
             # durations_exp = (tf.exp(durations) - 1.) * durations_scalar
             # mels = self.expand(x, durations_exp)
-            durations = durations * durations_scalar
+            use_durations = durations * durations_scalar
         if durations_mask is not None:
-            durations = tf.math.minimum(durations, tf.expand_dims(durations_mask, -1))
-        mels = self.expand(x, durations)
+            use_durations = tf.math.minimum(use_durations, tf.expand_dims(durations_mask, -1))
+        mels = self.expand(x, use_durations)
         expanded_mask = create_mel_padding_mask(mels)
         ## MEL WISE
         # padding_mask = 1. - tf.squeeze(expanded_mask, axis=(1, 2))[:, :, None]
