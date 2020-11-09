@@ -25,6 +25,15 @@ win_length: 1100
 f_min: 40
 f_max: null
 normalizer: WaveRNN                 # which mel normalization to use from utils.audio.py  [MelGAN or WaveRNN]
+# SILENCE CUTTING
+trim_silence_top_db: 60
+trim_silence: False
+trim_long_silences: True
+# Params for trimming long silences, from https://github.com/resemble-ai/Resemblyzer/blob/master/resemblyzer/hparams.py
+vad_window_length: 30      # In milliseconds
+vad_moving_average_width: 8
+vad_max_silence_length: 12
+vad_sample_rate: 16000
 # TOKENIZER
 phoneme_language: 'en-us'
 with_stress: True                   # use stress symbols in phonemization
