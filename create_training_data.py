@@ -18,6 +18,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, required=True)
 parser.add_argument('--skip_phonemes', action='store_true')
 parser.add_argument('--skip_mels', action='store_true')
+parser.add_argument('--pitch_per_char', action='store_true')
 
 args = parser.parse_args()
 for arg in vars(args):
@@ -44,7 +45,7 @@ if not args.skip_mels:
         pitch = audio.extract_pitch(y)
         mel = audio.mel_spectrogram(y)
         assert mel.shape[1] == audio.config['mel_channels'], len(mel.shape) == 2
-        assert mel.shape[0] == pitch.shape[0], f'{mel.shape[0]} == {pitch.shape[0]}'
+        assert mel.shape[0] == pitch.shape[0], f'{mel.shape[0]} == {pitch.shape[0]} (wav {y.shape})'
         mel_path = (cm.mel_dir / file_name).with_suffix('.npy')
         pitch_path = (cm.pitch_dir / file_name).with_suffix('.npy')
         np.save(mel_path, mel)
@@ -177,10 +178,9 @@ if not args.skip_phonemes:
     assert len(train_metadata) + len(test_metadata) == metadata_len, \
         f'Train and/or validation lengths incorrect. ({len(train_metadata)} + {len(test_metadata)} != {metadata_len})'
 
-
-phonemized_metadata_path = Path(cm.data_dir) / 'phonemized_metadata.txt'
-if (cm.data_dir / 'durations').exists() and phonemized_metadata_path.exists():
-    
+if args.pitch_per_char:
+    phonemized_metadata_path = Path(cm.data_dir) / 'phonemized_metadata.txt'
+    print(f'Reading metadata from {phonemized_metadata_path}')
     metadatareader = DataReader.from_config(cm, kind='phonemized', scan_wavs=False)
     pitch_stats = pickle.load(open(cm.data_dir / 'pitch_stats.pkl', 'rb'))
     def _pitch_per_char(pitch, durations, mel_len):

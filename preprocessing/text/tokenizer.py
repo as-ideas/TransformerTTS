@@ -45,9 +45,10 @@ class Phonemizer:
         return re.sub(self._whitespace_re, ' ', text)
     
     def _filter_string(self, text: str) -> str:
+        text = ''.join([c for c in text if c in all_phonemes])
         text = self._collapse_whitespace(text)
         text = text.strip()
-        return ''.join([c for c in text if c in all_phonemes])
+        return text
     
     def filter_characters(self, text: Union[str, list]) -> Union[str, list]:
         if isinstance(text, list):
