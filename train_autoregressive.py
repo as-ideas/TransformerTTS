@@ -126,6 +126,8 @@ for _ in t:
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=model.r)
     summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
+    summary_manager.display_scalar(scalar_value=t.avg_time, tag='Meta/iter_time')
+    summary_manager.display_scalar(scalar_value=tf.shape(sample_name)[0], tag='Meta/batch_size')
     if model.step % config['train_images_plotting_frequency'] == 0:
         summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel_linear'][0], tag=f'Train/linear_mel_out')
@@ -150,8 +152,8 @@ for _ in t:
                                                scalar_value=tf.reduce_mean(loc_score[i]))
                 summary_manager.display_scalar(tag=f'TrainDecoderAttentionPeakiness/layer{layer}_head{i}',
                                                scalar_value=tf.reduce_mean(peak_score[i]))
-                summary_manager.display_scalar(tag=f'TrainDecoderAttentionDiagonality/layer{layer}_head{i}',
-                                               scalar_value=tf.reduce_mean(diag_measure[i]))
+                # summary_manager.display_scalar(tag=f'TrainDecoderAttentionDiagonality/layer{layer}_head{i}',
+                #                                scalar_value=tf.reduce_mean(diag_measure[i]))
     
     if model.step % 1000 == 0:
         save_path = manager_training.save()

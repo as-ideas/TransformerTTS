@@ -407,18 +407,11 @@ class Postnet(tf.keras.layers.Layer):
         super(Postnet, self).__init__(**kwargs)
         self.mel_channels = mel_channels
         self.stop_linear = tf.keras.layers.Dense(3)
-        self.conv_blocks = CNNResNorm(out_size=mel_channels,
-                                      kernel_size=kernel_size,
-                                      padding='causal',
-                                      inner_activation='tanh',
-                                      last_activation='linear',
-                                      hidden_size=conv_filters,
-                                      n_layers=conv_layers)
-        self.add_layer = tf.keras.layers.Add()
+        self.mel_out = tf.keras.layers.Dense(mel_channels)
     
     def call(self, x, training):
         stop = self.stop_linear(x)
-        conv_out = self.conv_blocks(x, training=training)
+        conv_out = self.mel_out(x)
         return {
             'mel_linear': x,
             'final_output': conv_out,

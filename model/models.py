@@ -7,7 +7,7 @@ from model.transformer_utils import create_encoder_padding_mask, create_mel_padd
 from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
 from preprocessing.text import TextToTokens
 from model.layers import DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
-
+from utils.metrics import diagonality_measure
 
 class AutoregressiveTransformer(tf.keras.models.Model):
     
@@ -86,7 +86,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                                        conv_layers=postnet_conv_layers,
                                        kernel_size=postnet_kernel_size,
                                        name='Postnet')
-        
+
         self.training_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
@@ -151,7 +151,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         mel = tf.reshape(out_proj, (b, t * self.r, self.mel_channels))
         model_output = self.decoder_postnet(mel, training=training)
         model_output.update(
-            {'decoder_attention': attention_weights, 'decoder_output': dec_output, 'linear': mel})
+            {'decoder_attention': attention_weights, 'decoder_output': dec_output, 'linear': mel,
+             'mel_mask': dec_target_padding_mask})
         return model_output
     
     def _forward(self, inp, output):
@@ -186,8 +187,28 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                                                    model_out['mel_linear'][:, :mel_len, :]),
                                                   self.loss,
                                                   self.loss_weights)
+            mel_len = tf.reduce_sum(1.- tf.squeeze(model_out['mel_mask'], axis=(1,2)), axis=1)
+            phon_len = tf.reduce_sum(1.-tf.squeeze(model_out['text_mask'], axis=(1,2)), axis=1)
+            d_loss = 0.
+            dec_key_list = list(model_out['decoder_attention'].keys())
+            decoder_dmask = diagonality_measure(model_out['decoder_attention'][dec_key_list[0]], mel_len, phon_len)
+            for key in dec_key_list:
+                d_measure = tf.reduce_sum(model_out['decoder_attention'][key] * decoder_dmask, axis=(-2, -1))
+                d_loss += tf.reduce_mean(d_measure) / 10.
+
+            enc_key_list = list(model_out['encoder_attention'].keys())
+            encoder_dmask = diagonality_measure(model_out['encoder_attention'][enc_key_list[0]], phon_len, phon_len)
+            for key in enc_key_list:
+                d_measure = tf.reduce_sum(model_out['encoder_attention'][key] * encoder_dmask, axis=(-2, -1))
+                d_loss += tf.reduce_mean(d_measure) / 10.
+
+            d_loss /= len(model_out['encoder_attention'].keys()) + len(model_out['decoder_attention'].keys())
+            # last_layer_key = list(model_out['decoder_attention'].keys())[-1]
+            # dm = diagonality_measure(model_out['decoder_attention'][last_layer_key], mel_len, phon_len)
+            # d_loss = tf.reduce_mean(dm) / 10.
+            loss += d_loss
         model_out.update({'loss': loss})
-        model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})
+        model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})#, 'diag_loss': d_loss}})
         model_out.update({'reduced_target': tar_mel})
         return model_out, tape
     
@@ -224,7 +245,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     def call(self, inputs, targets, training):
         encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)
         model_out = self._call_decoder(encoder_output, targets, padding_mask, training)
-        model_out.update({'encoder_attention': encoder_attention})
+        model_out.update({'encoder_attention': encoder_attention, 'text_mask': padding_mask})
         return model_out
     
     def predict(self, inp, max_length=1000, encode=True, verbose=True):
