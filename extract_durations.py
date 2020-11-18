@@ -32,8 +32,8 @@ parser.add_argument('--fill_mode_max', dest='fill_mode_max', action='store_true'
                     help='Fill zero durations with ones. Reduces phoneme duration with maximum value in sequence to compensate.')
 parser.add_argument('--fill_mode_next', dest='fill_mode_next', action='store_true',
                     help='Fill zero durations with ones. Reduces next non-zero phoneme duration in sequence to compensate.')
-parser.add_argument('--use_GT', action='store_true',
-                    help='Use ground truth mel instead of predicted mel to train forward model.')
+# parser.add_argument('--use_GT', action='store_true',
+#                     help='Use ground truth mel instead of predicted mel to train forward model.')
 parser.add_argument('--autoregressive_weights', type=str, default='',
                     help='Explicit path to autoregressive model weights.')
 parser.add_argument('--extract_from_layer', dest='extract_layer', type=int, default=-1)
@@ -74,7 +74,10 @@ data_handler = TextMelDataset.from_config(config_manager,
 target_dir = config_manager.data_dir / f'durations'
 target_dir.mkdir(exist_ok=True)
 config_manager.dump_config()
-dataset = data_handler.get_dataset(bucket_batch_sizes=[64, 42, 32, 25, 21, 18, 16, 14, 12, 11, 1], shuffle=False, drop_remainder=False)
+dataset = data_handler.get_dataset(bucket_batch_sizes=config['bucket_batch_sizes'],
+                                   bucket_boundaries=config['bucket_boundaries'],
+                                   shuffle=False,
+                                   drop_remainder=False)
 
 # identify last decoder block
 n_layers = len(config_manager.config['decoder_num_heads'])
@@ -92,8 +95,8 @@ else:
         last_layer_key = f'Decoder_DenseBlock{n_dense}_CrossAttention'
 print(f'Extracting attention from layer {last_layer_key}')
 
-summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir / writer_tag, config=config,
-                                 default_writer=writer_tag)
+summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir / 'Duration Extraction', config=config,
+                                 default_writer='Duration Extraction')
 all_durations = np.array([])
 new_alignments = []
 iterator = tqdm(enumerate(dataset.all_batches()))
@@ -106,13 +109,13 @@ for c, (mel_batch, text_batch, stop_batch, file_name_batch) in iterator:
     attention_values = outputs['decoder_attention'][last_layer_key].numpy()
     text = text_batch.numpy()
     
-    if args.use_GT:
-        mel = mel_batch.numpy()
-    else:
-        pred_mel = outputs['final_output'].numpy()
-        mask = create_mel_padding_mask(mel_batch)
-        pred_mel = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(mel_batch[:, 1:, :])), -1) * pred_mel
-        mel = pred_mel.numpy()
+    # if args.use_GT:
+    mel = mel_batch.numpy()
+    # else:
+    #     pred_mel = outputs['final_output'].numpy()
+    #     mask = create_mel_padding_mask(mel_batch)
+    #     pred_mel = tf.expand_dims(1 - tf.squeeze(create_mel_padding_mask(mel_batch[:, 1:, :])), -1) * pred_mel
+    #     mel = pred_mel.numpy()
     
     durations, final_align, jumpiness, peakiness, diag_measure = get_durations_from_alignment(
         batch_alignments=attention_values,
@@ -133,10 +136,11 @@ for c, (mel_batch, text_batch, stop_batch, file_name_batch) in iterator:
                                        scalar_value=tf.reduce_mean(batch_avg_peakiness[i]), step=c)
         summary_manager.display_scalar(tag=f'TrainDecoderAttentionDiagonality/head{i}',
                                        scalar_value=tf.reduce_mean(batch_avg_diag_measure[i]), step=c)
-        
+    
     for i, name in enumerate(file_name_batch):
         all_durations = np.append(all_durations, durations[i])  # for plotting only
-        summary_manager.add_image(tag='ExtractedAlignments', image=tf.expand_dims(tf.expand_dims(final_align[i], 0), -1),
+        summary_manager.add_image(tag='ExtractedAlignments',
+                                  image=tf.expand_dims(tf.expand_dims(final_align[i], 0), -1),
                                   step=step)
         
         step += 1

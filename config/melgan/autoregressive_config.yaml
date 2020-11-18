@@ -41,6 +41,7 @@ reduction_factor_schedule:
 max_steps: 900_000
 bucket_boundaries: [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200] # mel bucketing
 bucket_batch_sizes: [64, 42, 32, 25, 21, 18, 16, 14, 12, 11, 1]
+force_diagonal_steps: 2_000
 debug: False
 
 # LOGGING

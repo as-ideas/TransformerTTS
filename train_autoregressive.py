@@ -111,9 +111,14 @@ for _ in t:
                         learning_rate=learning_rate,
                         reduction_factor=reduction_factor,
                         drop_n_heads=drop_n_heads)
-    output = model.train_step(inp=phonemes,
-                              tar=mel,
-                              stop_prob=stop)
+    if model.step < config['force_diagonal_steps']:
+        output = model.train_step_diagonal(inp=phonemes,
+                                           tar=mel,
+                                           stop_prob=stop)
+    else:
+        output = model.train_step(inp=phonemes,
+                                  tar=mel,
+                                  stop_prob=stop)
     losses.append(float(output['loss']))
     
     t.display(f'step loss: {losses[-1]}', pos=1)

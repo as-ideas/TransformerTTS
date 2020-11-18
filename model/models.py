@@ -7,7 +7,7 @@ from model.transformer_utils import create_encoder_padding_mask, create_mel_padd
 from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
 from preprocessing.text import TextToTokens
 from model.layers import DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
-from utils.metrics import diagonality_measure
+from utils.metrics import batch_diagonal_mask, attention_peak_score, attention_jumps_score
 
 class AutoregressiveTransformer(tf.keras.models.Model):
     
@@ -120,6 +120,7 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     def _apply_all_signatures(self):
         self.forward = self._apply_signature(self._forward, self.forward_input_signature)
         self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
+        self.train_step_diagonal = self._apply_signature(self._train_step_diagonal, self.training_input_signature)
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
         self.forward_encoder = self._apply_signature(self._forward_encoder, self.encoder_signature)
         self.forward_decoder = self._apply_signature(self._forward_decoder, self.decoder_signature)
@@ -166,8 +167,33 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     
     def _forward_decoder(self, encoder_output, targets, encoder_padding_mask):
         return self._call_decoder(encoder_output, targets, encoder_padding_mask, training=False)
-    
+
     def _gta_forward(self, inp, tar, stop_prob, training):
+        tar_inp = tar[:, :-1]
+        tar_real = tar[:, 1:]
+        tar_stop_prob = stop_prob[:, 1:]
+    
+        mel_len = int(tf.shape(tar_inp)[1])
+        tar_mel = tar_inp[:, 0::self.r, :]
+    
+        with tf.GradientTape() as tape:
+            model_out = self.__call__(inputs=inp,
+                                      targets=tar_mel,
+                                      training=training)
+            loss, loss_vals = weighted_sum_losses((tar_real,
+                                                   tar_stop_prob,
+                                                   tar_real),
+                                                  (model_out['final_output'][:, :mel_len, :],
+                                                   model_out['stop_prob'][:, :mel_len, :],
+                                                   model_out['mel_linear'][:, :mel_len, :]),
+                                                  self.loss,
+                                                  self.loss_weights)
+        model_out.update({'loss': loss})
+        model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})
+        model_out.update({'reduced_target': tar_mel})
+        return model_out, tape
+    
+    def _gta_forward_diagonal(self, inp, tar, stop_prob, training):
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
         tar_stop_prob = stop_prob[:, 1:]
@@ -191,29 +217,40 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             phon_len = tf.reduce_sum(1.-tf.squeeze(model_out['text_mask'], axis=(1,2)), axis=1)
             d_loss = 0.
             dec_key_list = list(model_out['decoder_attention'].keys())
-            decoder_dmask = diagonality_measure(model_out['decoder_attention'][dec_key_list[0]], mel_len, phon_len)
+            decoder_dmask = batch_diagonal_mask(model_out['decoder_attention'][dec_key_list[0]], mel_len, phon_len)
             for key in dec_key_list:
                 d_measure = tf.reduce_sum(model_out['decoder_attention'][key] * decoder_dmask, axis=(-2, -1))
                 d_loss += tf.reduce_mean(d_measure) / 10.
 
             enc_key_list = list(model_out['encoder_attention'].keys())
-            encoder_dmask = diagonality_measure(model_out['encoder_attention'][enc_key_list[0]], phon_len, phon_len)
+            encoder_dmask = batch_diagonal_mask(model_out['encoder_attention'][enc_key_list[0]], phon_len, phon_len)
             for key in enc_key_list:
                 d_measure = tf.reduce_sum(model_out['encoder_attention'][key] * encoder_dmask, axis=(-2, -1))
                 d_loss += tf.reduce_mean(d_measure) / 10.
 
             d_loss /= len(model_out['encoder_attention'].keys()) + len(model_out['decoder_attention'].keys())
-            # last_layer_key = list(model_out['decoder_attention'].keys())[-1]
-            # dm = diagonality_measure(model_out['decoder_attention'][last_layer_key], mel_len, phon_len)
-            # d_loss = tf.reduce_mean(dm) / 10.
             loss += d_loss
+            # mel_len = tf.cast(mel_len, tf.int32)
+            # mask = tf.range(tf.shape(model_out['decoder_attention'][dec_key_list[-1]])[2])[None, :] < mel_len[:, None]
+            # mask = tf.cast(mask, tf.int32)[:, None, :]  # [N, 1, mel_dim]
+            # loc_score = attention_jumps_score(att=model_out['decoder_attention'][dec_key_list[-1]], mel_mask=mask, mel_len=mel_len, r=self.r)
+            # loss += 3./tf.reduce_mean(loc_score)
+            # variance
+            # peak_score = attention_peak_score(model_out['decoder_attention'][dec_key_list[-1]], mask)
+            # loss += 1./tf.reduce_mean(peak_score)
         model_out.update({'loss': loss})
-        model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})#, 'diag_loss': d_loss}})
+        model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2], 'diag_loss': d_loss}})
         model_out.update({'reduced_target': tar_mel})
         return model_out, tape
     
     def _train_step(self, inp, tar, stop_prob):
         model_out, tape = self._gta_forward(inp, tar, stop_prob, training=True)
+        gradients = tape.gradient(model_out['loss'], self.trainable_variables)
+        self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
+        return model_out
+    
+    def _train_step_diagonal(self, inp, tar, stop_prob):
+        model_out, tape = self._gta_forward_diagonal(inp, tar, stop_prob, training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
@@ -431,9 +468,9 @@ class ForwardTransformer(tf.keras.models.Model):
             new_loss = loss_vals[0] + loss_vals[1]
             error_mask = tf.cast(tf.math.logical_not(tf.math.equal(target_pitch, 0.)), tf.float32)
             abs_err = tf.abs(model_out['pitch'] - target_pitch) * error_mask
-            ts_weight = tf.square(tf.linspace(1., 2., tf.shape(target_pitch)[-1]))
+            ts_weight = tf.square(tf.linspace(1., 2., tf.shape(target_pitch)[-2]))
             ts_weight = tf.cast(ts_weight, tf.float32)
-            pitch_error = tf.reduce_mean(abs_err * ts_weight)
+            pitch_error = tf.reduce_mean(abs_err * ts_weight[None, :, None])
             new_loss += pitch_error
         model_out.update({'loss': new_loss})
         model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': pitch_error}})
