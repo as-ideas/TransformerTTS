@@ -194,7 +194,7 @@ if args.pitch_per_char:
     
     def process_per_char_pitch(sample_name: str):
         pitch = np.load((cm.pitch_dir / sample_name).with_suffix('.npy').as_posix())
-        durations = np.load((cm.data_dir /'durations' / sample_name).with_suffix('.npy').as_posix())
+        durations = np.load((cm.duration_dir / sample_name).with_suffix('.npy').as_posix())
         mel = np.load((cm.mel_dir / sample_name).with_suffix('.npy').as_posix())
         text = metadatareader.text_dict[sample_name]
         char_wise_pitch = _pitch_per_char(pitch, durations, mel.shape[0])

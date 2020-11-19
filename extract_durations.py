@@ -71,7 +71,7 @@ data_handler = TextMelDataset.from_config(config_manager,
                                           preprocessor=data_prep,
                                           kind='phonemized')
 
-target_dir = config_manager.data_dir / f'durations'
+target_dir = config_manager.duration_dir
 target_dir.mkdir(exist_ok=True)
 config_manager.dump_config()
 dataset = data_handler.get_dataset(bucket_batch_sizes=config['bucket_batch_sizes'],

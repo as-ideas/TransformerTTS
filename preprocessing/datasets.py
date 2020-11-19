@@ -208,7 +208,7 @@ class TextMelDurPitchDataset:
         if mel_directory is None:
             mel_directory = config.mel_dir
         if duration_directory is None:
-            duration_directory = config.data_dir / 'durations'
+            duration_directory = config.duration_dir
         if pitch_directory is None:
             pitch_directory = config.pitch_dir
         metadata_reader = DataReader.from_config(config,
@@ -269,7 +269,7 @@ class Dataset:
             self._random.shuffle(samples)
         return (self.preprocessor(s) for s in samples)
 
-
+from model.transformer_utils import positional_encoding
 class AutoregressivePreprocessor:
     
     def __init__(self,
@@ -277,20 +277,23 @@ class AutoregressivePreprocessor:
                  mel_start_value: float,
                  mel_end_value: float,
                  tokenizer: Tokenizer):
-        self.output_types = (tf.float32, tf.int32, tf.int32, tf.string)
-        self.padded_shapes = ([None, mel_channels], [None], [None], [])
+        self.output_types = (tf.float32, tf.int32, tf.int32, tf.string, tf.float32)
+        self.padded_shapes = ([None, mel_channels], [None], [None], [], [None, mel_channels])
         self.start_vec = np.ones((1, mel_channels)) * mel_start_value
         self.end_vec = np.ones((1, mel_channels)) * mel_end_value
         self.tokenizer = tokenizer
+        self.pos_encoding = positional_encoding(10000, mel_channels)
     
     def __call__(self, mel, text, sample_name):
         encoded_phonemes = self.tokenizer(text)
+        tar_mel = mel + self.pos_encoding[0, :mel.shape[0], :]
+        tar_norm_mel = np.concatenate([self.start_vec, tar_mel, self.end_vec], axis=0)
         norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
         stop_probs = np.ones((norm_mel.shape[0]))
         stop_probs[-1] = 2
-        return norm_mel, encoded_phonemes, stop_probs, sample_name
+        return norm_mel, encoded_phonemes, stop_probs, sample_name, tar_norm_mel
     
-    def get_sample_length(self, norm_mel, encoded_phonemes, stop_probs, sample_name):
+    def get_sample_length(self, norm_mel, encoded_phonemes, stop_probs, sample_name, tar_norm_mel):
         return tf.shape(norm_mel)[0]
     
     @classmethod

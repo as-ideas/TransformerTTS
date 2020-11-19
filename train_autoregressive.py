@@ -26,10 +26,11 @@ def validate(model,
              summary_manager):
     val_loss = {'loss': 0.}
     norm = 0.
-    for val_mel, val_text, val_stop, fname in val_dataset.all_batches():
+    for val_mel, val_text, val_stop, fname, tar_mel in val_dataset.all_batches():
         model_out = model.val_step(inp=val_text,
                                    tar=val_mel,
-                                   stop_prob=val_stop)
+                                   stop_prob=val_stop,
+                                   tar_mel=tar_mel)
         norm += 1
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
@@ -40,7 +41,7 @@ def validate(model,
                                 tag=f'Validation/predicted_mel_{fname[0].numpy().decode("utf-8")}')
     # residual = abs(model_out['mel_linear'] - model_out['final_output'])
     # summary_manager.display_mel(mel=residual[0], tag=f'Validation/conv-linear_residual')
-    summary_manager.display_mel(mel=val_mel[0], tag=f'Validation/target_mel_{fname[0].numpy().decode("utf-8")}')
+    summary_manager.display_mel(mel=tar_mel[0], tag=f'Validation/target_mel_{fname[0].numpy().decode("utf-8")}')
     return val_loss['loss']
 
 
@@ -96,12 +97,12 @@ if config['debug'] is True:
 # main event
 print('\nTRAINING')
 losses = []
-test_mel, test_phonemes, test_stop, test_fname = valid_dataset.next_batch()
+test_mel, test_phonemes, test_stop, test_fname, test_tar_mel = valid_dataset.next_batch()
 _ = train_dataset.next_batch()
 t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
-    mel, phonemes, stop, sample_name = train_dataset.next_batch()
+    mel, phonemes, stop, sample_name, tar_mel = train_dataset.next_batch()
     decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_prenet_dropout_schedule'])
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
@@ -114,11 +115,13 @@ for _ in t:
     if model.step < config['force_diagonal_steps']:
         output = model.train_step_diagonal(inp=phonemes,
                                            tar=mel,
-                                           stop_prob=stop)
+                                           stop_prob=stop,
+                                           tar_mel=tar_mel)
     else:
         output = model.train_step(inp=phonemes,
                                   tar=mel,
-                                  stop_prob=stop)
+                                  stop_prob=stop,
+                                  tar_mel=tar_mel)
     losses.append(float(output['loss']))
     
     t.display(f'step loss: {losses[-1]}', pos=1)
@@ -139,9 +142,9 @@ for _ in t:
         summary_manager.display_mel(mel=output['final_output'][0], tag=f'Train/predicted_mel')
         residual = abs(output['mel_linear'] - output['final_output'])
         summary_manager.display_mel(mel=residual[0], tag=f'Train/conv-linear_residual')
-        summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
-        summary_manager.display_audio(tag=f'Train/prediction', mel=output['final_output'][0])
-        summary_manager.display_audio(tag=f'Train/target', mel=mel[0])
+        summary_manager.display_mel(mel=tar_mel[0], tag=f'Train/target_mel')
+        # summary_manager.display_audio(tag=f'Train/prediction', mel=output['final_output'][0])
+        # summary_manager.display_audio(tag=f'Train/target', mel=tar_mel[0])
         for layer, k in enumerate(output['decoder_attention'].keys()):
             mel_lens = mel_lengths(mel_batch=mel, padding_value=0) // model.r  # [N]
             phon_len = phoneme_lengths(phonemes)
@@ -190,8 +193,8 @@ for _ in t:
                                                         tag=f'TestAttentionHeads/{fname.numpy().decode("utf-8")}')
                 summary_manager.display_mel(mel=pred_mel, tag=f'Test/{fname.numpy().decode("utf-8")}/predicted')
                 summary_manager.display_mel(mel=target_mel, tag=f'Test/{fname.numpy().decode("utf-8")}/target')
-                if model.step >= config['audio_start_step']:
-                    summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/target', mel=target_mel)
-                    summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/prediction', mel=pred_mel)
+                # if model.step >= config['audio_start_step']:
+                #     summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/target', mel=target_mel)
+                #     summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/prediction', mel=pred_mel)
 
 print('Done.')

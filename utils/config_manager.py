@@ -36,6 +36,7 @@ class Config:
         self.mel_dir = self.data_dir / f"mels.{self.config['normalizer']}"
         self.pitch_dir = self.data_dir / f"pitch.NORM"
         self.pitch_per_char = self.data_dir / f"pitch.NORM.char"
+        self.duration_dir = self.data_dir / f"durations.{self.session_name}"
         # self.pitch_dir = self.data_dir / f"pitch.{self.config['normalizer']}"
         # self.pitch_per_char = self.data_dir / f"pitch.{self.config['normalizer']}.char"
         # training parameters

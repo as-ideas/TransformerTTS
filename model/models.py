@@ -90,7 +90,8 @@ class AutoregressiveTransformer(tf.keras.models.Model):
         self.training_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
-            tf.TensorSpec(shape=(None, None), dtype=tf.int32)
+            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
+            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
         ]
         self.forward_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
@@ -168,17 +169,17 @@ class AutoregressiveTransformer(tf.keras.models.Model):
     def _forward_decoder(self, encoder_output, targets, encoder_padding_mask):
         return self._call_decoder(encoder_output, targets, encoder_padding_mask, training=False)
 
-    def _gta_forward(self, inp, tar, stop_prob, training):
+    def _gta_forward(self, inp, tar, stop_prob, tar_mel, training):
         tar_inp = tar[:, :-1]
-        tar_real = tar[:, 1:]
+        tar_real = tar_mel[:, 1:]
         tar_stop_prob = stop_prob[:, 1:]
     
         mel_len = int(tf.shape(tar_inp)[1])
-        tar_mel = tar_inp[:, 0::self.r, :]
+        autoregre_tar_mel = tar_inp[:, 0::self.r, :]
     
         with tf.GradientTape() as tape:
             model_out = self.__call__(inputs=inp,
-                                      targets=tar_mel,
+                                      targets=autoregre_tar_mel,
                                       training=training)
             loss, loss_vals = weighted_sum_losses((tar_real,
                                                    tar_stop_prob,
@@ -190,20 +191,20 @@ class AutoregressiveTransformer(tf.keras.models.Model):
                                                   self.loss_weights)
         model_out.update({'loss': loss})
         model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2]}})
-        model_out.update({'reduced_target': tar_mel})
+        model_out.update({'reduced_target': autoregre_tar_mel})
         return model_out, tape
     
-    def _gta_forward_diagonal(self, inp, tar, stop_prob, training):
+    def _gta_forward_diagonal(self, inp, tar, stop_prob, tar_mel, training):
         tar_inp = tar[:, :-1]
-        tar_real = tar[:, 1:]
+        tar_real = tar_mel[:, 1:]
         tar_stop_prob = stop_prob[:, 1:]
         
         mel_len = int(tf.shape(tar_inp)[1])
-        tar_mel = tar_inp[:, 0::self.r, :]
+        autoregr_tar_mel = tar_inp[:, 0::self.r, :]
         
         with tf.GradientTape() as tape:
             model_out = self.__call__(inputs=inp,
-                                      targets=tar_mel,
+                                      targets=autoregr_tar_mel,
                                       training=training)
             loss, loss_vals = weighted_sum_losses((tar_real,
                                                    tar_stop_prob,
@@ -240,23 +241,23 @@ class AutoregressiveTransformer(tf.keras.models.Model):
             # loss += 1./tf.reduce_mean(peak_score)
         model_out.update({'loss': loss})
         model_out.update({'losses': {'output': loss_vals[0], 'stop_prob': loss_vals[1], 'mel_linear': loss_vals[2], 'diag_loss': d_loss}})
-        model_out.update({'reduced_target': tar_mel})
+        model_out.update({'reduced_target': autoregr_tar_mel})
         return model_out, tape
     
-    def _train_step(self, inp, tar, stop_prob):
-        model_out, tape = self._gta_forward(inp, tar, stop_prob, training=True)
+    def _train_step(self, inp, tar, stop_prob, tar_mel):
+        model_out, tape = self._gta_forward(inp, tar, stop_prob, tar_mel, training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
     
-    def _train_step_diagonal(self, inp, tar, stop_prob):
-        model_out, tape = self._gta_forward_diagonal(inp, tar, stop_prob, training=True)
+    def _train_step_diagonal(self, inp, tar, stop_prob, tar_mel):
+        model_out, tape = self._gta_forward_diagonal(inp, tar, stop_prob, tar_mel, training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
     
-    def _val_step(self, inp, tar, stop_prob):
-        model_out, _ = self._gta_forward(inp, tar, stop_prob, training=False)
+    def _val_step(self, inp, tar, stop_prob, tar_mel):
+        model_out, _ = self._gta_forward(inp, tar, stop_prob, tar_mel, training=False)
         return model_out
     
     def _compile(self, stop_scaling, optimizer):
