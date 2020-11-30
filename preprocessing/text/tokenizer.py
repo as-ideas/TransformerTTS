@@ -1,5 +1,6 @@
 from typing import Union
 import re
+
 from phonemizer.phonemize import phonemize
 
 from preprocessing.text.symbols import all_phonemes
@@ -39,36 +40,60 @@ class Phonemizer:
         self.language = language
         self.njobs = njobs
         self.with_stress = with_stress
+        self.special_hyphen = '—'
+        self.punctuation = ';:,.!?¡¿—…"«»“”'
         self._whitespace_re = re.compile(r'\s+')
-
-    def _collapse_whitespace(self, text:str):
+        self.replace_dict = {'–': '-'}
+    
+    def _replace_items(self, text: str) -> str:
+        for item in self.replace_dict:
+            text = text.replace(item, self.replace_dict[item])
+        return text
+    
+    def _preprocess_string(self, text: str):
+        text = self._replace_items(text)
+        text = text.replace('-', self.special_hyphen)
+        return text
+    
+    def _preprocess(self, text: Union[str, list]) -> Union[str, list]:
+        if isinstance(text, list):
+            return [self._preprocess_string(t) for t in text]
+        elif isinstance(text, str):
+            return self._preprocess_string(text)
+        else:
+            raise TypeError(f'TextCleaner.clean() input must be list or str, not {type(text)}')
+    
+    def _collapse_whitespace(self, text: str) -> str:
         return re.sub(self._whitespace_re, ' ', text)
     
-    def _filter_string(self, text: str) -> str:
+    def _postprocess_string(self, text: str) -> str:
+        text = text.replace(self.special_hyphen, '-')
         text = ''.join([c for c in text if c in all_phonemes])
         text = self._collapse_whitespace(text)
         text = text.strip()
         return text
     
-    def filter_characters(self, text: Union[str, list]) -> Union[str, list]:
+    def _postprocess(self, text: Union[str, list]) -> Union[str, list]:
         if isinstance(text, list):
-            return [self._filter_string(t) for t in text]
+            return [self._postprocess_string(t) for t in text]
         elif isinstance(text, str):
-            return self._filter_string(text)
+            return self._postprocess_string(text)
         else:
             raise TypeError(f'TextCleaner.clean() input must be list or str, not {type(text)}')
     
-    def __call__(self, text: Union[str, list], with_stress=None, njobs=None, language=None)-> Union[str, list]:
+    def __call__(self, text: Union[str, list], with_stress=None, njobs=None, language=None) -> Union[str, list]:
         language = language or self.language
         njobs = njobs or self.njobs
         with_stress = with_stress or self.with_stress
+        # phonemizer does not like hyphens.
+        text = self._preprocess(text)
         phonemes = phonemize(text,
                              language=language,
                              backend='espeak',
                              strip=True,
                              preserve_punctuation=True,
                              with_stress=with_stress,
+                             punctuation_marks=self.punctuation,
                              njobs=njobs,
                              language_switch='remove-flags')
-        
-        return self.filter_characters(phonemes)
+        return self._postprocess(phonemes)

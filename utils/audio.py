@@ -80,7 +80,7 @@ class Audio():
         y, sr = librosa.load(wav_path, sr=self.config['sampling_rate'])
         if self.config['trim_long_silences']:
             y = self.trim_long_silences(y)
-        elif self.config['trim_silence']:
+        if self.config['trim_silence']:
             y = self.trim_silence(y)
         if y.shape[0] % self.config['hop_length'] == 0:
             y = np.pad(y, (0, 1))

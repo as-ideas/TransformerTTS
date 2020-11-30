@@ -27,16 +27,18 @@ class DataReader:
     training data.
     """
     
-    def __init__(self, data_directory: str, metadata_path: str, metadata_reading_function=None, scan_wavs=False, is_training=False):
+    def __init__(self, data_directory: str, metadata_path: str, metadata_reading_function=None, scan_wavs=False, training=False, is_processed=False):
         self.metadata_reading_function = metadata_reading_function
         self.data_directory = Path(data_directory)
         self.metadata_path = Path(metadata_path)
-        if not is_training:
+        if not is_processed:
             self.text_dict = self.metadata_reading_function(self.metadata_path)
             self.filenames = list(self.text_dict.keys())
         else:
             self.text_dict, self.upsample = self.metadata_reading_function(self.metadata_path)
-            self.filenames = list(self.text_dict.keys()) + self.upsample
+            self.filenames = list(self.text_dict.keys())
+            if training:
+                self.filenames += self.upsample
         if scan_wavs:
             all_wavs = get_files(self.data_directory, extension='.wav')
             self.wav_paths = {w.with_suffix('').name: w for w in all_wavs}
@@ -47,13 +49,15 @@ class DataReader:
         if kind not in kinds:
             raise ValueError(f'Invalid kind type. Expected one of: {kinds}')
         reader = get_preprocessor_by_name('post_processed_reader')
-        is_training=True
+        training=False
+        is_processed=True
         if kind == 'train':
             metadata = config_manager.train_metadata_path
+            training = True
         elif kind == 'original':
             metadata = config_manager.metadata_path
             reader = get_preprocessor_by_name(config_manager.config['data_name'])
-            is_training = False
+            is_processed = False
         elif kind == 'valid':
             metadata = config_manager.valid_metadata_path
         elif kind == 'phonemized':
@@ -63,7 +67,8 @@ class DataReader:
                    metadata_reading_function=reader,
                    metadata_path=metadata,
                    scan_wavs=scan_wavs,
-                   is_training=is_training)
+                   training=training,
+                   is_processed=is_processed)
 
 
 class TextMelDataset:
@@ -152,31 +157,9 @@ class TextMelDurPitchDataset:
         mel = np.load((self.mel_directory / sample_name).with_suffix('.npy').as_posix())
         durations = np.load(
             (self.duration_directory / sample_name).with_suffix('.npy').as_posix())
-        # if (self.pitch_per_char_directory / sample_name).with_suffix('.npy').exists():
-        #     char_wise_pitch = np.load((self.pitch_per_char_directory / sample_name).with_suffix('.npy').as_posix())
         char_wise_pitch = np.load((self.pitch_per_char_directory / sample_name).with_suffix('.npy').as_posix())
-        # else:
-        #     char_wise_pitch = self._pitch_per_char(pitch, durations, mel.shape[0])
-        #     assert char_wise_pitch.shape[0] == len(
-        #         text), f'{sample_name}: dshape {char_wise_pitch.shape} == tshape {len(text)}'
-        #     np.save((self.pitch_per_char_directory / sample_name).with_suffix('.npy').as_posix(), char_wise_pitch)
-        # char_wise_pitch = np.load((self.pitch_directory / sample_name).with_suffix('.npy').as_posix())
         return mel, text, durations, char_wise_pitch
-    
-    # def _pitch_per_char(self, pitch, durations, mel_len):
-    #     space = np.linspace(0,np.sum(durations), mel_len)
-    #     bin_edges = np.cumsum(np.concatenate([[0], durations]))
-    #     bstat = binned_statistic(space, pitch, bins=bin_edges, statistic='mean')
-    #     return bstat.statistic
-    
-    # def _pitch_per_char(self, pitch, durations, mel_len):
-    #     durs_cum = np.cumsum(np.pad(durations, (1, 0)))
-    #     pitch_char = np.zeros((durations.shape[0],), dtype=np.float)
-    #     for idx, a, b in zip(range(mel_len), durs_cum[:-1], durs_cum[1:]):
-    #         values = pitch[a:b][np.where(pitch[a:b] != 0.0)[0]]
-    #         values = values[np.where(values < 400)[0]]
-    #         pitch_char[idx] = np.mean(values) if len(values) > 0 else 0.0
-    #     return pitch_char
+
     
     def _process_sample(self, sample_name: str):
         mel, text, durations, pitch = self._read_sample(sample_name)

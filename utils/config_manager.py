@@ -20,25 +20,21 @@ class Config:
         self.yaml = ruamel.yaml.YAML()
         self.config, self.data_config, self.model_config = self._load_config()
         self.git_hash = self._get_git_hash()
-        self.session_name = '.'.join([self.config['data_name'], self.config['session_name'], f'{model_kind}'])
+        self.session_name = '.'.join([self.config['data_name'], self.config['session_name']])
         # create paths
         self.dataset_dir = Path(self.config['data_directory'])
         self.data_dir = Path('.'.join([self.config['train_data_directory'], self.config['data_name']]))
-        # self.data_dir = self._train_datadir()
         self.metadata_path = self.dataset_dir / self.config['metadata_filename']
-        # self.wav_dir = self.data_dir / self.config['wav_subdir_name']
-        self.base_dir = Path(self.config['log_directory']) / self.session_name
+        self.base_dir = Path(self.config['log_directory']) / self.session_name / model_kind
         self.log_dir = self.base_dir / 'logs'
         self.weights_dir = self.base_dir / 'weights'
         self.train_metadata_path = self.data_dir / self.config['train_metadata_filename']
         self.valid_metadata_path = self.data_dir / self.config['valid_metadata_filename']
         self.phonemized_metadata_path = self.data_dir / 'phonemized_metadata.txt'
         self.mel_dir = self.data_dir / f"mels.{self.config['normalizer']}"
-        self.pitch_dir = self.data_dir / f"pitch.NORM"
-        self.pitch_per_char = self.data_dir / f"pitch.NORM.char"
         self.duration_dir = self.data_dir / f"durations.{self.session_name}"
-        # self.pitch_dir = self.data_dir / f"pitch.{self.config['normalizer']}"
-        # self.pitch_per_char = self.data_dir / f"pitch.{self.config['normalizer']}.char"
+        self.pitch_dir = self.data_dir / f"pitch.{self.config['normalizer']}"
+        self.pitch_per_char = self.data_dir / f"pitch.{self.config['normalizer']}.char"
         # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         if model_kind == 'autoregressive':

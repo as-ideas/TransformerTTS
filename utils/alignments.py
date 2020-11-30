@@ -99,80 +99,7 @@ def duration_to_alignment_matrix(durations):
     return np.array(alignments)
 
 
-def clean_attention(binary_attention, jump_threshold):
-    phon_idx = 0
-    clean_attn = np.zeros(binary_attention.shape)
-    for i, av in enumerate(binary_attention):
-        next_phon_idx = np.argmax(av)
-        if abs(next_phon_idx - phon_idx) > jump_threshold:
-            next_phon_idx = phon_idx
-        phon_idx = next_phon_idx
-        clean_attn[i, min(phon_idx, clean_attn.shape[1] - 1)] = 1
-    return clean_attn
-
-
-def fill_zeros(duration, take_from='next'):
-    """ Fills zeros with one. Takes either from the next non-zero duration, or max."""
-    for i in range(len(duration)):
-        if i < (len(duration) - 1):
-            if duration[i] == 0:
-                if take_from == 'next':
-                    next_avail = np.where(duration[i:] > 1)[0]
-                    if len(next_avail) > 1:
-                        next_avail = next_avail[0]
-                elif take_from == 'max':
-                    next_avail = np.argmax(duration[i:])
-                if next_avail:
-                    duration[i] = 1
-                    duration[i + next_avail] -= 1
-    return duration
-
-
-def fix_attention_jumps(binary_attn, binary_score, mel_len, phon_len):
-    """ Scans for jumps in attention and attempts to fix. If score decreases, a collapse
-        is likely so it tries to relax the jump size.
-        Lower jumps size is more accurate, but more prone to collapse.
-    """
-    clean_scores = []
-    clean_attns = []
-    for jumpth in [2, 3, 4, 5]:
-        cl_at = clean_attention(binary_attention=binary_attn, jump_threshold=jumpth)
-        clean_attns.append(cl_at)
-        sclean_score = attention_score(att=tf.cast(cl_at[None, None, :, :], tf.float32),
-                                       mel_len=mel_len,
-                                       phon_len=phon_len,
-                                       r=1)
-        clean_scores.append(tf.reduce_mean(sclean_score))
-    best_idx = np.argmax(clean_scores)
-    best_score = clean_scores[best_idx]
-    best_cleaned_attention = clean_attns[best_idx]
-    while (binary_score > best_score) and (jumpth < 20):
-        jumpth += 1
-        best_cleaned_attention = clean_attention(binary_attention=binary_attn, jump_threshold=jumpth)
-        best_score = attention_score(att=tf.cast(best_cleaned_attention[None, None, :, :], tf.float32),
-                                     mel_len=mel_len,
-                                     phon_len=phon_len,
-                                     r=1)
-        best_score = tf.reduce_mean(best_score)
-    if binary_score > best_score:
-        best_cleaned_attention = binary_attn
-    return best_cleaned_attention
-
-
-def binary_attention(attention_weights):
-    attention_peak_per_phoneme = attention_weights.max(axis=1)
-    binary_attn = (attention_weights.T == attention_peak_per_phoneme).astype(int).T
-    check = np.sum(binary_attn, axis=1) != 1  # more than one max per row
-    if sum(check) != 0:  # set every entry after first to zero
-        flt_row = np.where(check == True)[0]
-        for row in flt_row:
-            flt_col = np.where(binary_attn[row] == 1)[0]
-            binary_attn[row][flt_col[1:]] = 0
-    return binary_attn
-
-
-def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=False, binary=False, fill_gaps=False,
-                                 fix_jumps=False, fill_mode='max'):
+def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=False):
     """
 
     :param batch_alignments: attention weights from autoregressive model.
@@ -186,7 +113,6 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
         needed to fill the gap. Next takes it from the next non-zeros duration value, max from the sequence maximum.
     :return:
     """
-    assert (binary is True) or (fix_jumps is False), 'Cannot fix jumps in non-binary attention.'
     # mel_len - 1 because we remove last timestep, which is end_vector. start vector is not predicted (or removed from GTA)
     mel_len = mel_lengths(mels, padding_value=0.) - 1  # [N]
     # phonemes contain start and end tokens (start will be removed later)
@@ -196,8 +122,6 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
     durations = []
     final_alignment = []
     for batch_num, al in enumerate(batch_alignments):
-        # mels[0][1:mel_len[0]]
-        # phonemes[0][1:phon_len[0]]
         unpad_mel_len = mel_len[batch_num]
         unpad_phon_len = phon_len[batch_num]
         unpad_alignments = al[:, 1:unpad_mel_len, 1:unpad_phon_len]  # first dim is heads
@@ -209,9 +133,6 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
             best_head = np.argmax(attn_scores[batch_num])
             ref_attention_weights = unpad_alignments[best_head]
         integer_durations = extract_durations_with_dijkstra(ref_attention_weights)
-        
-        if fill_gaps:  # fill zeros durations
-            integer_durations = fill_zeros(integer_durations, take_from=fill_mode)
         
         assert np.sum(integer_durations) == mel_len[batch_num]-1, f'{np.sum(integer_durations)} vs {mel_len[batch_num]-1}'
         new_alignment = duration_to_alignment_matrix(integer_durations.astype(int))

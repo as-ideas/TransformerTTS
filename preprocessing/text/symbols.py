@@ -6,9 +6,7 @@ _other_symbols = 'ʍwɥʜʢʡɕʑɺɧ'
 _diacrilics = 'ɚ˞ɫ'
 _phonemes = sorted(list(
     _vowels + _non_pulmonic_consonants + _pulmonic_consonants + _suprasegmentals + _other_symbols + _diacrilics))
-_punctuations = '!,-.:;? '
+_punctuations = '!,-.:;? \'()'
 _alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzäüöß'
-_not_end_punctuation = ',-.:; '
-_numbers = '1234567890'
 
 all_phonemes = sorted(list(_phonemes) + list(_punctuations))
