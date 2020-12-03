@@ -8,11 +8,11 @@ from p_tqdm import p_umap
 
 from utils.config_manager import Config
 from utils.logging_utils import SummaryManager
-from preprocessing.datasets import AlignerPreprocessor
+from data.datasets import AlignerPreprocessor
 from utils.alignments import get_durations_from_alignment
 from utils.scripts_utils import dynamic_memory_allocation
-from preprocessing.datasets import AlignerDataset
-from preprocessing.datasets import DataReader
+from data.datasets import AlignerDataset
+from data.datasets import DataReader
 
 np.random.seed(42)
 tf.random.set_seed(42)

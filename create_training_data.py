@@ -6,11 +6,11 @@ import numpy as np
 from p_tqdm import p_uimap, p_umap
 
 from utils.logging_utils import SummaryManager
-from preprocessing.text import TextToTokens
-from preprocessing.datasets import DataReader
+from data.text import TextToTokens
+from data.datasets import DataReader
 from utils.config_manager import Config
-from utils.audio import Audio
-from preprocessing.text.symbols import _alphabet
+from data.audio import Audio
+from data.text.symbols import _alphabet
 
 np.random.seed(42)
 

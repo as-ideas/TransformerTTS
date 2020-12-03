@@ -86,7 +86,7 @@ Prepare a folder containing your metadata and wav files, for instance
 ```
 if `metadata.csv` has the following format
 ``` wav_file_name|transcription ```
-you can use the ljspeech preprocessor in ```preprocessing/metadata_readers.py```, otherwise create your own.
+you can use the ljspeech preprocessor in ```data/metadata_readers.py```, otherwise create your own.
 
 Make sure that:
  -  the metadata reader function name is the same as ```data_name``` field in ```data_config.yaml```.
@@ -132,7 +132,7 @@ tensorboard --logdir /logs/directory/
 ## Prediction
 ```python
 from utils.config_manager import Config
-from utils.audio import Audio
+from data.audio import Audio
 
 config_loader = Config(config_path=f'/path/to/config/', model_kind=f'tts')
 audio = Audio(config_loader.config)

@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 
 from utils.config_manager import Config
-from utils.audio import Audio
+from data.audio import Audio
 
 if __name__ == '__main__':
     parser = ArgumentParser()

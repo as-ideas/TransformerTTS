@@ -2,7 +2,7 @@ from pathlib import Path
 
 import tensorflow as tf
 
-from utils.audio import Audio
+from data.audio import Audio
 from utils.display import tight_grid, buffer_image, plot_image, plot1D
 from utils.vec_ops import norm_tensor
 from utils.decorators import ignore_exception

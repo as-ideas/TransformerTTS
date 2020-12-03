@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import trange
 
 from utils.config_manager import Config
-from preprocessing.datasets import AlignerDataset, AlignerPreprocessor
+from data.datasets import AlignerDataset, AlignerPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging_utils import SummaryManager

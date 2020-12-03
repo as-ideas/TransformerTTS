@@ -3,7 +3,7 @@ import numpy as np
 
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
-from preprocessing.text import TextToTokens
+from data.text import TextToTokens
 from model.layers import DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
 from utils.metrics import batch_diagonal_mask
 
