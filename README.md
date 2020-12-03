@@ -9,9 +9,10 @@
 </h2>
 
 Implementation of a non-autoregressive Transformer based neural network for Text-to-Speech (TTS). <br>
-This repo is based on the following papers:
+This repo is based, among others, on the following papers:
 - [Neural Speech Synthesis with Transformer Network](https://arxiv.org/abs/1809.08895)
 - [FastSpeech: Fast, Robust and Controllable Text to Speech](https://arxiv.org/abs/1905.09263)
+- [FastPitch: Parallel Text-to-speech with Pitch Prediction](https://fastpitch.github.io/)
 
 Our pre-trained LJSpeech models are compatible with the pre-trained vocoders from:
 - [WaveRNN](https://github.com/fatchord/WaveRNN)
@@ -21,7 +22,7 @@ Our pre-trained LJSpeech models are compatible with the pre-trained vocoders fro
 Being non-autoregressive, this Transformer model is:
 - Robust: No repeats and failed attention modes for challenging sentences.
 - Fast: With no autoregression, predictions take a fraction of the time.
-- Controllable: It is possible to control the speed of the generated utterance.
+- Controllable: It is possible to control the speed and pitch of the generated utterance.
 
 ## 🔈 Samples
 
@@ -41,13 +42,14 @@ Try it out on Colab:
 
 ## Updates
 - 4/06/20: Added normalisation and pre-trained models compatible with the faster [MelGAN](https://github.com/seungwonpark/melgan) vocoder.
+- 11/20: Added pitch prediction. Autoregressive model is now specialized as an Aligner and Forward is now the only TTS model. Changed models architectures.
 
 ## 📖 Contents
 - [Installation](#installation)
 - [Dataset](#dataset)
 - [Training](#training)
-    - [Autoregressive](#train-autoregressive-model)
-    - [Forward](#train-forward-model)
+    - [Aligner](#train-aligner-model)
+    - [TTS](#train-tts-model)
 - [Prediction](#prediction)
 - [Model Weights](#model_weights)
 
@@ -92,28 +94,26 @@ where `metadata.csv` has the following format:
 
 ## Training
 Change the ```--config``` argument based on the configuration of your choice.
-### Train Autoregressive Model
+### Train Aligner Model
 #### Create training dataset
 ```bash
 python create_training_data.py --config config/melgan
 ```
-This will add the `mels` and `resampled_wavs` folders to your `train_data_dir`.
+This will create the training data directory (default `transformer_tts_data.ljspeech`) folder containing the mel and pitch folders as well as train and validation metafiles.
 #### Training
 ```bash
-python train_autoregressive.py --config config/melgan
+python train_aligner.py --config config/melgan
 ```
-### Train Forward Model
+### Train TTS Model
 #### Compute alignment dataset
-First use the autoregressive model to create the durations dataset
+First use the aligner model to create the durations dataset
 ```bash
-python extract_durations.py --config config/melgan --binary --fix_jumps --fill_mode_next
+python extract_durations.py --config config/melgan
 ```
-this will add the `durations` folder to your `train_data_dir`.
-This folder containing the new datasets for validation and training of the forward model.<br>
-If the rhythm of the trained model is off, play around with the flags of this script to fix the durations.
+this will add the `durations.<session name>` as well as the char-wise pitch folders to the training data directory.
 #### Training
 ```bash
-python train_forward.py --config config/melgan
+python train_tts.py --config config/melgan
 ```
 #### Training & Model configuration
 - Training and model settings can be configured in `<model>_config.yaml`
@@ -131,12 +131,11 @@ tensorboard --logdir /logs/directory/
 ![Tensorboard Demo](https://raw.githubusercontent.com/as-ideas/TransformerTTS/master/docs/tboard_demo.gif)
 
 ## Prediction
-Predict with either the Forward or Autoregressive model
 ```python
 from utils.config_manager import Config
 from utils.audio import Audio
 
-config_loader = Config(config_path=f'/path/to/config/', model_kind=f'forward')
+config_loader = Config(config_path=f'/path/to/config/', model_kind=f'tts')
 audio = Audio(config_loader.config)
 model = config_loader.load_model()
 out = model.predict('Please, say something.')

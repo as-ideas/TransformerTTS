@@ -27,7 +27,7 @@ if __name__ == '__main__':
     else:
         print(f'Specify either an input text (-t "some text") or a text input file (-f /path/to/file.txt)')
         exit()
-    config_loader = Config(config_path=args.config, model_kind=f'forward')
+    config_loader = Config(config_path=args.config, model_kind=f'tts')
     if args.outdir is None:
         outdir = config_loader.log_dir
     else:

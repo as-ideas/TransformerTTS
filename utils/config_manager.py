@@ -6,15 +6,15 @@ import numpy as np
 import tensorflow as tf
 import ruamel.yaml
 
-from model.models import AutoregressiveTransformer, ForwardTransformer
-from utils.scheduling import piecewise_linear_schedule, reduction_schedule
+from model.models import Aligner, ForwardTransformer
+from utils.scheduling import reduction_schedule
 
 
 class Config:
     
     def __init__(self, config_path: str, model_kind: str):
-        if model_kind not in ['autoregressive', 'forward']:
-            raise TypeError(f"model_kind must be in {['autoregressive', 'forward']}")
+        if model_kind not in ['aligner', 'tts']:
+            raise TypeError(f"model_kind must be in {['aligner', 'tts']}")
         self.config_path = Path(config_path)
         self.model_kind = model_kind
         self.yaml = ruamel.yaml.YAML()
@@ -37,7 +37,7 @@ class Config:
         self.pitch_per_char = self.data_dir / f"pitch.{self.config['normalizer']}.char"
         # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
-        if model_kind == 'autoregressive':
+        if model_kind == 'aligner':
             self.max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
             self.stop_scaling = self.config.get('stop_loss_scaling', 1.)
     
@@ -90,38 +90,26 @@ class Config:
     def get_model(self, ignore_hash=False):
         if not ignore_hash:
             self._check_hash()
-        if self.model_kind == 'autoregressive':
-            return AutoregressiveTransformer(mel_channels=self.config['mel_channels'],
-                                             encoder_model_dimension=self.config['encoder_model_dimension'],
-                                             decoder_model_dimension=self.config['decoder_model_dimension'],
-                                             encoder_num_heads=self.config['encoder_num_heads'],
-                                             decoder_num_heads=self.config['decoder_num_heads'],
-                                             encoder_feed_forward_dimension=self.config[
-                                                 'encoder_feed_forward_dimension'],
-                                             decoder_feed_forward_dimension=self.config[
-                                                 'decoder_feed_forward_dimension'],
-                                             encoder_maximum_position_encoding=self.config[
-                                                 'encoder_max_position_encoding'],
-                                             decoder_maximum_position_encoding=self.config[
-                                                 'decoder_max_position_encoding'],
-                                             encoder_dense_blocks=self.config['encoder_dense_blocks'],
-                                             decoder_dense_blocks=self.config['decoder_dense_blocks'],
-                                             decoder_prenet_dimension=self.config['decoder_prenet_dimension'],
-                                             encoder_prenet_dimension=self.config['encoder_prenet_dimension'],
-                                             encoder_attention_conv_kernel=self.config['encoder_attention_conv_kernel'],
-                                             decoder_attention_conv_kernel=self.config['decoder_attention_conv_kernel'],
-                                             encoder_attention_conv_filters=self.config['encoder_attention_conv_filters'],
-                                             decoder_attention_conv_filters=self.config['decoder_attention_conv_filters'],
-                                             postnet_conv_filters=self.config['postnet_conv_filters'],
-                                             postnet_conv_layers=self.config['postnet_conv_layers'],
-                                             postnet_kernel_size=self.config['postnet_kernel_size'],
-                                             dropout_rate=self.config['dropout_rate'],
-                                             max_r=self.max_r,
-                                             mel_start_value=self.config['mel_start_value'],
-                                             mel_end_value=self.config['mel_end_value'],
-                                             phoneme_language=self.config['phoneme_language'],
-                                             with_stress=self.config['with_stress'],
-                                             debug=self.config['debug'])
+        if self.model_kind == 'aligner':
+            return Aligner(mel_channels=self.config['mel_channels'],
+                           encoder_model_dimension=self.config['encoder_model_dimension'],
+                           decoder_model_dimension=self.config['decoder_model_dimension'],
+                           encoder_num_heads=self.config['encoder_num_heads'],
+                           decoder_num_heads=self.config['decoder_num_heads'],
+                           encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
+                           decoder_feed_forward_dimension=self.config['decoder_feed_forward_dimension'],
+                           encoder_maximum_position_encoding=self.config['encoder_max_position_encoding'],
+                           decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
+                           decoder_prenet_dimension=self.config['decoder_prenet_dimension'],
+                           encoder_prenet_dimension=self.config['encoder_prenet_dimension'],
+                           dropout_rate=self.config['dropout_rate'],
+                           decoder_prenet_dropout=self.config['decoder_prenet_dropout'],
+                           max_r=self.max_r,
+                           mel_start_value=self.config['mel_start_value'],
+                           mel_end_value=self.config['mel_end_value'],
+                           phoneme_language=self.config['phoneme_language'],
+                           with_stress=self.config['with_stress'],
+                           debug=self.config['debug'])
         
         else:
             return ForwardTransformer(encoder_model_dimension=self.config['encoder_model_dimension'],
@@ -133,16 +121,11 @@ class Config:
                                       decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
                                       encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
                                       decoder_feed_forward_dimension=self.config['decoder_feed_forward_dimension'],
-                                      encoder_attention_conv_filters=self.config[
-                                          'encoder_attention_conv_filters'],
-                                      decoder_attention_conv_filters=self.config[
-                                          'decoder_attention_conv_filters'],
+                                      encoder_attention_conv_filters=self.config['encoder_attention_conv_filters'],
+                                      decoder_attention_conv_filters=self.config['decoder_attention_conv_filters'],
                                       encoder_attention_conv_kernel=self.config['encoder_attention_conv_kernel'],
                                       decoder_attention_conv_kernel=self.config['decoder_attention_conv_kernel'],
                                       mel_channels=self.config['mel_channels'],
-                                      postnet_conv_filters=self.config['postnet_conv_filters'],
-                                      postnet_conv_layers=self.config['postnet_conv_layers'],
-                                      postnet_kernel_size=self.config['postnet_kernel_size'],
                                       encoder_dense_blocks=self.config['encoder_dense_blocks'],
                                       decoder_dense_blocks=self.config['decoder_dense_blocks'],
                                       phoneme_language=self.config['phoneme_language'],
@@ -150,7 +133,7 @@ class Config:
                                       debug=self.config['debug'])
     
     def compile_model(self, model):
-        if self.model_kind == 'autoregressive':
+        if self.model_kind == 'aligner':
             model._compile(stop_scaling=self.stop_scaling, optimizer=self.new_adam(self.learning_rate))
         else:
             model._compile(optimizer=self.new_adam(self.learning_rate))
@@ -208,9 +191,7 @@ class Config:
             ckpt.restore(manager.latest_checkpoint)
             if verbose:
                 print(f'restored weights from {manager.latest_checkpoint} at step {model.step}')
-        decoder_prenet_dropout = piecewise_linear_schedule(model.step, self.config['decoder_prenet_dropout_schedule'])
-        reduction_factor = None
-        if self.model_kind == 'autoregressive':
+        if self.model_kind == 'aligner':
             reduction_factor = reduction_schedule(model.step, self.config['reduction_factor_schedule'])
-        model.set_constants(reduction_factor=reduction_factor, decoder_prenet_dropout=decoder_prenet_dropout)
+            model.set_constants(reduction_factor=reduction_factor)
         return model

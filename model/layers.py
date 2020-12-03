@@ -96,7 +96,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         super(MultiHeadAttention, self).__init__(**kwargs)
         self.num_heads = num_heads
         self.model_dim = model_dim
-        # self.head_drop = HeadDrop()
+        self.head_drop = HeadDrop()
         
         assert model_dim % self.num_heads == 0
         
@@ -128,7 +128,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         v = self.split_heads(v, batch_size)  # (batch_size, num_heads, seq_len_v, depth)
         
         scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
-        # scaled_attention = self.head_drop(scaled_attention, training=training, drop_n_heads=drop_n_heads)
+        scaled_attention = self.head_drop(scaled_attention, training=training, drop_n_heads=drop_n_heads)
         
         scaled_attention = tf.transpose(scaled_attention,
                                         perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
@@ -331,11 +331,6 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
                  num_heads: list,
                  maximum_position_encoding: int,
                  dropout_rate: float,
-                 dense_blocks: int,
-                 conv_filters: int,
-                 conv_activation: str,
-                 conv_padding: str,
-                 conv_kernel: int,
                  **kwargs):
         super(CrossAttentionBlocks, self).__init__(**kwargs)
         self.model_dim = model_dim
@@ -345,12 +340,9 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
         self.CADB = [
             CrossAttentionDenseBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
                                      dense_hidden_units=feed_forward_dimension, name=f'{self.name}_CADB_{i}')
-            for i, n_heads in enumerate(num_heads[:dense_blocks])]
-        self.CACB = [
-            CrossAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
-                                    name=f'{self.name}_CACB_{i}', conv_filters=conv_filters,
-                                    conv_activation=conv_activation, conv_padding=conv_padding, kernel_size=conv_kernel)
-            for i, n_heads in enumerate(num_heads[dense_blocks:])]
+            for i, n_heads in enumerate(num_heads[:-1])]
+        self.last_CADB = CrossAttentionDenseBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=num_heads[-1],
+                                     dense_hidden_units=feed_forward_dimension, name=f'{self.name}_CADB_last')
     
     def call(self, inputs, enc_output, training, decoder_padding_mask, encoder_padding_mask, drop_n_heads,
              reduction_factor=1):
@@ -360,14 +352,10 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
         x = self.dropout(x, training=training)
         attention_weights = {}
         for i, block in enumerate(self.CADB):
-            x, _, attn_weights = block(x, enc_output, training, decoder_padding_mask, encoder_padding_mask,
-                                       drop_n_heads)
+            x, _, attn_weights = block(x, enc_output, training, decoder_padding_mask, encoder_padding_mask, 0)
             attention_weights[f'{self.name}_DenseBlock{i + 1}_CrossAttention'] = attn_weights
-        for i, block in enumerate(self.CACB):
-            x, _, attn_weights = block(x, enc_output, training, decoder_padding_mask, encoder_padding_mask,
-                                       drop_n_heads)
-            attention_weights[f'{self.name}_ConvBlock{i + 1}_CrossAttention'] = attn_weights
-        
+        x, _, attn_weights = self.last_CADB(x, enc_output, training, decoder_padding_mask, encoder_padding_mask, drop_n_heads)
+        attention_weights[f'{self.name}_LastBlock_CrossAttention'] = attn_weights
         return x, attention_weights
 
 
@@ -399,22 +387,17 @@ class DecoderPrenet(tf.keras.layers.Layer):
 
 class Postnet(tf.keras.layers.Layer):
     
-    def __init__(self, mel_channels: int,
-                 conv_filters: int,
-                 conv_layers: int,
-                 kernel_size: int,
-                 **kwargs):
+    def __init__(self, mel_channels: int, **kwargs):
         super(Postnet, self).__init__(**kwargs)
         self.mel_channels = mel_channels
         self.stop_linear = tf.keras.layers.Dense(3)
         self.mel_out = tf.keras.layers.Dense(mel_channels)
     
-    def call(self, x, training):
+    def call(self, x):
         stop = self.stop_linear(x)
-        conv_out = self.mel_out(x)
+        mel = self.mel_out(x)
         return {
-            'mel_linear': x,
-            'final_output': conv_out,
+            'mel': mel,
             'stop_prob': stop,
         }
 

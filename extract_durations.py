@@ -25,7 +25,6 @@ if __name__ == '__main__':
                         help='Use best head instead of weighted average of heads.')
     parser.add_argument('--autoregressive_weights', type=str, default=None,
                         help='Explicit path to autoregressive model weights.')
-    parser.add_argument('--extract_from_layer', dest='extract_layer', type=int, default=-1)
     parser.add_argument('--skip_char_pitch', dest='skip_char_pitch', action='store_true')
     args = parser.parse_args()
     weighted = not args.best
@@ -35,7 +34,7 @@ if __name__ == '__main__':
     ])
     writer_tag = f'DurationExtraction{tag_description}'
     print(writer_tag)
-    config_manager = Config(config_path=args.config, model_kind='autoregressive')
+    config_manager = Config(config_path=args.config, model_kind='aligner')
     config = config_manager.config
     config_manager.print_config()
     model = config_manager.load_model(args.autoregressive_weights)
@@ -55,20 +54,7 @@ if __name__ == '__main__':
                                        shuffle=False,
                                        drop_remainder=False)
     
-    # identify last decoder block
-    n_layers = len(config_manager.config['decoder_num_heads'])
-    n_dense = int(config_manager.config['decoder_dense_blocks'])
-    n_convs = int(n_layers - n_dense)
-    if args.extract_layer > 0:
-        if n_convs > 0:
-            last_layer_key = f'Decoder_ConvBlock{args.extract_layer}_CrossAttention'
-        else:
-            last_layer_key = f'Decoder_DenseBlock{args.extract_layer}_CrossAttention'
-    else:
-        if n_convs > 0:
-            last_layer_key = f'Decoder_ConvBlock{n_convs}_CrossAttention'
-        else:
-            last_layer_key = f'Decoder_DenseBlock{n_dense}_CrossAttention'
+    last_layer_key = 'Decoder_LastBlock_CrossAttention'
     print(f'Extracting attention from layer {last_layer_key}')
     
     summary_manager = SummaryManager(model=model, log_dir=config_manager.log_dir / 'Duration Extraction', config=config,

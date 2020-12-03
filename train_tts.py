@@ -46,7 +46,7 @@ def validate(model,
 parser = basic_train_parser()
 args = parser.parse_args()
 
-config = Config(config_path=args.config, model_kind='forward')
+config = Config(config_path=args.config, model_kind='tts')
 config_dict = config.config
 config.create_remove_dirs(clear_dir=args.clear_dir,
                           clear_logs=args.clear_logs,

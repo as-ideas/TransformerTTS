@@ -259,17 +259,23 @@ class AutoregressivePreprocessor:
                  mel_channels: int,
                  mel_start_value: float,
                  mel_end_value: float,
-                 tokenizer: Tokenizer):
+                 tokenizer: Tokenizer,
+                 pe_mel: bool,
+                 max_pe: int=None):
         self.output_types = (tf.float32, tf.int32, tf.int32, tf.string, tf.float32)
         self.padded_shapes = ([None, mel_channels], [None], [None], [], [None, mel_channels])
         self.start_vec = np.ones((1, mel_channels)) * mel_start_value
         self.end_vec = np.ones((1, mel_channels)) * mel_end_value
         self.tokenizer = tokenizer
-        self.pos_encoding = positional_encoding(10000, mel_channels)
+        self.pe_mel = pe_mel
+        if pe_mel:
+            self.pos_encoding = positional_encoding(max_pe, mel_channels)
     
     def __call__(self, mel, text, sample_name):
         encoded_phonemes = self.tokenizer(text)
-        tar_mel = mel + self.pos_encoding[0, :mel.shape[0], :]
+        tar_mel = mel
+        if self.pe_mel:
+            tar_mel += self.pos_encoding[0, :mel.shape[0], :]
         tar_norm_mel = np.concatenate([self.start_vec, tar_mel, self.end_vec], axis=0)
         norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
         stop_probs = np.ones((norm_mel.shape[0]))
@@ -284,7 +290,9 @@ class AutoregressivePreprocessor:
         return cls(mel_channels=config.config['mel_channels'],
                    mel_start_value=config.config['mel_start_value'],
                    mel_end_value=config.config['mel_end_value'],
-                   tokenizer=tokenizer)
+                   tokenizer=tokenizer,
+                   pe_mel=config.config['use_pe_target_mel'],
+                   max_pe=config.config['decoder_max_position_encoding'])
 
 
 if __name__ == '__main__':

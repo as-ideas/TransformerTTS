@@ -24,7 +24,7 @@ args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 
-cm = Config(args.config, model_kind='autoregressive')
+cm = Config(args.config, model_kind='aligner')
 cm.create_remove_dirs()
 metadatareader = DataReader.from_config(cm, kind='original', scan_wavs=True)
 summary_manager = SummaryManager(model=None, log_dir=cm.log_dir / 'data_preprocessing', config=cm.config,
