@@ -127,7 +127,7 @@ for _ in t:
     summary_manager.display_loss(output, tag='Train')
     summary_manager.display_scalar(scalar_value=t.avg_time, tag='Meta/iter_time')
     summary_manager.display_scalar(scalar_value=tf.shape(fname)[0], tag='Meta/batch_size')
-    # summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
+    summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     # summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet.rate)
     # summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
     if model.step % config_dict['train_images_plotting_frequency'] == 0:

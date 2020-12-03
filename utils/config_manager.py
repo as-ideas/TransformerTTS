@@ -130,6 +130,7 @@ class Config:
                                       decoder_dense_blocks=self.config['decoder_dense_blocks'],
                                       phoneme_language=self.config['phoneme_language'],
                                       with_stress=self.config['with_stress'],
+                                      end_of_sentence_pitch_focus=self.config['end_of_sentence_pitch_focus'],
                                       debug=self.config['debug'])
     
     def compile_model(self, model):

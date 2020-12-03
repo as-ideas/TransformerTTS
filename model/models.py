@@ -1,5 +1,3 @@
-import sys
-
 import tensorflow as tf
 import numpy as np
 
@@ -245,31 +243,6 @@ class Aligner(tf.keras.models.Model):
         model_out.update({'encoder_attention': encoder_attention, 'text_mask': padding_mask})
         return model_out
     
-    def predict(self, inp, max_length=1000, encode=True, verbose=True):
-        if encode:
-            inp = self.encode_text(inp)
-        inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
-        output = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
-        output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
-        out_dict = {}
-        encoder_output, padding_mask, encoder_attention = self.forward_encoder(inp)
-        for i in range(int(max_length // self.r) + 1):
-            model_out = self.forward_decoder(encoder_output, output, padding_mask)
-            output = tf.concat([output, model_out['mel'][:1, -1:, :]], axis=-2)
-            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['mel'][:1, -self.r:, :]],
-                                      axis=-2)
-            stop_pred = model_out['stop_prob'][:, -1]
-            out_dict = {'mel': output_concat[0, 1:, :],
-                        'decoder_attention': model_out['decoder_attention'],
-                        'encoder_attention': encoder_attention}
-            if verbose:
-                sys.stdout.write(f'\rpred text mel: {i} stop out: {float(stop_pred[0, 2])}')
-            if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
-                if verbose:
-                    print('Stopping')
-                break
-        return out_dict
-    
     def set_constants(self,
                       learning_rate: float = None,
                       reduction_factor: float = None,
@@ -312,6 +285,7 @@ class ForwardTransformer(tf.keras.models.Model):
                  encoder_feed_forward_dimension: int = None,
                  decoder_feed_forward_dimension: int = None,
                  debug=False,
+                 end_of_sentence_pitch_focus=True,
                  **kwargs):
         super(ForwardTransformer, self).__init__(**kwargs)
         self.text_pipeline = TextToTokens.default(phoneme_language,
@@ -319,6 +293,7 @@ class ForwardTransformer(tf.keras.models.Model):
                                                   with_stress=with_stress)
         self.drop_n_heads = 0
         self.mel_channels = mel_channels
+        self.end_of_sentence_pitch_focus = end_of_sentence_pitch_focus
         self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
                                                         encoder_model_dimension,
                                                         name='Embedding')
@@ -393,12 +368,6 @@ class ForwardTransformer(tf.keras.models.Model):
         self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
     
-    def _set_heads(self, heads):
-        if self.drop_n_heads == heads:
-            return
-        self.drop_n_heads = heads
-        self._apply_all_signatures()
-    
     def _train_step(self, input_sequence, target_sequence, target_durations, target_pitch):
         target_durations = tf.expand_dims(target_durations, -1)
         target_pitch = tf.expand_dims(target_pitch, -1)
@@ -415,9 +384,11 @@ class ForwardTransformer(tf.keras.models.Model):
             new_loss = loss_vals[0] + loss_vals[1]
             error_mask = tf.cast(tf.math.logical_not(tf.math.equal(target_pitch, 0.)), tf.float32)
             abs_err = tf.abs(model_out['pitch'] - target_pitch) * error_mask
-            ts_weight = tf.square(tf.linspace(1., 2., tf.shape(target_pitch)[-2]))
-            ts_weight = tf.cast(ts_weight, tf.float32)
-            pitch_error = tf.reduce_mean(abs_err * ts_weight[None, :, None])
+            if self.end_of_sentence_pitch_focus:
+                ts_weight = tf.square(tf.linspace(1., 2., tf.shape(target_pitch)[-2]))
+                ts_weight = tf.cast(ts_weight, tf.float32)
+                abs_err = abs_err * ts_weight[None, :, None]
+            pitch_error = tf.reduce_mean(abs_err)
             new_loss += pitch_error
         model_out.update({'loss': new_loss})
         model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': pitch_error}})
@@ -446,9 +417,7 @@ class ForwardTransformer(tf.keras.models.Model):
         new_loss = loss_vals[0] + loss_vals[1]
         error_mask = tf.cast(tf.math.logical_not(tf.math.equal(target_pitch, 0.)), tf.float32)
         abs_err = tf.abs(model_out['pitch'] - target_pitch) * error_mask
-        ts_weight = tf.square(tf.linspace(1., 2., tf.shape(target_pitch)[-1]))
-        ts_weight = tf.cast(ts_weight, tf.float32)
-        pitch_error = tf.reduce_mean(abs_err * ts_weight)
+        pitch_error = tf.reduce_mean(abs_err)
         new_loss += pitch_error
         
         model_out.update({'loss': new_loss})
