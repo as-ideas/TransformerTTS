@@ -68,12 +68,12 @@ def validate(model,
             phon_dur = durations[k]
             imel = mel[k][1:]  # remove start token (is padded so end token can't be removed/not an issue)
             itext = text[k][1:]  # remove start token (is padded so end token can't be removed/not an issue)
-            iphon = model.text_pipeline.tokenizer.decode(itext)
+            iphon = model.text_pipeline.tokenizer.decode(itext).replace('/', '')
             cut_mels, cut_texts = cut_with_durations(durations=phon_dur, mel=imel, phonemes=iphon)
             for cut_idx, cut_text in enumerate(cut_texts):
                 weighted_label = 'weighted_' * mode
                 summary_manager.display_audio(
-                    tag=f'CutAudio_{weighted_label}{fname[k].numpy().decode("utf-8")}_{iphon}/{cut_idx}/{cut_text}',
+                    tag=f'CutAudio {weighted_label}{fname[k].numpy().decode("utf-8")}/{cut_idx}/{cut_text}',
                     mel=cut_mels[cut_idx], description=iphon)
     return val_loss['loss']
 
