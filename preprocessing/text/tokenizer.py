@@ -43,15 +43,8 @@ class Phonemizer:
         self.special_hyphen = '—'
         self.punctuation = ';:,.!?¡¿—…"«»“”'
         self._whitespace_re = re.compile(r'\s+')
-        self.replace_dict = {'–': '-'}
-    
-    def _replace_items(self, text: str) -> str:
-        for item in self.replace_dict:
-            text = text.replace(item, self.replace_dict[item])
-        return text
     
     def _preprocess_string(self, text: str):
-        text = self._replace_items(text)
         text = text.replace('-', self.special_hyphen)
         return text
     
@@ -61,7 +54,7 @@ class Phonemizer:
         elif isinstance(text, str):
             return self._preprocess_string(text)
         else:
-            raise TypeError(f'TextCleaner.clean() input must be list or str, not {type(text)}')
+            raise TypeError(f'{self} input must be list or str, not {type(text)}')
     
     def _collapse_whitespace(self, text: str) -> str:
         return re.sub(self._whitespace_re, ' ', text)
@@ -79,7 +72,7 @@ class Phonemizer:
         elif isinstance(text, str):
             return self._postprocess_string(text)
         else:
-            raise TypeError(f'TextCleaner.clean() input must be list or str, not {type(text)}')
+            raise TypeError(f'{self} input must be list or str, not {type(text)}')
     
     def __call__(self, text: Union[str, list], with_stress=None, njobs=None, language=None) -> Union[str, list]:
         language = language or self.language

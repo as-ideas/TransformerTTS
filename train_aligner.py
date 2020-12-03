@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import trange
 
 from utils.config_manager import Config
-from preprocessing.datasets import TextMelDataset, AutoregressivePreprocessor
+from preprocessing.datasets import AlignerDataset, AlignerPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging_utils import SummaryManager
@@ -89,12 +89,12 @@ config_manager.print_config()
 # get model, prepare data for model, create datasets
 model = config_manager.get_model()
 config_manager.compile_model(model)
-data_prep = AutoregressivePreprocessor.from_config(config_manager,
-                                                   tokenizer=model.text_pipeline.tokenizer)  # TODO: tokenizer is now static
-train_data_handler = TextMelDataset.from_config(config_manager,
+data_prep = AlignerPreprocessor.from_config(config_manager,
+                                            tokenizer=model.text_pipeline.tokenizer)  # TODO: tokenizer is now static
+train_data_handler = AlignerDataset.from_config(config_manager,
                                                 preprocessor=data_prep,
                                                 kind='train')
-valid_data_handler = TextMelDataset.from_config(config_manager,
+valid_data_handler = AlignerDataset.from_config(config_manager,
                                                 preprocessor=data_prep,
                                                 kind='valid')
 

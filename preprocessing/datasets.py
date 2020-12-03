@@ -8,6 +8,7 @@ import tensorflow as tf
 from utils.config_manager import Config
 from preprocessing.text.tokenizer import Tokenizer
 from preprocessing.metadata_readers import get_preprocessor_by_name
+from model.transformer_utils import positional_encoding
 
 
 def get_files(path: Union[Path, str], extension='.wav') -> List[Path]:
@@ -27,7 +28,8 @@ class DataReader:
     training data.
     """
     
-    def __init__(self, data_directory: str, metadata_path: str, metadata_reading_function=None, scan_wavs=False, training=False, is_processed=False):
+    def __init__(self, data_directory: str, metadata_path: str, metadata_reading_function=None, scan_wavs=False,
+                 training=False, is_processed=False):
         self.metadata_reading_function = metadata_reading_function
         self.data_directory = Path(data_directory)
         self.metadata_path = Path(metadata_path)
@@ -49,8 +51,8 @@ class DataReader:
         if kind not in kinds:
             raise ValueError(f'Invalid kind type. Expected one of: {kinds}')
         reader = get_preprocessor_by_name('post_processed_reader')
-        training=False
-        is_processed=True
+        training = False
+        is_processed = True
         if kind == 'train':
             metadata = config_manager.train_metadata_path
             training = True
@@ -71,7 +73,49 @@ class DataReader:
                    is_processed=is_processed)
 
 
-class TextMelDataset:
+class AlignerPreprocessor:
+    
+    def __init__(self,
+                 mel_channels: int,
+                 mel_start_value: float,
+                 mel_end_value: float,
+                 tokenizer: Tokenizer,
+                 pe_mel: bool,
+                 max_pe: int = None):
+        self.output_types = (tf.float32, tf.int32, tf.int32, tf.string, tf.float32)
+        self.padded_shapes = ([None, mel_channels], [None], [None], [], [None, mel_channels])
+        self.start_vec = np.ones((1, mel_channels)) * mel_start_value
+        self.end_vec = np.ones((1, mel_channels)) * mel_end_value
+        self.tokenizer = tokenizer
+        self.pe_mel = pe_mel
+        if pe_mel:
+            self.pos_encoding = positional_encoding(max_pe, mel_channels)
+    
+    def __call__(self, mel, text, sample_name):
+        encoded_phonemes = self.tokenizer(text)
+        tar_mel = mel
+        if self.pe_mel:
+            tar_mel += self.pos_encoding[0, :mel.shape[0], :]
+        tar_norm_mel = np.concatenate([self.start_vec, tar_mel, self.end_vec], axis=0)
+        norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
+        stop_probs = np.ones((norm_mel.shape[0]))
+        stop_probs[-1] = 2
+        return norm_mel, encoded_phonemes, stop_probs, sample_name, tar_norm_mel
+    
+    def get_sample_length(self, norm_mel, encoded_phonemes, stop_probs, sample_name, tar_norm_mel):
+        return tf.shape(norm_mel)[0]
+    
+    @classmethod
+    def from_config(cls, config: Config, tokenizer: Tokenizer):
+        return cls(mel_channels=config.config['mel_channels'],
+                   mel_start_value=config.config['mel_start_value'],
+                   mel_end_value=config.config['mel_end_value'],
+                   tokenizer=tokenizer,
+                   pe_mel=config.config['use_pe_target_mel'],
+                   max_pe=config.config['decoder_max_position_encoding'])
+
+
+class AlignerDataset:
     def __init__(self,
                  data_reader: DataReader,
                  preprocessor,
@@ -118,7 +162,7 @@ class TextMelDataset:
                    mel_directory=mel_directory)
 
 
-class ForwardPreprocessor:
+class TTSPreprocessor:
     def __init__(self, mel_channels, tokenizer: Tokenizer):
         self.output_types = (tf.float32, tf.int32, tf.int32, tf.float32, tf.string)
         self.padded_shapes = ([None, mel_channels], [None], [None], [None], [])
@@ -137,10 +181,10 @@ class ForwardPreprocessor:
                    tokenizer=tokenizer)
 
 
-class TextMelDurPitchDataset:
+class TTSDataset:
     def __init__(self,
                  data_reader: DataReader,
-                 preprocessor: ForwardPreprocessor,
+                 preprocessor: TTSPreprocessor,
                  mel_directory: str,
                  pitch_directory: str,
                  duration_directory: str,
@@ -159,7 +203,6 @@ class TextMelDurPitchDataset:
             (self.duration_directory / sample_name).with_suffix('.npy').as_posix())
         char_wise_pitch = np.load((self.pitch_per_char_directory / sample_name).with_suffix('.npy').as_posix())
         return mel, text, durations, char_wise_pitch
-
     
     def _process_sample(self, sample_name: str):
         mel, text, durations, pitch = self._read_sample(sample_name)
@@ -251,85 +294,3 @@ class Dataset:
         if shuffle:
             self._random.shuffle(samples)
         return (self.preprocessor(s) for s in samples)
-
-from model.transformer_utils import positional_encoding
-class AutoregressivePreprocessor:
-    
-    def __init__(self,
-                 mel_channels: int,
-                 mel_start_value: float,
-                 mel_end_value: float,
-                 tokenizer: Tokenizer,
-                 pe_mel: bool,
-                 max_pe: int=None):
-        self.output_types = (tf.float32, tf.int32, tf.int32, tf.string, tf.float32)
-        self.padded_shapes = ([None, mel_channels], [None], [None], [], [None, mel_channels])
-        self.start_vec = np.ones((1, mel_channels)) * mel_start_value
-        self.end_vec = np.ones((1, mel_channels)) * mel_end_value
-        self.tokenizer = tokenizer
-        self.pe_mel = pe_mel
-        if pe_mel:
-            self.pos_encoding = positional_encoding(max_pe, mel_channels)
-    
-    def __call__(self, mel, text, sample_name):
-        encoded_phonemes = self.tokenizer(text)
-        tar_mel = mel
-        if self.pe_mel:
-            tar_mel += self.pos_encoding[0, :mel.shape[0], :]
-        tar_norm_mel = np.concatenate([self.start_vec, tar_mel, self.end_vec], axis=0)
-        norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
-        stop_probs = np.ones((norm_mel.shape[0]))
-        stop_probs[-1] = 2
-        return norm_mel, encoded_phonemes, stop_probs, sample_name, tar_norm_mel
-    
-    def get_sample_length(self, norm_mel, encoded_phonemes, stop_probs, sample_name, tar_norm_mel):
-        return tf.shape(norm_mel)[0]
-    
-    @classmethod
-    def from_config(cls, config: Config, tokenizer: Tokenizer):
-        return cls(mel_channels=config.config['mel_channels'],
-                   mel_start_value=config.config['mel_start_value'],
-                   mel_end_value=config.config['mel_end_value'],
-                   tokenizer=tokenizer,
-                   pe_mel=config.config['use_pe_target_mel'],
-                   max_pe=config.config['decoder_max_position_encoding'])
-
-
-if __name__ == '__main__':
-    ljspeech_folder = '/Volumes/data/datasets/LJSpeech-1.1'
-    # metadata_path = '/Volumes/data/datasets/LJSpeech-1.1/metadata.csv'
-    metadata_path = '/Volumes/data/datasets/LJSpeech-1.1/transformer_tts/phonemized_metadata.txt'
-    metadata_reader = get_preprocessor_by_name('ljspeech')
-    data_reader = DataReader(data_directory=ljspeech_folder, metadata_path=metadata_path,
-                             metadata_reading_function=metadata_reader, scan_wavs=True)
-    key_list = data_reader.filenames
-    print('metadata head')
-    for key in key_list[:5]:
-        print(f'{key}: {data_reader.text_dict[key]}')
-    print('metadata tail')
-    for key in key_list[-5:]:
-        print(f'{key}: {data_reader.text_dict[key]}')
-    print('wav paths head')
-    for key in key_list[:5]:
-        print(f'{key}: {data_reader.wav_paths[key]}')
-    print('wav paths tail')
-    for key in key_list[-5:]:
-        print(f'{key}: {data_reader.wav_paths[key]}')
-    mel_dir = Path('/Volumes/data/datasets/LJSpeech-1.1/transformer_tts/mels')
-    if mel_dir.exists():
-        from preprocessing.text.tokenizer import Tokenizer
-        
-        tokenizer = Tokenizer()
-        preprocessor = AutoregressivePreprocessor(mel_channels=80,
-                                                  mel_start_value=.5,
-                                                  mel_end_value=-.5,
-                                                  tokenizer=tokenizer)
-        dataset_creator = TextMelDataset(data_reader=data_reader,
-                                         preprocessor=preprocessor,
-                                         mel_directory=mel_dir)
-        dataset = dataset_creator.get_dataset(shuffle=True, drop_remainder=False, bucket_boundaries=[500],
-                                              bucket_batch_sizes=[6, 6])
-        for i in range(10):
-            batch = dataset.next_batch()
-            bsh = tf.shape(batch[0])
-            print(f'bs{bsh[0]} | len {bsh[1]}')

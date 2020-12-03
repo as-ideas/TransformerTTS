@@ -5,7 +5,7 @@ import numpy as np
 from tqdm import trange
 
 from utils.config_manager import Config
-from preprocessing.datasets import TextMelDurPitchDataset, ForwardPreprocessor
+from preprocessing.datasets import TTSDataset, TTSPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging_utils import SummaryManager
@@ -57,14 +57,14 @@ config.print_config()
 model = config.get_model()
 config.compile_model(model)
 
-data_prep = ForwardPreprocessor.from_config(config=config,
-                                            tokenizer=model.text_pipeline.tokenizer)
-train_data_handler = TextMelDurPitchDataset.from_config(config,
-                                                   preprocessor=data_prep,
-                                                   kind='train')
-valid_data_handler = TextMelDurPitchDataset.from_config(config,
-                                                   preprocessor=data_prep,
-                                                   kind='valid')
+data_prep = TTSPreprocessor.from_config(config=config,
+                                        tokenizer=model.text_pipeline.tokenizer)
+train_data_handler = TTSDataset.from_config(config,
+                                            preprocessor=data_prep,
+                                            kind='train')
+valid_data_handler = TTSDataset.from_config(config,
+                                            preprocessor=data_prep,
+                                            kind='valid')
 train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=config_dict['bucket_batch_sizes'],
                                                bucket_boundaries=config_dict['bucket_boundaries'],
                                                shuffle=True)

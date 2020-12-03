@@ -8,10 +8,10 @@ from p_tqdm import p_umap
 
 from utils.config_manager import Config
 from utils.logging_utils import SummaryManager
-from preprocessing.datasets import AutoregressivePreprocessor
+from preprocessing.datasets import AlignerPreprocessor
 from utils.alignments import get_durations_from_alignment
 from utils.scripts_utils import dynamic_memory_allocation
-from preprocessing.datasets import TextMelDataset
+from preprocessing.datasets import AlignerDataset
 from preprocessing.datasets import DataReader
 
 np.random.seed(42)
@@ -41,9 +41,9 @@ if __name__ == '__main__':
     if model.r != 1:
         print(f"ERROR: model's reduction factor is greater than 1, check config. (r={model.r}")
     
-    data_prep = AutoregressivePreprocessor.from_config(config=config_manager,
-                                                       tokenizer=model.text_pipeline.tokenizer)
-    data_handler = TextMelDataset.from_config(config_manager,
+    data_prep = AlignerPreprocessor.from_config(config=config_manager,
+                                                tokenizer=model.text_pipeline.tokenizer)
+    data_handler = AlignerDataset.from_config(config_manager,
                                               preprocessor=data_prep,
                                               kind='phonemized')
     target_dir = config_manager.duration_dir

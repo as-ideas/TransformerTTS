@@ -154,12 +154,12 @@ class Aligner(tf.keras.models.Model):
     
     def _gta_forward(self, inp, tar, stop_prob, tar_mel, training):
         tar_inp = tar[:, :-1]
-        mel_len = int(tf.shape(tar_inp)[1])
-        
         tar_real = tar_mel[:, 1:]
+        tar_stop_prob = stop_prob[:, 1:]
+        
+        mel_len = int(tf.shape(tar_inp)[1])
         autoregr_tar_mel = tar_inp[:, 0::self.r, :]
         
-        tar_stop_prob = stop_prob[:, 1:]
         with tf.GradientTape() as tape:
             model_out = self.__call__(inputs=inp,
                                       targets=autoregr_tar_mel,
