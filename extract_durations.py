@@ -30,7 +30,6 @@ if __name__ == '__main__':
     weighted = not args.best
     tag_description = ''.join([
         f'{"_weighted" * weighted}{"_best" * (not weighted)}',
-        f'_layer{args.extract_layer}'
     ])
     writer_tag = f'DurationExtraction{tag_description}'
     print(writer_tag)

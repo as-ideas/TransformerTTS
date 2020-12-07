@@ -34,7 +34,7 @@ class Config:
         self.mel_dir = self.data_dir / f"mels.{self.config['normalizer']}"
         self.duration_dir = self.data_dir / f"durations.{self.session_name}"
         self.pitch_dir = self.data_dir / f"pitch.{self.config['normalizer']}"
-        self.pitch_per_char = self.data_dir / f"pitch.{self.config['normalizer']}.char"
+        self.pitch_per_char = self.data_dir / f"pitch.{self.session_name}.char"
         # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         if model_kind == 'aligner':
