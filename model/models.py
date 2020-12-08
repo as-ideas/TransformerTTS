@@ -477,7 +477,7 @@ class ForwardTransformer(tf.keras.models.Model):
     def encode_text(self, text):
         return self.text_pipeline(text)
     
-    def predict(self, inp, encode=True, speed_regulator=1., phoneme_max_duration={',': 10., ':': 15., ' ': 3.}):
+    def predict(self, inp, encode=True, speed_regulator=1., phoneme_max_duration=None):
         if encode:
             inp = self.encode_text(inp)
         if len(tf.shape(inp)) < 2:
@@ -499,6 +499,6 @@ class ForwardTransformer(tf.keras.models.Model):
         else:
             new_mask = np.ones(tf.shape(encoded_text)) * float('inf')
         for item in phoneme_max_duration.items():
-            phon_idx = self.tokenizer(item[0])[0]
+            phon_idx = self.text_pipeline.tokenizer(item[0])[0]
             new_mask[np_text == phon_idx] = item[1]
         return tf.cast(tf.convert_to_tensor(new_mask), tf.float32)
