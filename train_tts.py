@@ -70,7 +70,7 @@ def validate(model,
                                   mel=model_out['mel'][0])
     summary_manager.display_audio(tag=f'Validation {fname[0].numpy().decode("utf-8")}/target', mel=mel[0])
     # predict withoyt enforcing durations and pitch
-    model_out, time_taken = model.predict(phonemes, encode=False)
+    model_out = model.predict(phonemes, encode=False)
     pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
     pred_lengths = tf.squeeze(pred_lengths)
     tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(mel), axis=-1), tf.int32)
@@ -80,8 +80,8 @@ def validate(model,
         tar_value = mel[j, :tar_lengths[j], :]
         summary_manager.display_mel(mel=predval, tag=f'Test/{fname[j].numpy().decode("utf-8")}/predicted')
         summary_manager.display_mel(mel=tar_value, tag=f'Test/{fname[j].numpy().decode("utf-8")}/target')
-        summary_manager.display_audio(tag=f'{fname[j].numpy().decode("utf-8")}/target', mel=tar_value)
-        summary_manager.display_audio(tag=f'{fname[j].numpy().decode("utf-8")}/prediction',
+        summary_manager.display_audio(tag=f'Prediction {fname[j].numpy().decode("utf-8")}/target', mel=tar_value)
+        summary_manager.display_audio(tag=f'Prediction {fname[j].numpy().decode("utf-8")}/prediction',
                                       mel=predval)
     return val_loss['loss']
 
