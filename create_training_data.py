@@ -18,7 +18,6 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, required=True)
 parser.add_argument('--skip_phonemes', action='store_true')
 parser.add_argument('--skip_mels', action='store_true')
-parser.add_argument('--pitch_per_char', action='store_true')
 
 args = parser.parse_args()
 for arg in vars(args):
