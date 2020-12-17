@@ -32,18 +32,6 @@ def ljspeech(metadata_path: str, column_sep='|') -> dict:
     return text_dict
 
 
-def asvoice4_english(metadata_path: str, column_sep='|') -> dict:
-    text_dict = {}
-    with open(metadata_path, 'r', encoding='utf-8') as f:
-        for l in f.readlines():
-            l_split = l.split(column_sep)
-            filename, text = l_split[0], l_split[1]
-            if filename.endswith('.wav'):
-                filename = filename.split('.')[0]
-            text = text.replace('\n', '')
-            text_dict.update({filename: text})
-    return text_dict
-
 def post_processed_reader(metadata_path: str, column_sep='|', upsample_indicators='?!', upsample_factor=10) -> Tuple[
     Dict, List]:
     """
