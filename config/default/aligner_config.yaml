@@ -1,11 +1,11 @@
 # ARCHITECTURE
-decoder_model_dimension: 256
+decoder_model_dimension: 512
 encoder_model_dimension: 512
-decoder_num_heads: [4, 4, 4, 4]  # the length of this defines the number of layers
-encoder_num_heads: [4, 4, 4, 4]  # the length of this defines the number of layers
+decoder_num_heads: [8, 8, 8, 1]  # the length of this defines the number of layers
+encoder_num_heads: [8, 8, 8, 8]  # the length of this defines the number of layers
 encoder_feed_forward_dimension: 1024
 decoder_feed_forward_dimension: 1024
-decoder_prenet_dimension: 256
+decoder_prenet_dimension: 512
 encoder_prenet_dimension: 512
 encoder_max_position_encoding: 10000
 decoder_max_position_encoding: 10000
@@ -20,22 +20,21 @@ learning_rate_schedule:
   - [0, 1.0e-4]
 head_drop_schedule:  # head-level dropout: how many heads to set to zero at training time
   - [0, 0]
-  - [15_000, 1]
 reduction_factor_schedule:
   - [0, 10]
   - [80_000, 1]
-max_steps: 160_000
+max_steps: 120_000
 bucket_boundaries: [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200] # mel bucketing
 bucket_batch_sizes: [64, 42, 32, 25, 21, 18, 16, 14, 12, 11, 1]
 force_encoder_diagonal_steps: 1_000
 force_decoder_diagonal_steps: 5_000
-use_pe_target_mel: True  # add positional encodings to target mels
-extract_attention_weighted: True
+use_pe_target_mel: False  # add positional encodings to target mels
+extract_attention_weighted: False
 debug: False
 
 # LOGGING
 validation_frequency: 5_000
-weights_save_frequency: 5_000
+weights_save_frequency: 10_000
 train_images_plotting_frequency: 1_000
 keep_n_weights: 4
 keep_checkpoint_every_n_hours: 12
