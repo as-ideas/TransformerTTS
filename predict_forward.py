@@ -15,6 +15,7 @@ if __name__ == '__main__':
     parser.add_argument('--outdir', '-o', dest='outdir', default=None, type=str)
     parser.add_argument('--store_mel', '-m', dest='store_mel', action='store_true')
     parser.add_argument('--verbose', '-v', dest='verbose', action='store_true')
+    parser.add_argument('--all_weights', '-ww', dest='all_weights', action='store_true')
     args = parser.parse_args()
     
     if args.file is not None:
@@ -25,6 +26,8 @@ if __name__ == '__main__':
         text = [args.text]
         fname = 'custom_text'
     else:
+        fname = None
+        text = None
         print(f'Specify either an input text (-t "some text") or a text input file (-f /path/to/file.txt)')
         exit()
     config_loader = Config(config_path=args.config, model_kind=f'tts')
@@ -32,15 +35,22 @@ if __name__ == '__main__':
         outdir = config_loader.log_dir
     else:
         outdir = Path(args.outdir)
-    outdir = outdir / 'outputs'
+    outdir = outdir / 'outputs' / fname
     outdir.mkdir(exist_ok=True, parents=True)
     audio = Audio(config_loader.config)
-    all_weights = [config_loader.weights_dir / x.stem for x in config_loader.weights_dir.iterdir() if x.suffix == 'index']
+    if args.checkpoint is not None:
+        all_weights = [args.checkpoint]
+        
+    elif args.all_weights:
+        all_weights = [(config_loader.weights_dir / x.stem).as_posix() for x in config_loader.weights_dir.iterdir() if
+                       x.suffix == '.index']
+    else:
+        all_weights = [None] # default
+        
     print(f'\nWeights list: \n{all_weights}\n')
     for weights in all_weights:
         model = config_loader.load_model(weights)
         file_name = f'{fname}_transformer_step{model.step}'
-        print(f'Output wav under {(outdir / file_name).with_suffix(".wav")}')
         wavs = []
         for i, text_line in enumerate(text):
             phons = model.text_pipeline.phonemizer(text_line)
@@ -52,5 +62,7 @@ if __name__ == '__main__':
             wav = audio.reconstruct_waveform(out['mel'].numpy().T)
             wavs.append(wav)
             if args.store_mel:
-                np.save((outdir / file_name + f'_{i}').with_suffix('.mel'), out['mel'].numpy())
-        audio.save_wav(np.concatenate(wavs), (outdir / file_name).with_suffix('.wav'))
+                np.save((outdir / (file_name + f'_{i}')).with_suffix('.mel'), out['mel'].numpy())
+            audio.save_wav(wav, (outdir / (file_name + f'_{i}')).with_suffix('.wav'))
+    # audio.save_wav(np.concatenate(wavs), (outdir / file_name).with_suffix('.wav'))
+    print(f'Output wav under {(outdir / file_name)}')
