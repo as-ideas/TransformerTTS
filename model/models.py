@@ -122,7 +122,7 @@ class Aligner(tf.keras.models.Model):
         dec_target_padding_mask = create_mel_padding_mask(targets)
         look_ahead_mask = create_look_ahead_mask(tf.shape(targets)[1])
         combined_mask = tf.maximum(dec_target_padding_mask, look_ahead_mask)
-        dec_input = self.decoder_prenet(targets)
+        dec_input = self.decoder_prenet(targets, training=training)
         dec_output, attention_weights = self.decoder(inputs=dec_input,
                                                      enc_output=encoder_output,
                                                      training=training,
@@ -236,6 +236,30 @@ class Aligner(tf.keras.models.Model):
             return
         self.drop_n_heads = heads
         self._apply_all_signatures()
+    
+    def align(self, text, mel, mels_have_start_end_vectors=False, phonemize=False, encode_phonemes=False, plot=True):
+        if phonemize:
+            text = self.text_pipeline.phonemizer(text)
+        if encode_phonemes:
+            text = self.text_pipeline.tokenizer(text)
+        
+        if len(tf.shape(text)) < 2:
+            text = tf.expand_dims(text, axis=0)
+        text = tf.cast(text, tf.int32)
+        if len(tf.shape(mel)) < 3:
+            mel = tf.expand_dims(mel, axis=0)
+        if self.r != 1:
+            print('WARNING: reduction factor != 1.')
+        if mels_have_start_end_vectors:
+            tar_inp = mel[:, :-1]
+        else:
+            start_vecs = tf.expand_dims(self.start_vec, axis=0)
+            start_vecs = tf.tile(start_vecs, (tf.shape(mel)[0], 1, 1))
+            tar_inp = np.concatenate([start_vecs, mel], axis=1)
+        autoregr_tar_mel = tar_inp[:, 0::self.r, :]
+        model_out = self.forward(inp=text, output=autoregr_tar_mel)
+        attn_weights = model_out['decoder_attention']['Decoder_LastBlock_CrossAttention']
+        return attn_weights, model_out
     
     def call(self, inputs, targets, training):
         encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)

@@ -8,7 +8,7 @@ from data.text.symbols import all_phonemes
 
 class Tokenizer:
     
-    def __init__(self, start_token='>', end_token='<', pad_token='/', add_start_end=True, alphabet=None):
+    def __init__(self, start_token='>', end_token='<', pad_token='/', add_start_end=True, alphabet=None, add_breathing=True):
         if not alphabet:
             self.alphabet = all_phonemes
         else:
@@ -24,9 +24,17 @@ class Tokenizer:
             self.vocab_size += 2
             self.idx_to_token[self.start_token_index] = start_token
             self.idx_to_token[self.end_token_index] = end_token
+        self.add_breathing = add_breathing
+        if add_breathing:
+            self.initial_breathing_token_index = self.vocab_size
+            self.vocab_size += 1
+            self.initial_breathing_token = '@'
+            self.idx_to_token[self.initial_breathing_token_index] = self.initial_breathing_token
     
     def __call__(self, sentence: str) -> list:
         sequence = [self.token_to_idx[c] for c in sentence]  # No filtering: text should only contain known chars.
+        if self.add_breathing:
+            sequence = [self.initial_breathing_token_index] + sequence
         if self.add_start_end:
             sequence = [self.start_token_index] + sequence + [self.end_token_index]
         return sequence

@@ -374,14 +374,14 @@ class DecoderPrenet(tf.keras.layers.Layer):
         self.dropout_1 = tf.keras.layers.Dropout(self.rate)
         self.dropout_2 = tf.keras.layers.Dropout(self.rate)
     
-    def call(self, x):
+    def call(self, x, training):
         self.dropout_1.rate = self.rate
         self.dropout_2.rate = self.rate
         x = self.d1(x)
         # use dropout also in inference for positional encoding relevance
-        x = self.dropout_1(x, training=True)
+        x = self.dropout_1(x, training=training)
         x = self.d2(x)
-        x = self.dropout_2(x, training=True)
+        x = self.dropout_2(x, training=training)
         return x
 
 
