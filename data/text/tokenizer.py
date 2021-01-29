@@ -13,10 +13,10 @@ class Tokenizer:
         if not alphabet:
             self.alphabet = all_phonemes
         else:
-            self.alphabet = alphabet  # for testing
+            self.alphabet = sorted(list(set(alphabet)))  # for testing
         self.idx_to_token = {i: s for i, s in enumerate(self.alphabet, start=1)}
         self.idx_to_token[0] = pad_token
-        self.token_to_idx = {s: i for i, s in self.idx_to_token.items()}
+        self.token_to_idx = {s: [i] for i, s in self.idx_to_token.items()}
         self.vocab_size = len(self.alphabet) + 1
         self.add_start_end = add_start_end
         if add_start_end:
@@ -28,13 +28,15 @@ class Tokenizer:
         self.add_breathing = add_breathing
         if add_breathing:
             self.initial_breathing_token_index = self.vocab_size
+            self.token_to_idx[' '] = self.token_to_idx[' '] + [self.initial_breathing_token_index]
             self.vocab_size += 1
             self.initial_breathing_token = '@'
             self.idx_to_token[self.initial_breathing_token_index] = self.initial_breathing_token
-            self.token_to_idx[self.initial_breathing_token] = self.initial_breathing_token_index
+            self.token_to_idx[self.initial_breathing_token] = [self.initial_breathing_token_index]
     
     def __call__(self, sentence: str) -> list:
         sequence = [self.token_to_idx[c] for c in sentence]  # No filtering: text should only contain known chars.
+        sequence = [item for items in sequence for item in items]
         if self.add_breathing:
             sequence = [self.initial_breathing_token_index] + sequence
         if self.add_start_end:
