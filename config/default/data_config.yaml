@@ -1,8 +1,6 @@
 # PATHS: change accordingly
 data_directory: '/path/to/dataset' # path to wavs and metafile directory
-#log_directory: '/path/to/logdir'   # weights and logs are stored here
-log_directory: /Volumes/data/logs/transformer_tts/experiments     # weights and logs are stored here
-   # weights and logs are stored here
+log_directory: '/path/to/logdir'   # weights and logs are stored here
 metadata_filename: 'metadata.csv'  # name of metadata file under data_directory
 train_data_directory: 'transformer_tts_data'   # training data is stored here
 train_metadata_filename: 'train_metafile.txt' # target file for training metadata
