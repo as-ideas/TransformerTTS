@@ -1,8 +1,8 @@
 # ARCHITECTURE
 decoder_model_dimension: 256
 encoder_model_dimension: 256
-decoder_num_heads: [2, 2, 2, 2, 2, 2]  # the length of this defines the number of layers
-encoder_num_heads: [2, 2, 2, 2, 2, 2]  # the length of this defines the number of layers
+decoder_num_heads: [2, 2, 2, 2, 2]  # the length of this defines the number of layers
+encoder_num_heads: [2, 2, 2, 2, 2]  # the length of this defines the number of layers
 encoder_feed_forward_dimension: 1024
 decoder_feed_forward_dimension: 1024
 decoder_prenet_dimension: 256
@@ -20,16 +20,16 @@ decoder_dense_blocks: 0
 dropout_rate: 0.1
 learning_rate_schedule:
   - [0, 1.0e-4]
-max_steps: 160_000
+max_steps: 260_000
 bucket_boundaries: [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200] # mel bucketing
 bucket_batch_sizes: [64, 42, 32, 25, 21, 18, 16, 14, 12, 6, 1]
-val_bucket_batch_size: [64, 42, 32, 25, 21, 18, 16, 14, 12, 6, 1]
+val_bucket_batch_size: [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1]
 end_of_sentence_pitch_focus: true  # scales the pitch loss toward the end of sentence to improve question tonality
 debug: False
 
 # LOGGING
-validation_frequency: 1_000
-prediction_frequency: 2_000
+validation_frequency: 5_000
+prediction_frequency: 5_000
 weights_save_frequency: 5_000
 train_images_plotting_frequency: 1_000
 keep_n_weights: 5
