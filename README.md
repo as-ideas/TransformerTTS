@@ -15,7 +15,9 @@ This repo is based, among others, on the following papers:
 - [FastSpeech 2: Fast and High-Quality End-to-End Text to Speech](https://arxiv.org/abs/2006.04558)
 - [FastPitch: Parallel Text-to-speech with Pitch Prediction](https://fastpitch.github.io/)
 
-Our pre-trained LJSpeech models are compatible with the pre-trained [MelGAN](https://github.com/seungwonpark/melgan) vocoder.
+Our pre-trained LJSpeech model is compatible with the pre-trained vocoders:
+- [MelGAN](https://github.com/seungwonpark/melgan)
+- [HiFiGAN](https://github.com/jik876/hifi-gan)
 
 (older versions are available also for [WaveRNN](https://github.com/fatchord/WaveRNN))
 
@@ -130,6 +132,12 @@ tensorboard --logdir /logs/directory/
 ![Tensorboard Demo](https://raw.githubusercontent.com/as-ideas/TransformerTTS/master/docs/tboard_demo.gif)
 
 ## Prediction
+### Using the basic Griffin-Lim algorithm
+From command line with
+```commandline
+python predict_tts.py -t "Please, say something." --config /path/to/config/
+```
+Or in a python script
 ```python
 from utils.config_manager import Config
 from data.audio import Audio
@@ -142,7 +150,19 @@ out = model.predict('Please, say something.')
 # Convert spectrogram to wav (with griffin lim)
 wav = audio.reconstruct_waveform(out['mel'].numpy().T)
 ```
-
+### Using pre-trained vocoders
+- Install the additional requirements
+```commandline
+pip install -r vocoding/extra_requirements.txt
+```
+- Download the pretrained weights from [MelGAN](https://github.com/seungwonpark/melgan) or [HiFiGAN](https://github.com/jik876/hifi-gan)
+- rename the model file to `model.pt`
+- place them under the respective config folder, for example:
+``` vocoding/melgan/en/model.pt```
+Finally, run `predict_tts.py` specifying the vocoder name and the path to the config, for instance
+```commandline
+python predict_tts.py -t "Please, say something." --config /path/to/config/ --vocoder hifigan --voc_config vocoding/hifigan/en
+```
 ## Model Weights
 
 | Model URL | Commit | Vocoder Commit|
