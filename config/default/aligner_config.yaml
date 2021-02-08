@@ -30,7 +30,7 @@ val_bucket_batch_size: [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1]
 force_encoder_diagonal_steps: 1_000
 force_decoder_diagonal_steps: 7_000
 use_pe_target_mel: False  # add positional encodings to target mels
-extract_attention_weighted: False
+extract_attention_weighted: False # weighted average between last layer decoder attention heads when extracting durations
 debug: False
 
 # LOGGING
