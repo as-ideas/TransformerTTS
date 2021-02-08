@@ -20,10 +20,12 @@ class Config:
         self.yaml = ruamel.yaml.YAML()
         self.config, self.data_config, self.model_config = self._load_config()
         self.git_hash = self._get_git_hash()
-        self.session_name = '.'.join([self.config['data_name'], self.config['session_name']])
+        self.data_name = f"{self.config['data_name']}.{self.config['normalizer']}"
+        self.session_name = f"{self.data_name}.{self.config['session_name']}"
+        self.aligner_session_name = f"{self.data_name}.{self.config['aligner_session_name']}"
         # create paths
         self.dataset_dir = Path(self.config['data_directory'])
-        self.data_dir = Path('.'.join([self.config['train_data_directory'], self.config['data_name']]))
+        self.data_dir = Path(f"{self.config['train_data_directory']}.{self.data_name}")
         self.metadata_path = self.dataset_dir / self.config['metadata_filename']
         self.base_dir = Path(self.config['log_directory']) / self.session_name / model_kind
         self.log_dir = self.base_dir / 'logs'
@@ -31,10 +33,10 @@ class Config:
         self.train_metadata_path = self.data_dir / self.config['train_metadata_filename']
         self.valid_metadata_path = self.data_dir / self.config['valid_metadata_filename']
         self.phonemized_metadata_path = self.data_dir / 'phonemized_metadata.txt'
-        self.mel_dir = self.data_dir / f"mels.{self.config['normalizer']}"
-        self.duration_dir = self.data_dir / f"durations.{self.session_name}"
-        self.pitch_dir = self.data_dir / f"pitch.{self.config['normalizer']}"
-        self.pitch_per_char = self.data_dir / f"pitch.{self.session_name}.char"
+        self.mel_dir = self.data_dir / "mels"
+        self.duration_dir = self.data_dir / f"durations.{self.aligner_session_name}"
+        self.pitch_dir = self.data_dir / "pitch"
+        self.pitch_per_char = self.data_dir / f"pitch.{self.aligner_session_name}.char"
         # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         if model_kind == 'aligner':

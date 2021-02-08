@@ -5,8 +5,10 @@ metadata_filename: 'metadata.csv'  # name of metadata file under data_directory
 train_data_directory: 'transformer_tts_data'   # training data is stored here
 train_metadata_filename: 'train_metafile.txt' # target file for training metadata
 valid_metadata_filename: 'valid_metafile.txt'
-session_name: wavernn                 # session naming, can be specified in command line
 data_name: ljspeech
+session_name: wavernn                 # session naming, can be specified in command line
+aligner_session_name: aligner     # aligner session naming, useful for e.g. re-using durations with different tts models
+tts_session_name: tts             # tts session naming
 
 # DATA
 n_samples: 100000
