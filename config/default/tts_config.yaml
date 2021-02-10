@@ -24,7 +24,7 @@ max_steps: 260_000
 bucket_boundaries: [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200] # mel bucketing
 bucket_batch_sizes: [64, 42, 32, 25, 21, 18, 16, 14, 12, 6, 1]
 val_bucket_batch_size: [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1]
-end_of_sentence_pitch_focus: true  # scales the pitch loss toward the end of sentence to improve question tonality
+end_of_sentence_pitch_focus: false  # scales the pitch loss toward the end of sentence to improve question tonality
 debug: False
 
 # LOGGING
