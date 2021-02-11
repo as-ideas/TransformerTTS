@@ -54,7 +54,6 @@ if not args.skip_mels:
     
     print(f"\nMels will be stored stored under")
     print(f"{cm.mel_dir}")
-    (cm.mel_dir).mkdir(exist_ok=True)
     audio = Audio(config=cm.config)
     wav_files = [metadatareader.wav_paths[k] for k in cross_file_ids]
     len_dict = {}

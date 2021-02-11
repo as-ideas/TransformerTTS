@@ -25,9 +25,9 @@ class Config:
         self.git_hash = self._get_git_hash()
         self.data_name = self.config['data_name']  # raw data
         # make session names
-        self.session_names = {"aligner": f"aligner.{self.config['aligner_session_name']}",
-                              "tts": f"tts.{self.config['tts_session_name']}",
-                              "data": f"{self.config['text_session_name']}.{self.config['audio_session_name']}"}  # post processed data name
+        self.session_names = {"aligner": f"{self.config['aligner_session_name']}",
+                              "tts": f"{self.config['tts_session_name']}",
+                              "data": f"{self.config['text_settings_name']}.{self.config['audio_settings_name']}"}  # post processed data name
         # create paths
         self.wav_directory = Path(self.config['wav_directory'])
         self.data_dir = Path(f"{self.config['train_data_directory']}.{self.data_name}")
@@ -36,12 +36,12 @@ class Config:
                         self.session_names[model_kind]
         self.log_dir = self.base_dir / 'logs'
         self.weights_dir = self.base_dir / 'weights'
-        self.train_metadata_path = self.data_dir / f"train_metadata.{self.config['text_session_name']}.txt"
-        self.valid_metadata_path = self.data_dir / f"valid_metadata.{self.config['text_session_name']}.txt"
-        self.phonemized_metadata_path = self.data_dir / f"phonemized_metadata.{self.config['text_session_name']}.txt"
-        self.mel_dir = self.data_dir / f"mels.{self.config['audio_session_name']}"
+        self.train_metadata_path = self.data_dir / f"train_metadata.{self.config['text_settings_name']}.txt"
+        self.valid_metadata_path = self.data_dir / f"valid_metadata.{self.config['text_settings_name']}.txt"
+        self.phonemized_metadata_path = self.data_dir / f"phonemized_metadata.{self.config['text_settings_name']}.txt"
+        self.mel_dir = self.data_dir / f"mels.{self.config['audio_settings_name']}"
         self.duration_dir = self.data_dir / f"durations.{self.session_names['aligner']}.{self.session_names['data']}"
-        self.pitch_dir = self.data_dir / f"pitch.{self.config['audio_session_name']}"
+        self.pitch_dir = self.data_dir / f"pitch.{self.config['audio_settings_name']}"
         self.pitch_per_char = self.data_dir / f"char_pitch.{self.session_names['aligner']}.{self.session_names['data']}"
         # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
@@ -169,10 +169,12 @@ class Config:
             self.yaml.dump(self.config, model_yaml)
     
     def create_remove_dirs(self, clear_dir=False, clear_logs=False, clear_weights=False):
+        self.base_dir.mkdir(exist_ok=True, parents=True)
         self.data_dir.mkdir(exist_ok=True)
         self.pitch_dir.mkdir(exist_ok=True)
         self.pitch_per_char.mkdir(exist_ok=True)
-        self.base_dir.mkdir(exist_ok=True, parents=True)
+        self.mel_dir.mkdir(exist_ok=True)
+        self.duration_dir.mkdir(exist_ok=True)
         if clear_dir:
             delete = input(f'Delete {self.log_dir} AND {self.weights_dir}? (y/[n])')
             if delete == 'y':

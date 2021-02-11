@@ -65,7 +65,7 @@ class DataReader:
         elif kind == 'phonemized':
             metadata = config_manager.phonemized_metadata_path
         
-        return cls(wav_directory=config_manager.wav_dir,
+        return cls(wav_directory=config_manager.wav_directory,
                    metadata_reading_function=reader,
                    metadata_path=metadata,
                    scan_wavs=scan_wavs,
