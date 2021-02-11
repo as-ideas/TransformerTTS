@@ -26,7 +26,7 @@ class Config:
         self.data_name = self.config['data_name']  # raw data
         # make session names
         self.session_names = {'data': f"{self.config['text_settings_name']}.{self.config['audio_settings_name']}"}
-        self.session_names['aligner'] = f"{self.config['aligner_session_name']}.{self.session_names['data']}",
+        self.session_names['aligner'] = f"{self.config['aligner_session_name']}.{self.session_names['data']}"
         self.session_names['tts'] = f"{self.config['tts_session_name']}.{self.session_names['aligner']}"
         # create paths
         self.wav_directory = Path(self.config['wav_directory'])
@@ -39,8 +39,8 @@ class Config:
         self.valid_metadata_path = self.data_dir / f"valid_metadata.{self.config['text_settings_name']}.txt"
         self.phonemized_metadata_path = self.data_dir / f"phonemized_metadata.{self.config['text_settings_name']}.txt"
         self.mel_dir = self.data_dir / f"mels.{self.config['audio_settings_name']}"
-        self.duration_dir = self.data_dir / f"durations.{self.session_names['aligner']}"
         self.pitch_dir = self.data_dir / f"pitch.{self.config['audio_settings_name']}"
+        self.duration_dir = self.data_dir / f"durations.{self.session_names['aligner']}"
         self.pitch_per_char = self.data_dir / f"char_pitch.{self.session_names['aligner']}"
         # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
