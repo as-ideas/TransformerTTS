@@ -26,7 +26,7 @@ class Aligner(tf.keras.models.Model):
                  phoneme_language: str,
                  with_stress: bool,
                  decoder_prenet_dropout: int,
-                 initial_breathing: bool,
+                 model_breathing: bool,
                  encoder_feed_forward_dimension: int = None,
                  decoder_feed_forward_dimension: int = None,
                  max_r: int = 10,
@@ -45,7 +45,7 @@ class Aligner(tf.keras.models.Model):
         self.text_pipeline = TextToTokens.default(phoneme_language,
                                                   add_start_end=True,
                                                   with_stress=with_stress,
-                                                  add_breathing=initial_breathing)
+                                                  add_breathing=model_breathing)
         self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
                                                         encoder_prenet_dimension,
                                                         name='Embedding')
@@ -304,7 +304,7 @@ class ForwardTransformer(tf.keras.models.Model):
                  mel_channels: int,
                  phoneme_language: str,
                  with_stress: bool,
-                 initial_breathing: bool,
+                 model_breathing: bool,
                  encoder_attention_conv_filters: int = None,
                  decoder_attention_conv_filters: int = None,
                  encoder_attention_conv_kernel: int = None,
@@ -318,7 +318,7 @@ class ForwardTransformer(tf.keras.models.Model):
         self.text_pipeline = TextToTokens.default(phoneme_language,
                                                   add_start_end=False,
                                                   with_stress=with_stress,
-                                                  add_breathing=initial_breathing)
+                                                  add_breathing=model_breathing)
         self.drop_n_heads = 0
         self.mel_channels = mel_channels
         self.end_of_sentence_pitch_focus = end_of_sentence_pitch_focus

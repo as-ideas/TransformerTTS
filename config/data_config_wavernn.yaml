@@ -1,0 +1,38 @@
+audio_settings_name: WaveRNN_default
+text_settings_name: Stress_NoBreathing
+
+# TRAINING DATA SETTINGS
+n_samples: 100000
+n_test: 100
+mel_start_value: .5
+mel_end_value: -.5
+max_mel_len: 1_200
+min_mel_len: 80
+bucket_boundaries: [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200] # mel bucketing
+bucket_batch_sizes: [64, 42, 32, 25, 21, 18, 16, 14, 12, 6, 1]
+val_bucket_batch_size: [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1]
+
+# AUDIO SETTINGS
+sampling_rate: 22050
+n_fft: 2048
+mel_channels: 80
+hop_length: 275
+win_length: 1100
+f_min: 40
+f_max: null
+normalizer: WaveRNN                 # which mel normalization to use from utils.audio.py  [MelGAN or WaveRNN]
+
+# SILENCE CUTTING
+trim_silence_top_db: 60
+trim_silence: False
+trim_long_silences: True
+# Params for trimming long silences, from https://github.com/resemble-ai/Resemblyzer/blob/master/resemblyzer/hparams.py
+vad_window_length: 30      # In milliseconds
+vad_moving_average_width: 8
+vad_max_silence_length: 12
+vad_sample_rate: 16000
+
+# TOKENIZER
+phoneme_language: 'en-us'
+with_stress: True                   # use stress symbols in phonemization
+model_breathing: false           # add a token for the initial breathing

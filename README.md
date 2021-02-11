@@ -73,9 +73,9 @@ Read the individual scripts for more command line arguments.
 You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
 
 #### Configuration
-* If training on LJSpeech, or if unsure, simply use ```config/default``` to create [MelGAN](https://github.com/seungwonpark/melgan) compatible models
-    * swap ```data_config.yaml``` with ```data_config_wavernn.yaml``` to create models compatible with [WaveRNN](https://github.com/fatchord/WaveRNN) 
-* **EDIT PATHS**: in `data_config.yaml` edit the paths to point at your dataset and log folders
+* If training on LJSpeech, or if unsure, simply use ```config/session_paths.yaml``` to create [MelGAN](https://github.com/seungwonpark/melgan) compatible models
+    * swap ```data_config.yaml``` for ```data_config_wavernn.yaml``` to create models compatible with [WaveRNN](https://github.com/fatchord/WaveRNN) 
+* **EDIT PATHS**: in `config/session_paths.yaml` edit the paths to point at your dataset and log folders
 
 #### Custom dataset
 Prepare a folder containing your metadata and wav files, for instance
@@ -88,34 +88,34 @@ Prepare a folder containing your metadata and wav files, for instance
 ```
 if `metadata.csv` has the following format
 ``` wav_file_name|transcription ```
-you can use the ljspeech preprocessor in ```data/metadata_readers.py```, otherwise create your own.
+you can use the ljspeech preprocessor in ```data/metadata_readers.py```, otherwise add your own under the same file.
 
 Make sure that:
- -  the metadata reader function name is the same as ```data_name``` field in ```data_config.yaml```.
- -  the metadata file (can be anything) is specified under ```metadata_filename``` in ```data_config.yaml``` 
+ -  the metadata reader function name is the same as ```data_name``` field in ```session_paths.yaml```.
+ -  the metadata file (can be anything) is specified under ```metadata_path``` in ```session_paths.yaml``` 
 
 ## Training
 Change the ```--config``` argument based on the configuration of your choice.
 ### Train Aligner Model
 #### Create training dataset
 ```bash
-python create_training_data.py --config config/default
+python create_training_data.py --config config/session_paths.yaml
 ```
 This will populate the training data directory (default `transformer_tts_data.ljspeech`).
 #### Training
 ```bash
-python train_aligner.py --config config/default
+python train_aligner.py --config config/session_paths.yaml
 ```
 ### Train TTS Model
 #### Compute alignment dataset
 First use the aligner model to create the durations dataset
 ```bash
-python extract_durations.py --config config/default
+python extract_durations.py --config config/session_paths.yaml
 ```
 this will add the `durations.<session name>` as well as the char-wise pitch folders to the training data directory.
 #### Training
 ```bash
-python train_tts.py --config config/default
+python train_tts.py --config config/session_paths.yaml
 ```
 #### Training & Model configuration
 - Training and model settings can be configured in `<model>_config.yaml`
@@ -135,14 +135,14 @@ tensorboard --logdir /logs/directory/
 ### Using the basic Griffin-Lim algorithm
 From command line with
 ```commandline
-python predict_tts.py -t "Please, say something." --config /path/to/config/
+python predict_tts.py -t "Please, say something." --config config/session_paths.yaml
 ```
 Or in a python script
 ```python
 from utils.config_manager import Config
 from data.audio import Audio
 
-config_loader = Config(config_path=f'/path/to/config/', model_kind=f'tts')
+config_loader = Config(config_path=f'config/session_paths.yaml', tts=True)
 audio = Audio(config_loader.config)
 model = config_loader.load_model()
 out = model.predict('Please, say something.')
@@ -161,7 +161,7 @@ pip install -r vocoding/extra_requirements.txt
 ``` vocoding/melgan/en/model.pt```
 Finally, run `predict_tts.py` specifying the vocoder name and the path to the config, for instance
 ```commandline
-python predict_tts.py -t "Please, say something." --config /path/to/config/ --vocoder hifigan --voc_config vocoding/hifigan/en
+python predict_tts.py -t "Please, say something." --config config/session_paths.yaml --vocoder hifigan --voc_config vocoding/hifigan/en
 ```
 ## Model Weights
 

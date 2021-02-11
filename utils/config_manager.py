@@ -11,32 +11,38 @@ from utils.scheduling import reduction_schedule
 
 
 class Config:
-    
-    def __init__(self, config_path: str, model_kind: str):
-        if model_kind not in ['aligner', 'tts']:
-            raise TypeError(f"model_kind must be in {['aligner', 'tts']}")
+    def __init__(self, config_path: str, aligner=False, tts=False):
+        if aligner and not tts:
+            model_kind = 'tts'
+        elif tts and not aligner:
+            model_kind = 'aligner'
+        else:
+            raise TypeError(f"Set model kind: initialize with either aligner=True or tts=True")
         self.config_path = Path(config_path)
         self.model_kind = model_kind
         self.yaml = ruamel.yaml.YAML()
-        self.config, self.data_config, self.model_config = self._load_config()
+        self.config = self._load_config()
         self.git_hash = self._get_git_hash()
-        self.data_name = f"{self.config['data_name']}.{self.config['normalizer']}"
-        self.session_name = f"{self.data_name}.{self.config['session_name']}"
-        self.aligner_session_name = f"{self.data_name}.{self.config['aligner_session_name']}"
+        self.data_name = self.config['data_name']  # raw data
+        # make session names
+        self.session_names = {"aligner": f"aligner.{self.config['aligner_session_name']}",
+                              "tts": f"tts.{self.config['tts_session_name']}",
+                              "data": f"{self.config['text_session_name']}.{self.config['audio_session_name']}"}  # post processed data name
         # create paths
-        self.dataset_dir = Path(self.config['data_directory'])
+        self.wav_directory = Path(self.config['wav_directory'])
         self.data_dir = Path(f"{self.config['train_data_directory']}.{self.data_name}")
-        self.metadata_path = self.dataset_dir / self.config['metadata_filename']
-        self.base_dir = Path(self.config['log_directory']) / self.session_name / model_kind
+        self.metadata_path = Path(self.config['metadata_path'])
+        self.base_dir = Path(self.config['log_directory']) / self.data_name / self.session_names['data'] / \
+                        self.session_names[model_kind]
         self.log_dir = self.base_dir / 'logs'
         self.weights_dir = self.base_dir / 'weights'
-        self.train_metadata_path = self.data_dir / self.config['train_metadata_filename']
-        self.valid_metadata_path = self.data_dir / self.config['valid_metadata_filename']
-        self.phonemized_metadata_path = self.data_dir / 'phonemized_metadata.txt'
-        self.mel_dir = self.data_dir / "mels"
-        self.duration_dir = self.data_dir / f"durations.{self.aligner_session_name}"
-        self.pitch_dir = self.data_dir / "pitch"
-        self.pitch_per_char = self.data_dir / f"pitch.{self.aligner_session_name}.char"
+        self.train_metadata_path = self.data_dir / f"train_metadata.{self.config['text_session_name']}.txt"
+        self.valid_metadata_path = self.data_dir / f"valid_metadata.{self.config['text_session_name']}.txt"
+        self.phonemized_metadata_path = self.data_dir / f"phonemized_metadata.{self.config['text_session_name']}.txt"
+        self.mel_dir = self.data_dir / f"mels.{self.config['audio_session_name']}"
+        self.duration_dir = self.data_dir / f"durations.{self.session_names['aligner']}.{self.session_names['data']}"
+        self.pitch_dir = self.data_dir / f"pitch.{self.config['audio_session_name']}"
+        self.pitch_per_char = self.data_dir / f"char_pitch.{self.session_names['aligner']}.{self.session_names['data']}"
         # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         if model_kind == 'aligner':
@@ -44,14 +50,20 @@ class Config:
             self.stop_scaling = self.config.get('stop_loss_scaling', 1.)
     
     def _load_config(self):
-        with open(str(self.config_path / 'data_config.yaml'), 'rb') as data_yaml:
-            data_config = self.yaml.load(data_yaml)
-        with open(str(self.config_path / f'{self.model_kind}_config.yaml'), 'rb') as model_yaml:
-            model_config = self.yaml.load(model_yaml)
         all_config = {}
-        all_config.update(model_config)
-        all_config.update(data_config)
-        return all_config, data_config, model_config
+        with open(str(self.config_path), 'rb') as session_yaml:
+            session_config = self.yaml.load(session_yaml)
+        all_config.update(session_config)
+        if 'automatic' in session_config.keys(): # check if it was automatically generated
+            return session_config
+        else:
+            for k in ['data_config', 'aligner_config', 'tts_config', ]:
+                config_path = session_config[k]
+                with open(config_path, 'rb') as config_yaml:
+                    config = self.yaml.load(config_yaml)
+                    all_config.update(config)
+        
+        return all_config
     
     @staticmethod
     def _get_git_hash():
@@ -82,12 +94,12 @@ class Config:
                 self._print_dict_values(dictionary[key], key_name=key, level=recursion_level)
     
     def print_config(self):
-        print('\nCONFIGURATION', self.session_name)
+        print('\nCONFIGURATION', self.session_names[self.model_kind])
         self._print_dictionary(self.config)
     
     def update_config(self):
         self.config['git_hash'] = self.git_hash
-        self.model_config['git_hash'] = self.git_hash
+        self.config['automatic'] = True
     
     def get_model(self, ignore_hash=False):
         if not ignore_hash:
@@ -112,7 +124,7 @@ class Config:
                            phoneme_language=self.config['phoneme_language'],
                            with_stress=self.config['with_stress'],
                            debug=self.config['debug'],
-                           initial_breathing=self.config['initial_breathing'])
+                           model_breathing=self.config['model_breathing'])
         
         else:
             return ForwardTransformer(encoder_model_dimension=self.config['encoder_model_dimension'],
@@ -135,7 +147,7 @@ class Config:
                                       with_stress=self.config['with_stress'],
                                       end_of_sentence_pitch_focus=self.config['end_of_sentence_pitch_focus'],
                                       debug=self.config['debug'],
-                                      initial_breathing=self.config['initial_breathing'])
+                                      model_breathing=self.config['model_breathing'])
     
     def compile_model(self, model):
         if self.model_kind == 'aligner':
@@ -153,10 +165,8 @@ class Config:
     
     def dump_config(self):
         self.update_config()
-        with open(self.base_dir / f'{self.model_kind}_config.yaml', 'w') as model_yaml:
-            self.yaml.dump(self.model_config, model_yaml)
-        with open(self.base_dir / 'data_config.yaml', 'w') as data_yaml:
-            self.yaml.dump(self.data_config, data_yaml)
+        with open(self.base_dir / f"config.yaml", 'w') as model_yaml:
+            self.yaml.dump(self.config, model_yaml)
     
     def create_remove_dirs(self, clear_dir=False, clear_logs=False, clear_weights=False):
         self.data_dir.mkdir(exist_ok=True)
@@ -192,7 +202,7 @@ class Config:
         else:
             if manager.latest_checkpoint is None:
                 print(f'WARNING: could not find weights file. Trying to load from \n {self.weights_dir}.')
-                print('Edit data_config.yaml to point at the right log directory.')
+                print('Edit config to point at the right log directory.')
             ckpt.restore(manager.latest_checkpoint)
             if verbose:
                 print(f'restored weights from {manager.latest_checkpoint} at step {model.step}')

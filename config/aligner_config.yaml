@@ -1,3 +1,5 @@
+aligner_session_name: aligner_default
+
 # ARCHITECTURE
 decoder_model_dimension: 256
 encoder_model_dimension: 256
@@ -24,9 +26,6 @@ reduction_factor_schedule:
   - [0, 10]
   - [80_000, 1]
 max_steps: 160_000
-bucket_boundaries: [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200] # mel bucketing
-bucket_batch_sizes: [64, 42, 32, 25, 21, 18, 16, 14, 12, 11, 1]
-val_bucket_batch_size: [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1]
 force_encoder_diagonal_steps: 1_000
 force_decoder_diagonal_steps: 7_000
 use_pe_target_mel: False  # add positional encodings to target mels

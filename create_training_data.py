@@ -23,13 +23,13 @@ args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 
-cm = Config(args.config, model_kind='aligner')
+cm = Config(args.config, aligner=True)
 cm.create_remove_dirs()
 metadatareader = DataReader.from_config(cm, kind='original', scan_wavs=True)
 summary_manager = SummaryManager(model=None, log_dir=cm.log_dir / 'data_preprocessing', config=cm.config,
                                  default_writer='data_preprocessing')
 file_ids_from_wavs = list(metadatareader.wav_paths.keys())
-print(f"Reading wavs from {metadatareader.data_directory}")
+print(f"Reading wavs from {metadatareader.wav_directory}")
 print(f"Reading metadata from {metadatareader.metadata_path}")
 print(f'\nFound {len(metadatareader.filenames)} metadata lines.')
 print(f'\nFound {len(file_ids_from_wavs)} wav files.')
@@ -136,7 +136,7 @@ if not args.skip_phonemes:
     
     # run cleaner on raw text
     text_proc = TextToTokens.default(cm.config['phoneme_language'], add_start_end=False,
-                                     with_stress=cm.config['with_stress'], add_breathing=cm.config['initial_breathing'],
+                                     with_stress=cm.config['with_stress'], add_breathing=cm.config['model_breathing'],
                                      njobs=1)
     
     

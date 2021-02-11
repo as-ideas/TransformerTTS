@@ -34,7 +34,7 @@ if __name__ == '__main__':
     ])
     writer_tag = f'DurationExtraction{tag_description}'
     print(writer_tag)
-    config_manager = Config(config_path=args.config, model_kind='aligner')
+    config_manager = Config(config_path=args.config, aligner=True)
     config = config_manager.config
     config_manager.print_config()
     
@@ -124,7 +124,7 @@ if __name__ == '__main__':
             # text = metadatareader.text_dict[sample_name]
             char_wise_pitch = _pitch_per_char(pitch, durations, mel.shape[0])
             # len_text = len(text)
-            # if config_manager.config['initial_breathing']:
+            # if config_manager.config['model_breathing']:
             #     len_text += 1 # TODO: improve this, BREATHING TOKEN needs +1
             # assert char_wise_pitch.shape[0] == len_text, \
             #     f'{sample_name}: dshape {char_wise_pitch.shape} == tshape {len_text}'

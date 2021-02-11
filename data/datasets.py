@@ -28,10 +28,10 @@ class DataReader:
     training data.
     """
     
-    def __init__(self, data_directory: str, metadata_path: str, metadata_reading_function=None, scan_wavs=False,
+    def __init__(self, wav_directory: str, metadata_path: str, metadata_reading_function=None, scan_wavs=False,
                  training=False, is_processed=False):
         self.metadata_reading_function = metadata_reading_function
-        self.data_directory = Path(data_directory)
+        self.wav_directory = Path(wav_directory)
         self.metadata_path = Path(metadata_path)
         if not is_processed:
             self.text_dict = self.metadata_reading_function(self.metadata_path)
@@ -42,7 +42,7 @@ class DataReader:
             if training:
                 self.filenames += self.upsample
         if scan_wavs:
-            all_wavs = get_files(self.data_directory, extension='.wav')
+            all_wavs = get_files(self.wav_directory, extension='.wav')
             self.wav_paths = {w.with_suffix('').name: w for w in all_wavs}
     
     @classmethod
@@ -65,7 +65,7 @@ class DataReader:
         elif kind == 'phonemized':
             metadata = config_manager.phonemized_metadata_path
         
-        return cls(data_directory=config_manager.dataset_dir,
+        return cls(wav_directory=config_manager.wav_dir,
                    metadata_reading_function=reader,
                    metadata_path=metadata,
                    scan_wavs=scan_wavs,
