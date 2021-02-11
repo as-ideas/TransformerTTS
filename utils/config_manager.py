@@ -13,9 +13,9 @@ from utils.scheduling import reduction_schedule
 class Config:
     def __init__(self, config_path: str, aligner=False, tts=False):
         if aligner and not tts:
-            model_kind = 'tts'
-        elif tts and not aligner:
             model_kind = 'aligner'
+        elif tts and not aligner:
+            model_kind = 'tts'
         else:
             raise TypeError(f"Set model kind: initialize with either aligner=True or tts=True")
         self.config_path = Path(config_path)
@@ -25,24 +25,23 @@ class Config:
         self.git_hash = self._get_git_hash()
         self.data_name = self.config['data_name']  # raw data
         # make session names
-        self.session_names = {"aligner": f"{self.config['aligner_session_name']}",
-                              "tts": f"{self.config['tts_session_name']}",
-                              "data": f"{self.config['text_settings_name']}.{self.config['audio_settings_name']}"}  # post processed data name
+        self.session_names = {'data': f"{self.config['text_settings_name']}.{self.config['audio_settings_name']}"}
+        self.session_names['aligner'] = f"{self.config['aligner_session_name']}.{self.session_names['data']}",
+        self.session_names['tts'] = f"{self.config['tts_session_name']}.{self.session_names['aligner']}"
         # create paths
         self.wav_directory = Path(self.config['wav_directory'])
         self.data_dir = Path(f"{self.config['train_data_directory']}.{self.data_name}")
         self.metadata_path = Path(self.config['metadata_path'])
-        self.base_dir = Path(self.config['log_directory']) / self.data_name / self.session_names['data'] / \
-                        self.session_names[model_kind]
+        self.base_dir = Path(self.config['log_directory']) / self.data_name / self.session_names[model_kind]
         self.log_dir = self.base_dir / 'logs'
         self.weights_dir = self.base_dir / 'weights'
         self.train_metadata_path = self.data_dir / f"train_metadata.{self.config['text_settings_name']}.txt"
         self.valid_metadata_path = self.data_dir / f"valid_metadata.{self.config['text_settings_name']}.txt"
         self.phonemized_metadata_path = self.data_dir / f"phonemized_metadata.{self.config['text_settings_name']}.txt"
         self.mel_dir = self.data_dir / f"mels.{self.config['audio_settings_name']}"
-        self.duration_dir = self.data_dir / f"durations.{self.session_names['aligner']}.{self.session_names['data']}"
+        self.duration_dir = self.data_dir / f"durations.{self.session_names['aligner']}"
         self.pitch_dir = self.data_dir / f"pitch.{self.config['audio_settings_name']}"
-        self.pitch_per_char = self.data_dir / f"char_pitch.{self.session_names['aligner']}.{self.session_names['data']}"
+        self.pitch_per_char = self.data_dir / f"char_pitch.{self.session_names['aligner']}"
         # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         if model_kind == 'aligner':
@@ -54,7 +53,7 @@ class Config:
         with open(str(self.config_path), 'rb') as session_yaml:
             session_config = self.yaml.load(session_yaml)
         all_config.update(session_config)
-        if 'automatic' in session_config.keys(): # check if it was automatically generated
+        if 'automatic' in session_config.keys():  # check if it was automatically generated
             return session_config
         else:
             for k in ['data_config', 'aligner_config', 'tts_config', ]:
