@@ -384,9 +384,11 @@ class ForwardTransformer(tf.keras.models.Model):
         with tf.GradientTape() as tape:
             model_out = self.__call__(input_sequence, target_durations, target_pitch=target_pitch, training=True)
             loss, loss_vals = weighted_sum_losses((target_sequence,
-                                                   target_durations),
+                                                   target_durations,
+                                                   target_pitch),
                                                   (model_out['mel'][:, :mel_len, :],
-                                                   model_out['duration']),
+                                                   model_out['duration'],
+                                                   model_out['pitch']),
                                                   self.loss,
                                                   self.loss_weights)
         model_out.update({'loss': loss})
@@ -409,9 +411,11 @@ class ForwardTransformer(tf.keras.models.Model):
         mel_len = int(tf.shape(target_sequence)[1])
         model_out = self.__call__(input_sequence, target_durations, target_pitch=target_pitch, training=False)
         loss, loss_vals = weighted_sum_losses((target_sequence,
-                                               target_durations),
+                                               target_durations,
+                                               target_pitch),
                                               (model_out['mel'][:, :mel_len, :],
-                                               model_out['duration']),
+                                               model_out['duration'],
+                                               model_out['pitch']),
                                               self.loss,
                                               self.loss_weights)
         model_out.update({'loss': loss})

@@ -1,5 +1,3 @@
-aligner_session_name: aligner_default
-
 # ARCHITECTURE
 decoder_model_dimension: 256
 encoder_model_dimension: 256

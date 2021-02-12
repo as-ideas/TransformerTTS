@@ -1,5 +1,3 @@
-tts_session_name: tts_default             # tts session naming
-
 # ARCHITECTURE
 decoder_model_dimension: 256
 encoder_model_dimension: 256

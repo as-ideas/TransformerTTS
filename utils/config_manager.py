@@ -22,10 +22,12 @@ class Config:
         self.config = self._load_config()
         self.git_hash = self._get_git_hash()
         self.data_name = self.config['data_name']  # raw data
+        aligner_config_name = Path(self.config['aligner_config']).stem
+        tts_config_name = Path(self.config['tts_config']).stem
         # make session names
         self.session_names = {'data': f"{self.config['text_settings_name']}.{self.config['audio_settings_name']}"}
-        self.session_names['aligner'] = f"{self.config['aligner_session_name']}.{self.session_names['data']}"
-        self.session_names['tts'] = f"{self.config['tts_session_name']}.{self.session_names['aligner']}"
+        self.session_names['aligner'] = f"{aligner_config_name}.{self.session_names['data']}"
+        self.session_names['tts'] = f"{tts_config_name}.{aligner_config_name}"
         # create paths
         self.wav_directory = Path(self.config['wav_directory'])
         self.data_dir = Path(f"{self.config['train_data_directory']}.{self.data_name}")
@@ -54,7 +56,7 @@ class Config:
         if 'automatic' in session_config.keys():  # check if it was automatically generated
             return session_config
         else:
-            for k in ['data_config', 'aligner_config', 'tts_config', ]:
+            for k in ['data_config', f'{self.model_kind}_config']:
                 config_path = session_config[k]
                 with open(config_path, 'rb') as config_yaml:
                     config = self.yaml.load(config_yaml)
@@ -142,7 +144,6 @@ class Config:
                                       decoder_dense_blocks=self.config['decoder_dense_blocks'],
                                       phoneme_language=self.config['phoneme_language'],
                                       with_stress=self.config['with_stress'],
-                                      end_of_sentence_pitch_focus=self.config['end_of_sentence_pitch_focus'],
                                       debug=self.config['debug'],
                                       model_breathing=self.config['model_breathing'])
     
