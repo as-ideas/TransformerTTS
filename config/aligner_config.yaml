@@ -20,15 +20,12 @@ dropout_rate: 0.1
 decoder_prenet_dropout: 0.1
 learning_rate_schedule:
   - [0, 1.0e-4]
-head_drop_schedule:  # head-level dropout: how many heads to set to zero at training time
-  - [0, 0]
 reduction_factor_schedule:
   - [0, 10]
   - [80_000, 1]
 max_steps: 160_000
 force_encoder_diagonal_steps: 1_000
 force_decoder_diagonal_steps: 7_000
-use_pe_target_mel: False  # add positional encodings to target mels
 extract_attention_weighted: False # weighted average between last layer decoder attention heads when extracting durations
 debug: False
 
