@@ -8,7 +8,6 @@ import tensorflow as tf
 from utils.config_manager import Config
 from data.text.tokenizer import Tokenizer
 from data.metadata_readers import get_preprocessor_by_name
-from model.transformer_utils import positional_encoding
 
 
 def get_files(path: Union[Path, str], extension='.wav') -> List[Path]:
@@ -79,30 +78,21 @@ class AlignerPreprocessor:
                  mel_channels: int,
                  mel_start_value: float,
                  mel_end_value: float,
-                 tokenizer: Tokenizer,
-                 pe_mel: bool,
-                 max_pe: int = None):
-        self.output_types = (tf.float32, tf.int32, tf.int32, tf.string, tf.float32)
-        self.padded_shapes = ([None, mel_channels], [None], [None], [], [None, mel_channels])
+                 tokenizer: Tokenizer):
+        self.output_types = (tf.float32, tf.int32, tf.int32, tf.string)
+        self.padded_shapes = ([None, mel_channels], [None], [None], [])
         self.start_vec = np.ones((1, mel_channels)) * mel_start_value
         self.end_vec = np.ones((1, mel_channels)) * mel_end_value
         self.tokenizer = tokenizer
-        self.pe_mel = pe_mel
-        if pe_mel:
-            self.pos_encoding = positional_encoding(max_pe, mel_channels)
     
     def __call__(self, mel, text, sample_name):
         encoded_phonemes = self.tokenizer(text)
-        tar_mel = mel
-        if self.pe_mel:
-            tar_mel += self.pos_encoding[0, :mel.shape[0], :]
-        tar_norm_mel = np.concatenate([self.start_vec, tar_mel, self.end_vec], axis=0)
         norm_mel = np.concatenate([self.start_vec, mel, self.end_vec], axis=0)
         stop_probs = np.ones((norm_mel.shape[0]))
         stop_probs[-1] = 2
-        return norm_mel, encoded_phonemes, stop_probs, sample_name, tar_norm_mel
+        return norm_mel, encoded_phonemes, stop_probs, sample_name
     
-    def get_sample_length(self, norm_mel, encoded_phonemes, stop_probs, sample_name, tar_norm_mel):
+    def get_sample_length(self, norm_mel, encoded_phonemes, stop_probs, sample_name):
         return tf.shape(norm_mel)[0]
     
     @classmethod
@@ -110,9 +100,7 @@ class AlignerPreprocessor:
         return cls(mel_channels=config.config['mel_channels'],
                    mel_start_value=config.config['mel_start_value'],
                    mel_end_value=config.config['mel_end_value'],
-                   tokenizer=tokenizer,
-                   pe_mel=config.config['use_pe_target_mel'],
-                   max_pe=config.config['decoder_max_position_encoding'])
+                   tokenizer=tokenizer)
 
 
 class AlignerDataset:

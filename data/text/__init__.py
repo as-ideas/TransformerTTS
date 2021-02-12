@@ -15,7 +15,7 @@ class TextToTokens:
         return tokens
     
     @classmethod
-    def default(cls, language: str, add_start_end: bool, with_stress: bool, add_breathing: bool, njobs=1):
+    def default(cls, language: str, add_start_end: bool, with_stress: bool, model_breathing: bool, njobs=1):
         phonemizer = Phonemizer(language=language, njobs=njobs, with_stress=with_stress)
-        tokenizer = Tokenizer(add_start_end=add_start_end, add_breathing=add_breathing)
+        tokenizer = Tokenizer(add_start_end=add_start_end, model_breathing=model_breathing)
         return cls(phonemizer=phonemizer, tokenizer=tokenizer)

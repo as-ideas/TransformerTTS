@@ -40,7 +40,7 @@ Try it out on Colab:
 
 ## Updates
 - 06/20: Added normalisation and pre-trained models compatible with the faster [MelGAN](https://github.com/seungwonpark/melgan) vocoder.
-- 11/20: Added pitch prediction. Autoregressive model is now specialized as an Aligner and Forward is now the only TTS model. Changed models architectures. Discontinued WaveRNN support.
+- 11/20: Added pitch prediction. Autoregressive model is now specialized as an Aligner and Forward is now the only TTS model. Changed models architectures. Discontinued WaveRNN support. Improved duration extraction with Dijkstra algorithm.
 
 ## 📖 Contents
 - [Installation](#installation)
@@ -132,7 +132,6 @@ tensorboard --logdir /logs/directory/
 ![Tensorboard Demo](https://raw.githubusercontent.com/as-ideas/TransformerTTS/master/docs/tboard_demo.gif)
 
 ## Prediction
-### Using the basic Griffin-Lim algorithm
 From command line with
 ```commandline
 python predict_tts.py -t "Please, say something." --config config/session_paths.yaml
@@ -149,19 +148,6 @@ out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
 wav = audio.reconstruct_waveform(out['mel'].numpy().T)
-```
-### Using pre-trained vocoders
-- Install the additional requirements
-```commandline
-pip install -r vocoding/extra_requirements.txt
-```
-- Download the pretrained weights from [MelGAN](https://github.com/seungwonpark/melgan) or [HiFiGAN](https://github.com/jik876/hifi-gan)
-- rename the model file to `model.pt`
-- place them under the respective config folder, for example:
-``` vocoding/melgan/en/model.pt```
-Finally, run `predict_tts.py` specifying the vocoder name and the path to the config, for instance
-```commandline
-python predict_tts.py -t "Please, say something." --config config/session_paths.yaml --vocoder hifigan --voc_config vocoding/hifigan/en
 ```
 ## Model Weights
 

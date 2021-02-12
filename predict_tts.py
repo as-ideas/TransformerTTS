@@ -5,7 +5,6 @@ import numpy as np
 
 from utils.config_manager import Config
 from data.audio import Audio
-from vocoding.predictors import MelGANPredictor, HiFiGANPredictor
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -17,8 +16,6 @@ if __name__ == '__main__':
     parser.add_argument('--store_mel', '-m', dest='store_mel', action='store_true')
     parser.add_argument('--verbose', '-v', dest='verbose', action='store_true')
     parser.add_argument('--all_weights', '-ww', dest='all_weights', action='store_true')
-    parser.add_argument('--vocoder', dest='vocoder', default='glim')
-    parser.add_argument('--voc_config', dest='voc_config', default='vocoding/melgan/en')
     parser.add_argument('--single', '-s', dest='single', action='store_true')
     args = parser.parse_args()
     
@@ -34,37 +31,28 @@ if __name__ == '__main__':
         text = None
         print(f'Specify either an input text (-t "some text") or a text input file (-f /path/to/file.txt)')
         exit()
-    config_loader = Config(config_path=args.config, tts=True)
+    config_loader = Config(config_path=args.config)
     if args.outdir is None:
         outdir = config_loader.log_dir
     else:
         outdir = Path(args.outdir)
-    if args.vocoder == 'glim':
-        vocoder = None
-    elif args.vocoder == 'melgan':
-        vocoder = MelGANPredictor.from_folder(args.voc_config)
-    elif args.vocoder == 'hifigan':
-        vocoder = HiFiGANPredictor.from_folder(args.voc_config)
-    else:
-        print('Error: vocoder must be either "glim", "melgan" or "hifigan"')
-        exit()
-    outdir = outdir / 'outputs' / f'{fname}.{args.vocoder}'
+    outdir = outdir / 'outputs' / f'{fname}'
     outdir.mkdir(exist_ok=True, parents=True)
     audio = Audio(config_loader.config)
     if args.checkpoint is not None:
         all_weights = [args.checkpoint]
-        
+    
     elif args.all_weights:
         all_weights = [(config_loader.weights_dir / x.stem).as_posix() for x in config_loader.weights_dir.iterdir() if
                        x.suffix == '.index']
     else:
-        all_weights = [None] # default
-        
+        all_weights = [None]  # default
+    
     if args.verbose:
         print(f'\nWeights list: \n{all_weights}\n')
     for weights in all_weights:
         model = config_loader.load_model(weights)
-        file_name = f'{fname}_ttsstep{model.step}_{args.vocoder}'
+        file_name = f'{fname}_ttsstep{model.step}'
         print(f'Output wav under {outdir}')
         wavs = []
         for i, text_line in enumerate(text):
@@ -76,10 +64,7 @@ if __name__ == '__main__':
                 print(f'Tokens: "{tokens}"')
             out = model.predict(tokens, encode=False, phoneme_max_duration=None)
             mel = out['mel'].numpy().T
-            if not vocoder:
-                wav = audio.reconstruct_waveform(mel)
-            else:
-                wav = vocoder([mel])[0]
+            wav = audio.reconstruct_waveform(mel)
             wavs.append(wav)
             if args.store_mel:
                 np.save((outdir / (file_name + f'_{i}')).with_suffix('.mel'), out['mel'].numpy())

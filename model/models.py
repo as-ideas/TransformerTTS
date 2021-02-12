@@ -39,13 +39,12 @@ class Aligner(tf.keras.models.Model):
         self.max_r = max_r
         self.r = max_r
         self.mel_channels = mel_channels
-        self.drop_n_heads = 0
         self.force_encoder_diagonal = False
         self.force_decoder_diagonal = False
         self.text_pipeline = TextToTokens.default(phoneme_language,
                                                   add_start_end=True,
                                                   with_stress=with_stress,
-                                                  add_breathing=model_breathing)
+                                                  model_breathing=model_breathing)
         self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
                                                         encoder_prenet_dimension,
                                                         name='Embedding')
@@ -76,8 +75,7 @@ class Aligner(tf.keras.models.Model):
         self.training_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
-            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-            tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, None), dtype=tf.int32)
         ]
         self.forward_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
@@ -116,8 +114,7 @@ class Aligner(tf.keras.models.Model):
         enc_input = self.encoder_prenet(inputs)
         enc_output, attn_weights = self.encoder(enc_input,
                                                 training=training,
-                                                padding_mask=padding_mask,
-                                                drop_n_heads=0)
+                                                padding_mask=padding_mask)
         return enc_output, padding_mask, attn_weights
     
     def _call_decoder(self, encoder_output, targets, encoder_padding_mask, training):
@@ -130,7 +127,6 @@ class Aligner(tf.keras.models.Model):
                                                      training=training,
                                                      decoder_padding_mask=combined_mask,
                                                      encoder_padding_mask=encoder_padding_mask,
-                                                     drop_n_heads=self.drop_n_heads,
                                                      reduction_factor=self.r)
         out_proj = self.final_proj_mel(dec_output)[:, :, :self.r * self.mel_channels]
         b = int(tf.shape(out_proj)[0])
@@ -154,17 +150,17 @@ class Aligner(tf.keras.models.Model):
     def _forward_decoder(self, encoder_output, targets, encoder_padding_mask):
         return self._call_decoder(encoder_output, targets, encoder_padding_mask, training=False)
     
-    def _gta_forward(self, inp, tar, stop_prob, tar_mel, training):
+    def _gta_forward(self, inp, tar, stop_prob, training):
         tar_inp = tar[:, :-1]
-        tar_real = tar_mel[:, 1:]
+        tar_real = tar[:, 1:]
         tar_stop_prob = stop_prob[:, 1:]
         
         mel_len = int(tf.shape(tar_inp)[1])
-        autoregr_tar_mel = tar_inp[:, 0::self.r, :]
+        tar_mel = tar_inp[:, 0::self.r, :]
         
         with tf.GradientTape() as tape:
             model_out = self.__call__(inputs=inp,
-                                      targets=autoregr_tar_mel,
+                                      targets=tar_mel,
                                       training=training)
             loss, loss_vals = weighted_sum_losses((tar_real,
                                                    tar_stop_prob),
@@ -175,7 +171,7 @@ class Aligner(tf.keras.models.Model):
             
             phon_len = tf.reduce_sum(1. - tf.squeeze(model_out['text_mask'], axis=(1, 2)), axis=1)
             d_loss = 0.
-            norm_factor = 1
+            norm_factor = 1.
             if self.force_decoder_diagonal:
                 mel_len = tf.reduce_sum(1. - tf.squeeze(model_out['mel_mask'], axis=(1, 2)), axis=1)
                 dec_key_list = list(model_out['decoder_attention'].keys())
@@ -198,14 +194,14 @@ class Aligner(tf.keras.models.Model):
         model_out.update({'losses': {'mel': loss_vals[0], 'stop_prob': loss_vals[1], 'diag_loss': d_loss}})
         return model_out, tape
     
-    def _train_step(self, inp, tar, stop_prob, tar_mel):
-        model_out, tape = self._gta_forward(inp, tar, stop_prob, tar_mel, training=True)
+    def _train_step(self, inp, tar, stop_prob):
+        model_out, tape = self._gta_forward(inp, tar, stop_prob, training=True)
         gradients = tape.gradient(model_out['loss'], self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
     
-    def _val_step(self, inp, tar, stop_prob, tar_mel):
-        model_out, _ = self._gta_forward(inp, tar, stop_prob, tar_mel, training=False)
+    def _val_step(self, inp, tar, stop_prob):
+        model_out, _ = self._gta_forward(inp, tar, stop_prob, training=False)
         return model_out
     
     def _compile(self, stop_scaling, optimizer):
@@ -231,12 +227,6 @@ class Aligner(tf.keras.models.Model):
         if self.force_decoder_diagonal == value:
             return
         self.force_decoder_diagonal = value
-        self._apply_all_signatures()
-    
-    def _set_heads(self, heads):
-        if self.drop_n_heads == heads:
-            return
-        self.drop_n_heads = heads
         self._apply_all_signatures()
     
     def align(self, text, mel, mels_have_start_end_vectors=False, phonemize=False, encode_phonemes=False, plot=True):
@@ -272,15 +262,12 @@ class Aligner(tf.keras.models.Model):
     def set_constants(self,
                       learning_rate: float = None,
                       reduction_factor: float = None,
-                      drop_n_heads: int = None,
                       force_encoder_diagonal: bool = None,
                       force_decoder_diagonal: bool = None):
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
         if reduction_factor is not None:
             self._set_r(reduction_factor)
-        if drop_n_heads is not None:
-            self._set_heads(drop_n_heads)
         if force_encoder_diagonal is not None:
             self._set_force_encoder_diagonal(force_encoder_diagonal)
         if force_decoder_diagonal is not None:
@@ -312,16 +299,13 @@ class ForwardTransformer(tf.keras.models.Model):
                  encoder_feed_forward_dimension: int = None,
                  decoder_feed_forward_dimension: int = None,
                  debug=False,
-                 end_of_sentence_pitch_focus=True,
                  **kwargs):
         super(ForwardTransformer, self).__init__(**kwargs)
         self.text_pipeline = TextToTokens.default(phoneme_language,
                                                   add_start_end=False,
                                                   with_stress=with_stress,
-                                                  add_breathing=model_breathing)
-        self.drop_n_heads = 0
+                                                  model_breathing=model_breathing)
         self.mel_channels = mel_channels
-        self.end_of_sentence_pitch_focus = end_of_sentence_pitch_focus
         self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
                                                         encoder_model_dimension,
                                                         name='Embedding')
@@ -351,10 +335,6 @@ class ForwardTransformer(tf.keras.models.Model):
                                         dense_activation='linear',
                                         name='pitch_pred')
         self.pitch_embed = tf.keras.layers.Dense(encoder_model_dimension, activation='relu')
-        # self.pitch_embed = tf.keras.layers.Conv1D(encoder_model_dimension,
-        #                                           activation='relu',
-        #                                           kernel_size=3,
-        #                                           padding='same')
         self.decoder = SelfAttentionBlocks(model_dim=decoder_model_dimension,
                                            dropout_rate=dropout_rate,
                                            num_heads=decoder_num_heads,
@@ -403,33 +383,22 @@ class ForwardTransformer(tf.keras.models.Model):
         mel_len = int(tf.shape(target_sequence)[1])
         with tf.GradientTape() as tape:
             model_out = self.__call__(input_sequence, target_durations, target_pitch=target_pitch, training=True)
-            # TODO: add noise to duration and pitch targets
             loss, loss_vals = weighted_sum_losses((target_sequence,
                                                    target_durations),
                                                   (model_out['mel'][:, :mel_len, :],
                                                    model_out['duration']),
                                                   self.loss,
                                                   self.loss_weights)
-            new_loss = loss_vals[0] + loss_vals[1]
-            error_mask = tf.cast(tf.math.logical_not(tf.math.equal(target_pitch, 0.)), tf.float32)
-            abs_err = tf.abs(model_out['pitch'] - target_pitch) * error_mask
-            if self.end_of_sentence_pitch_focus:
-                ts_weight = tf.square(tf.linspace(1., 2., tf.shape(target_pitch)[-2]))
-                ts_weight = tf.cast(ts_weight, tf.float32)
-                abs_err = abs_err * ts_weight[None, :, None]
-            else:
-                abs_err = abs_err * 3.
-            pitch_error = tf.reduce_mean(abs_err)
-            new_loss += pitch_error
-        model_out.update({'loss': new_loss})
-        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': pitch_error}})
-        gradients = tape.gradient(new_loss, self.trainable_variables)
+        model_out.update({'loss': loss})
+        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': loss_vals[2]}})
+        gradients = tape.gradient(loss, self.trainable_variables)
         self.optimizer.apply_gradients(zip(gradients, self.trainable_variables))
         return model_out
     
     def _compile(self, optimizer):
-        self.loss_weights = [1., 1.]
+        self.loss_weights = [1., 1., 3.]
         self.compile(loss=[masked_mean_absolute_error,
+                           masked_mean_absolute_error,
                            masked_mean_absolute_error],
                      loss_weights=self.loss_weights,
                      optimizer=optimizer)
@@ -445,14 +414,8 @@ class ForwardTransformer(tf.keras.models.Model):
                                                model_out['duration']),
                                               self.loss,
                                               self.loss_weights)
-        new_loss = loss_vals[0] + loss_vals[1]
-        error_mask = tf.cast(tf.math.logical_not(tf.math.equal(target_pitch, 0.)), tf.float32)
-        abs_err = tf.abs(model_out['pitch'] - target_pitch) * error_mask
-        pitch_error = tf.reduce_mean(abs_err)
-        new_loss += pitch_error
-        
-        model_out.update({'loss': new_loss})
-        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': pitch_error}})
+        model_out.update({'loss': loss})
+        model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': loss_vals[2]}})
         return model_out
     
     def _forward(self, input_sequence, durations_scalar):
@@ -473,8 +436,7 @@ class ForwardTransformer(tf.keras.models.Model):
              min_durations_mask=None):
         encoder_padding_mask = create_encoder_padding_mask(x)
         x = self.encoder_prenet(x)
-        x, encoder_attention = self.encoder(x, training=training, padding_mask=encoder_padding_mask,
-                                            drop_n_heads=self.drop_n_heads)
+        x, encoder_attention = self.encoder(x, training=training, padding_mask=encoder_padding_mask)
         padding_mask = 1. - tf.squeeze(encoder_padding_mask, axis=(1, 2))[:, :, None]
         durations = self.dur_pred(x, training=training, mask=padding_mask)
         pitch = self.pitch_pred(x, training=training, mask=padding_mask)
@@ -493,8 +455,7 @@ class ForwardTransformer(tf.keras.models.Model):
             use_durations = tf.math.maximum(use_durations, tf.expand_dims(min_durations_mask, -1))
         mels = self.expand(x, use_durations)
         expanded_mask = create_mel_padding_mask(mels)
-        mels, decoder_attention = self.decoder(mels, training=training, padding_mask=expanded_mask,
-                                               drop_n_heads=self.drop_n_heads, reduction_factor=1)
+        mels, decoder_attention = self.decoder(mels, training=training, padding_mask=expanded_mask, reduction_factor=1)
         mels = self.out(mels)
         model_out = {'mel': mels,
                      'duration': durations,
@@ -504,11 +465,9 @@ class ForwardTransformer(tf.keras.models.Model):
                      'decoder_attention': decoder_attention}
         return model_out
     
-    def set_constants(self, learning_rate: float = None, drop_n_heads: int = None, **kwargs):
+    def set_constants(self, learning_rate: float = None, **kwargs):
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
-        if drop_n_heads is not None:
-            self._set_heads(drop_n_heads)
     
     def encode_text(self, text):
         return self.text_pipeline(text)

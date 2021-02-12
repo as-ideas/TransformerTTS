@@ -43,11 +43,10 @@ def validate(model,
     norm = 0.
     current_r = model.r
     model.set_constants(reduction_factor=1)
-    for val_mel, val_text, val_stop, fname, tar_mel in val_dataset.all_batches():
+    for val_mel, val_text, val_stop, fname in val_dataset.all_batches():
         model_out = model.val_step(inp=val_text,
                                    tar=val_mel,
-                                   stop_prob=val_stop,
-                                   tar_mel=tar_mel)
+                                   stop_prob=val_stop)
         norm += 1
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
@@ -128,34 +127,25 @@ if config['debug'] is True:
 # main event
 print('\nTRAINING')
 losses = []
-test_mel, test_phonemes, test_stop, test_fname, test_tar_mel = valid_dataset.next_batch()
+test_mel, test_phonemes, test_stop, test_fname = valid_dataset.next_batch()
 _ = train_dataset.next_batch()
 t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
-    mel, phonemes, stop, sample_name, tar_mel = train_dataset.next_batch()
+    mel, phonemes, stop, sample_name = train_dataset.next_batch()
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
-    drop_n_heads = tf.cast(reduction_schedule(model.step, config['head_drop_schedule']), tf.int32)
     t.display(f'reduction factor {reduction_factor}', pos=10)
-    if model.step < config['force_encoder_diagonal_steps']:
-        force_encoder_diagonal = True
-    else:
-        force_encoder_diagonal = False
-    if model.step < config['force_decoder_diagonal_steps']:
-        force_decoder_diagonal = True
-    else:
-        force_decoder_diagonal = False
+    force_encoder_diagonal = model.step < config['force_encoder_diagonal_steps']
+    force_decoder_diagonal = model.step < config['force_decoder_diagonal_steps']
     model.set_constants(learning_rate=learning_rate,
                         reduction_factor=reduction_factor,
-                        drop_n_heads=drop_n_heads,
                         force_encoder_diagonal=force_encoder_diagonal,
                         force_decoder_diagonal=force_decoder_diagonal)
     
     output = model.train_step(inp=phonemes,
                               tar=mel,
-                              stop_prob=stop,
-                              tar_mel=tar_mel)
+                              stop_prob=stop)
     losses.append(float(output['loss']))
     
     t.display(f'step loss: {losses[-1]}', pos=1)
@@ -166,13 +156,11 @@ for _ in t:
     summary_manager.display_loss(output, tag='Train')
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=model.r)
-    summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
     summary_manager.display_scalar(scalar_value=t.avg_time, tag='Meta/iter_time')
     summary_manager.display_scalar(scalar_value=tf.shape(sample_name)[0], tag='Meta/batch_size')
     if model.step % config['train_images_plotting_frequency'] == 0:
         summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/predicted_mel')
-        summary_manager.display_mel(mel=tar_mel[0], tag=f'Train/target_mel')
         for layer, k in enumerate(output['decoder_attention'].keys()):
             mel_lens = mel_lengths(mel_batch=mel, padding_value=0) // model.r  # [N]
             phon_len = phoneme_lengths(phonemes)

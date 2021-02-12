@@ -11,13 +11,11 @@ from utils.scheduling import reduction_schedule
 
 
 class Config:
-    def __init__(self, config_path: str, aligner=False, tts=False):
-        if aligner and not tts:
+    def __init__(self, config_path: str, aligner=False):
+        if aligner:
             model_kind = 'aligner'
-        elif tts and not aligner:
-            model_kind = 'tts'
         else:
-            raise TypeError(f"Set model kind: initialize with either aligner=True or tts=True")
+            model_kind = 'tts'
         self.config_path = Path(config_path)
         self.model_kind = model_kind
         self.yaml = ruamel.yaml.YAML()

@@ -64,39 +64,12 @@ class FFNResNorm(tf.keras.layers.Layer):
         return self.last_ln(ffn_out + x)
 
 
-class HeadDrop(tf.keras.layers.Layer):
-    """ Randomly drop n heads. """
-    
-    def __init__(self, **kwargs):
-        super(HeadDrop, self).__init__(**kwargs)
-    
-    def call(self, batch, training: bool, drop_n_heads: int):
-        if not training or (drop_n_heads == 0):
-            return batch
-        if len(tf.shape(batch)) != 4:
-            raise Exception('attention values must be 4 dimensional')
-        batch_size = tf.shape(batch)[0]
-        head_n = tf.shape(batch)[1]
-        if head_n == 1:
-            return batch
-        # assert drop_n_heads < head_n, 'drop_n_heads must less than number of heads'
-        keep_head_batch = tf.TensorArray(tf.float32, size=batch_size)
-        keep_mask = tf.concat([tf.ones(head_n - drop_n_heads), tf.zeros(drop_n_heads)], axis=0)
-        for i in range(batch_size):
-            t = tf.random.shuffle(keep_mask)
-            keep_head_batch = keep_head_batch.write(i, t)
-        keep_head_batch = keep_head_batch.stack()
-        keep_head_batch = keep_head_batch[:, :, tf.newaxis, tf.newaxis]
-        return batch * keep_head_batch * tf.cast(head_n / (head_n - drop_n_heads), tf.float32)
-
-
 class MultiHeadAttention(tf.keras.layers.Layer):
     
     def __init__(self, model_dim: int, num_heads: int, **kwargs):
         super(MultiHeadAttention, self).__init__(**kwargs)
         self.num_heads = num_heads
         self.model_dim = model_dim
-        self.head_drop = HeadDrop()
         
         assert model_dim % self.num_heads == 0
         
@@ -116,7 +89,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.depth))
         return tf.transpose(x, perm=[0, 2, 1, 3])
     
-    def call(self, v, k, q_in, mask, training, drop_n_heads):
+    def call(self, v, k, q_in, mask, training):
         batch_size = tf.shape(q_in)[0]
         
         q = self.wq(q_in)  # (batch_size, seq_len, model_dim)
@@ -128,7 +101,6 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         v = self.split_heads(v, batch_size)  # (batch_size, num_heads, seq_len_v, depth)
         
         scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
-        scaled_attention = self.head_drop(scaled_attention, training=training, drop_n_heads=drop_n_heads)
         
         scaled_attention = tf.transpose(scaled_attention,
                                         perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
@@ -153,9 +125,8 @@ class SelfAttentionResNorm(tf.keras.layers.Layer):
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
         self.last_ln = tf.keras.layers.LayerNormalization(epsilon=1e-6)
     
-    def call(self, x, training, mask, drop_n_heads):
-        attn_out, attn_weights = self.mha(x, x, x, mask, training=training,
-                                          drop_n_heads=drop_n_heads)  # (batch_size, input_seq_len, model_dim)
+    def call(self, x, training, mask):
+        attn_out, attn_weights = self.mha(x, x, x, mask, training=training)  # (batch_size, input_seq_len, model_dim)
         attn_out = self.ln(attn_out)  # (batch_size, input_seq_len, model_dim)
         out = self.dropout(attn_out, training=training)
         return self.last_ln(out + x), attn_weights
@@ -173,8 +144,8 @@ class SelfAttentionDenseBlock(tf.keras.layers.Layer):
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.ffn = FFNResNorm(model_dim, dense_hidden_units, dropout_rate=dropout_rate)
     
-    def call(self, x, training, mask, drop_n_heads):
-        attn_out, attn_weights = self.sarn(x, mask=mask, training=training, drop_n_heads=drop_n_heads)
+    def call(self, x, training, mask):
+        attn_out, attn_weights = self.sarn(x, mask=mask, training=training)
         dense_mask = 1. - tf.squeeze(mask, axis=(1,2))[:,:,None]
         attn_out = attn_out * dense_mask
         return self.ffn(attn_out, training=training)*dense_mask, attn_weights
@@ -200,8 +171,8 @@ class SelfAttentionConvBlock(tf.keras.layers.Layer):
                                last_activation=conv_activation,
                                padding='same')
     
-    def call(self, x, training, mask, drop_n_heads):
-        attn_out, attn_weights = self.sarn(x, mask=mask, training=training, drop_n_heads=drop_n_heads)
+    def call(self, x, training, mask):
+        attn_out, attn_weights = self.sarn(x, mask=mask, training=training)
         conv_mask = 1. - tf.squeeze(mask, axis=(1,2))[:,:,None]
         attn_out  = attn_out*conv_mask
         conv = self.conv(attn_out, training=training)
@@ -235,17 +206,17 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
                                    conv_activation=conv_activation, conv_filters=conv_filters)
             for i, n_heads in enumerate(num_heads[dense_blocks:])]
     
-    def call(self, inputs, training, padding_mask, drop_n_heads, reduction_factor=1):
+    def call(self, inputs, training, padding_mask, reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
         x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
         x += self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}
         for i, block in enumerate(self.encoder_SADB):
-            x, attn_weights = block(x, training=training, mask=padding_mask, drop_n_heads=drop_n_heads)
+            x, attn_weights = block(x, training=training, mask=padding_mask)
             attention_weights[f'{self.name}_DenseBlock{i + 1}_SelfAttention'] = attn_weights
         for i, block in enumerate(self.encoder_SACB):
-            x, attn_weights = block(x, training=training, mask=padding_mask, drop_n_heads=drop_n_heads)
+            x, attn_weights = block(x, training=training, mask=padding_mask)
             attention_weights[f'{self.name}_ConvBlock{i + 1}_SelfAttention'] = attn_weights
         
         return x, attention_weights
@@ -263,8 +234,8 @@ class CrossAttentionResnorm(tf.keras.layers.Layer):
         self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
-    def call(self, q, k, v, training, mask, drop_n_heads):
-        attn_values, attn_weights = self.mha(v, k=k, q_in=q, mask=mask, training=training, drop_n_heads=drop_n_heads)
+    def call(self, q, k, v, training, mask):
+        attn_values, attn_weights = self.mha(v, k=k, q_in=q, mask=mask, training=training)
         attn_values = self.dropout(attn_values, training=training)
         out = self.layernorm(attn_values + q)
         return out, attn_weights
@@ -283,11 +254,11 @@ class CrossAttentionDenseBlock(tf.keras.layers.Layer):
         self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.ffn = FFNResNorm(model_dim, dense_hidden_units, dropout_rate=dropout_rate)
     
-    def call(self, x, enc_output, training, look_ahead_mask, padding_mask, drop_n_heads):
-        attn1, attn_weights_block1 = self.sarn(x, mask=look_ahead_mask, training=training, drop_n_heads=drop_n_heads)
+    def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
+        attn1, attn_weights_block1 = self.sarn(x, mask=look_ahead_mask, training=training)
         
         attn2, attn_weights_block2 = self.carn(attn1, v=enc_output, k=enc_output,
-                                               mask=padding_mask, training=training, drop_n_heads=drop_n_heads)
+                                               mask=padding_mask, training=training)
         ffn_out = self.ffn(attn2, training=training)
         return ffn_out, attn_weights_block1, attn_weights_block2
 
@@ -314,11 +285,11 @@ class CrossAttentionConvBlock(tf.keras.layers.Layer):
                                last_activation=conv_activation,
                                padding=conv_padding)
     
-    def call(self, x, enc_output, training, look_ahead_mask, padding_mask, drop_n_heads):
-        attn1, attn_weights_block1 = self.sarn(x, mask=look_ahead_mask, training=training, drop_n_heads=drop_n_heads)
+    def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
+        attn1, attn_weights_block1 = self.sarn(x, mask=look_ahead_mask, training=training)
         
         attn2, attn_weights_block2 = self.carn(attn1, v=enc_output, k=enc_output,
-                                               mask=padding_mask, training=training, drop_n_heads=drop_n_heads)
+                                               mask=padding_mask, training=training)
         ffn_out = self.conv(attn2, training=training)
         return ffn_out, attn_weights_block1, attn_weights_block2
 
@@ -344,7 +315,7 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
         self.last_CADB = CrossAttentionDenseBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=num_heads[-1],
                                      dense_hidden_units=feed_forward_dimension, name=f'{self.name}_CADB_last')
     
-    def call(self, inputs, enc_output, training, decoder_padding_mask, encoder_padding_mask, drop_n_heads,
+    def call(self, inputs, enc_output, training, decoder_padding_mask, encoder_padding_mask,
              reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
         x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
@@ -352,9 +323,9 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
         x = self.dropout(x, training=training)
         attention_weights = {}
         for i, block in enumerate(self.CADB):
-            x, _, attn_weights = block(x, enc_output, training, decoder_padding_mask, encoder_padding_mask, 0)
+            x, _, attn_weights = block(x, enc_output, training, decoder_padding_mask, encoder_padding_mask)
             attention_weights[f'{self.name}_DenseBlock{i + 1}_CrossAttention'] = attn_weights
-        x, _, attn_weights = self.last_CADB(x, enc_output, training, decoder_padding_mask, encoder_padding_mask, drop_n_heads)
+        x, _, attn_weights = self.last_CADB(x, enc_output, training, decoder_padding_mask, encoder_padding_mask)
         attention_weights[f'{self.name}_LastBlock_CrossAttention'] = attn_weights
         return x, attention_weights
 

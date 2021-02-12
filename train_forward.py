@@ -89,7 +89,7 @@ def validate(model,
 parser = basic_train_parser()
 args = parser.parse_args()
 
-config = Config(config_path=args.config, tts=True)
+config = Config(config_path=args.config)
 config_dict = config.config
 config.create_remove_dirs(clear_dir=args.clear_dir,
                           clear_logs=args.clear_logs,
@@ -206,7 +206,7 @@ for _ in t:
             wavs = np.concatenate(wavs)
             wavs = tf.expand_dims(wavs, 0)
             wavs = tf.expand_dims(wavs, -1)
-            summary_manager.add_audio(f'Text file input {i}', wavs.numpy(), sr=summary_manager.config['sampling_rate'],
+            summary_manager.add_audio(f'Text file input', wavs.numpy(), sr=summary_manager.config['sampling_rate'],
                                       step=summary_manager.global_step)
 
 print('Done.')
