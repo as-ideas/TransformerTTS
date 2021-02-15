@@ -288,6 +288,12 @@ class ForwardTransformer(tf.keras.models.Model):
                  decoder_maximum_position_encoding: int,
                  encoder_dense_blocks: int,
                  decoder_dense_blocks: int,
+                 duration_model_size: int,
+                 pitch_model_size: int,
+                 duration_layer_n: int,
+                 pitch_layer_n: int,
+                 duration_kernel_size: int,
+                 pitch_kernel_size: int,
                  mel_channels: int,
                  phoneme_language: str,
                  with_stress: bool,
@@ -319,19 +325,19 @@ class ForwardTransformer(tf.keras.models.Model):
                                            kernel_size=encoder_attention_conv_kernel,
                                            conv_activation='relu',
                                            name='Encoder')
-        self.dur_pred = StatPredictor(model_dim=encoder_model_dimension,
-                                      kernel_size=3,
+        self.dur_pred = StatPredictor(model_dim=duration_model_size,
+                                      kernel_size=duration_kernel_size,
                                       conv_padding='same',
                                       conv_activation='relu',
-                                      conv_block_n=2,
+                                      conv_block_n=duration_layer_n,
                                       dense_activation='relu',
                                       name='dur_pred')
         self.expand = Expand(name='expand', model_dim=encoder_model_dimension)
-        self.pitch_pred = StatPredictor(model_dim=encoder_model_dimension,
-                                        kernel_size=3,
+        self.pitch_pred = StatPredictor(model_dim=pitch_model_size,
+                                        kernel_size=pitch_kernel_size,
                                         conv_padding='same',
                                         conv_activation='relu',
-                                        conv_block_n=2,
+                                        conv_block_n=pitch_layer_n,
                                         dense_activation='linear',
                                         name='pitch_pred')
         self.pitch_embed = tf.keras.layers.Dense(encoder_model_dimension, activation='relu')
