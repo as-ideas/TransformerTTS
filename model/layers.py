@@ -381,6 +381,7 @@ class StatPredictor(tf.keras.layers.Layer):
                  conv_activation: str,
                  conv_block_n: int,
                  dense_activation: str,
+                 dropout_rate:float,
                  **kwargs):
         super(StatPredictor, self).__init__(**kwargs)
         self.conv_blocks = CNNDropout(out_size=model_dim,
@@ -390,7 +391,7 @@ class StatPredictor(tf.keras.layers.Layer):
                                       last_activation=conv_activation,
                                       hidden_size=model_dim,
                                       n_layers=conv_block_n,
-                                      dout_rate=0.5)
+                                      dout_rate=dropout_rate)
         self.linear = tf.keras.layers.Dense(1, activation=dense_activation)
     
     def call(self, x, training, mask):

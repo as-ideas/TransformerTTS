@@ -294,6 +294,7 @@ class ForwardTransformer(tf.keras.models.Model):
                  pitch_layer_n: int,
                  duration_kernel_size: int,
                  pitch_kernel_size: int,
+                 predictors_dropout: float,
                  mel_channels: int,
                  phoneme_language: str,
                  with_stress: bool,
@@ -331,6 +332,7 @@ class ForwardTransformer(tf.keras.models.Model):
                                       conv_activation='relu',
                                       conv_block_n=duration_layer_n,
                                       dense_activation='relu',
+                                      dropout_rate=predictors_dropout,
                                       name='dur_pred')
         self.expand = Expand(name='expand', model_dim=encoder_model_dimension)
         self.pitch_pred = StatPredictor(model_dim=pitch_model_size,
@@ -339,6 +341,7 @@ class ForwardTransformer(tf.keras.models.Model):
                                         conv_activation='relu',
                                         conv_block_n=pitch_layer_n,
                                         dense_activation='linear',
+                                        dropout_rate=predictors_dropout,
                                         name='pitch_pred')
         self.pitch_embed = tf.keras.layers.Dense(encoder_model_dimension, activation='relu')
         self.decoder = SelfAttentionBlocks(model_dim=decoder_model_dimension,

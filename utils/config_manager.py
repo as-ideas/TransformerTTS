@@ -145,6 +145,7 @@ class Config:
                                       pitch_layer_n=self.config['pitch_layer_n'],
                                       duration_kernel_size=self.config['duration_kernel_size'],
                                       pitch_kernel_size=self.config['pitch_kernel_size'],
+                                      predictors_dropout=self.config['predictors_dropout'],
                                       mel_channels=self.config['mel_channels'],
                                       encoder_dense_blocks=self.config['encoder_dense_blocks'],
                                       decoder_dense_blocks=self.config['decoder_dense_blocks'],
