@@ -47,7 +47,7 @@ def scaled_dot_product_attention(q, k, v, mask):
     
     # add the mask to the scaled tensor.
     if mask is not None:
-        scaled_attention_logits += mask * -1e9
+        scaled_attention_logits += mask * -1e9 # TODO: add mask expansion here and remove from create padding mask
     
     # softmax is normalized on the last axis (seq_len_k) so that the scores
     # add up to 1.

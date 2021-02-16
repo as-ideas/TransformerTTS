@@ -27,7 +27,7 @@ def display_target_symbol_duration_distributions():
             symbol_durs.setdefault(phoneme, []).append(dur_dict[key][i])
     for symbol in symbol_durs.keys():
         summary_manager.add_histogram(tag=f'"{symbol}"/Target durations', values=symbol_durs[symbol],
-                                      buckets=len(set(symbol_durs[symbol]))+1, step=0)
+                                      buckets=len(set(symbol_durs[symbol])) + 1, step=0)
 
 
 def display_predicted_symbol_duration_distributions(all_durations):

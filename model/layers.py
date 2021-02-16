@@ -146,9 +146,9 @@ class SelfAttentionDenseBlock(tf.keras.layers.Layer):
     
     def call(self, x, training, mask):
         attn_out, attn_weights = self.sarn(x, mask=mask, training=training)
-        dense_mask = 1. - tf.squeeze(mask, axis=(1,2))[:,:,None]
+        dense_mask = 1. - tf.squeeze(mask, axis=(1, 2))[:, :, None]
         attn_out = attn_out * dense_mask
-        return self.ffn(attn_out, training=training)*dense_mask, attn_weights
+        return self.ffn(attn_out, training=training) * dense_mask, attn_weights
 
 
 class SelfAttentionConvBlock(tf.keras.layers.Layer):
@@ -173,10 +173,10 @@ class SelfAttentionConvBlock(tf.keras.layers.Layer):
     
     def call(self, x, training, mask):
         attn_out, attn_weights = self.sarn(x, mask=mask, training=training)
-        conv_mask = 1. - tf.squeeze(mask, axis=(1,2))[:,:,None]
-        attn_out  = attn_out*conv_mask
+        conv_mask = 1. - tf.squeeze(mask, axis=(1, 2))[:, :, None]
+        attn_out = attn_out * conv_mask
         conv = self.conv(attn_out, training=training)
-        return conv*conv_mask, attn_weights
+        return conv * conv_mask, attn_weights
 
 
 class SelfAttentionBlocks(tf.keras.layers.Layer):
@@ -312,8 +312,10 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
             CrossAttentionDenseBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
                                      dense_hidden_units=feed_forward_dimension, name=f'{self.name}_CADB_{i}')
             for i, n_heads in enumerate(num_heads[:-1])]
-        self.last_CADB = CrossAttentionDenseBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=num_heads[-1],
-                                     dense_hidden_units=feed_forward_dimension, name=f'{self.name}_CADB_last')
+        self.last_CADB = CrossAttentionDenseBlock(model_dim=model_dim, dropout_rate=dropout_rate,
+                                                  num_heads=num_heads[-1],
+                                                  dense_hidden_units=feed_forward_dimension,
+                                                  name=f'{self.name}_CADB_last')
     
     def call(self, inputs, enc_output, training, decoder_padding_mask, encoder_padding_mask,
              reduction_factor=1):
@@ -381,7 +383,7 @@ class StatPredictor(tf.keras.layers.Layer):
                  conv_activation: str,
                  conv_block_n: int,
                  dense_activation: str,
-                 dropout_rate:float,
+                 dropout_rate: float,
                  **kwargs):
         super(StatPredictor, self).__init__(**kwargs)
         self.conv_blocks = CNNDropout(out_size=model_dim,
@@ -392,11 +394,13 @@ class StatPredictor(tf.keras.layers.Layer):
                                       hidden_size=model_dim,
                                       n_layers=conv_block_n,
                                       dout_rate=dropout_rate)
+        self.dropout = tf.keras.layers.Dropout(dropout_rate)
         self.linear = tf.keras.layers.Dense(1, activation=dense_activation)
     
     def call(self, x, training, mask):
         x = x * mask
         x = self.conv_blocks(x, training=training)
+        x = self.dropout(x, training=training)
         x = self.linear(x)
         return x * mask
 
@@ -439,7 +443,8 @@ class CNNDropout(tf.keras.layers.Layer):
         x = self.normalization[-1](x)
         x = self.dropouts[-1](x, training=training)
         return x
-    
+
+
 class Expand(tf.keras.layers.Layer):
     """ Expands a 3D tensor on its second axis given a list of dimensions.
         Tensor should be:
