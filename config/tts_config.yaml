@@ -22,7 +22,7 @@ duration_layer_n: 2
 pitch_layer_n: 2
 duration_kernel_size: 3
 pitch_kernel_size: 3
-predictors_dropout: 0.5
+predictors_dropout: 0.2
 
 # TRAINING
 dropout_rate: 0.1
