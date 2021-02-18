@@ -493,37 +493,28 @@ class ForwardTransformer(tf.keras.models.Model):
             inp = tf.expand_dims(inp, 0)
         inp = tf.cast(inp, tf.int32)
         duration_scalar = tf.cast(1. / speed_regulator, tf.float32)
-        if phoneme_max_duration is not None:
-            max_durations_mask = self._make_max_duration_mask(inp, phoneme_max_duration)
-        if phoneme_min_duration is not None:
-            min_durations_mask = self._make_min_duration_mask(inp, phoneme_min_duration)
-        if min_durations_mask or max_durations_mask:
-            out = self.forward_masked(inp, durations_scalar=duration_scalar,
-                                      max_durations_mask=max_durations_mask,
-                                      min_durations_mask=min_durations_mask)
-        else:
-            out = self.forward(inp, durations_scalar=duration_scalar)
+        max_durations_mask = self._make_max_duration_mask(inp, phoneme_max_duration)
+        min_durations_mask = self._make_min_duration_mask(inp, phoneme_min_duration)
+        out = self.forward_masked(inp, durations_scalar=duration_scalar,
+                                  max_durations_mask=max_durations_mask,
+                                  min_durations_mask=min_durations_mask)
         out['mel'] = tf.squeeze(out['mel'])
         return out
-    
+
     def _make_max_duration_mask(self, encoded_text, phoneme_max_duration):
         np_text = np.array(encoded_text)
-        if 'any' in list(phoneme_max_duration.keys()):
-            new_mask = np.ones(tf.shape(encoded_text)) * phoneme_max_duration['any']
-        else:
-            new_mask = np.ones(tf.shape(encoded_text)) * float('inf')
-        for item in phoneme_max_duration.items():
-            phon_idx = self.text_pipeline.tokenizer(item[0])[0]
-            new_mask[np_text == phon_idx] = item[1]
+        new_mask = np.ones(tf.shape(encoded_text)) * float('inf')
+        if phoneme_max_duration is not None:
+            for item in phoneme_max_duration.items():
+                phon_idx = self.text_pipeline.tokenizer(item[0])[0]
+                new_mask[np_text == phon_idx] = item[1]
         return tf.cast(tf.convert_to_tensor(new_mask), tf.float32)
-    
+
     def _make_min_duration_mask(self, encoded_text, phoneme_min_duration):
         np_text = np.array(encoded_text)
-        if 'any' in list(phoneme_min_duration.keys()):
-            new_mask = np.ones(tf.shape(encoded_text)) * phoneme_min_duration['any']
-        else:
-            new_mask = np.zeros(tf.shape(encoded_text))
-        for item in phoneme_min_duration.items():
-            phon_idx = self.text_pipeline.tokenizer(item[0])[0]
-            new_mask[np_text == phon_idx] = item[1]
+        new_mask = np.zeros(tf.shape(encoded_text))
+        if phoneme_min_duration is not None:
+            for item in phoneme_min_duration.items():
+                phon_idx = self.text_pipeline.tokenizer(item[0])[0]
+                new_mask[np_text == phon_idx] = item[1]
         return tf.cast(tf.convert_to_tensor(new_mask), tf.float32)
