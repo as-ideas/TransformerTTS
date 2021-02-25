@@ -120,13 +120,7 @@ if __name__ == '__main__':
             pitch = np.load((config_manager.pitch_dir / sample_name).with_suffix('.npy').as_posix())
             durations = np.load((config_manager.duration_dir / sample_name).with_suffix('.npy').as_posix())
             mel = np.load((config_manager.mel_dir / sample_name).with_suffix('.npy').as_posix())
-            # text = metadatareader.text_dict[sample_name]
             char_wise_pitch = _pitch_per_char(pitch, durations, mel.shape[0])
-            # len_text = len(text)
-            # if config_manager.config['model_breathing']:
-            #     len_text += 1 # TODO: improve this, BREATHING TOKEN needs +1
-            # assert char_wise_pitch.shape[0] == len_text, \
-            #     f'{sample_name}: dshape {char_wise_pitch.shape} == tshape {len_text}'
             np.save((config_manager.pitch_per_char / sample_name).with_suffix('.npy').as_posix(), char_wise_pitch)
         
         

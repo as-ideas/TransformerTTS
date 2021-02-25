@@ -110,7 +110,7 @@ class SummaryManager:
                             step=step)
     
     @ignore_exception
-    def display_attention_heads(self, outputs, tag='', step=None, fname=None):
+    def display_attention_heads(self, outputs: dict, tag='', step: int=None, fname: list=None):
         if step is None:
             step = self.global_step
         for layer in ['encoder_attention', 'decoder_attention']:

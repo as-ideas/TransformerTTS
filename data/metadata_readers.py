@@ -43,8 +43,6 @@ def post_processed_reader(metadata_path: str, column_sep='|', upsample_indicator
         for l in f.readlines():
             l_split = l.split(column_sep)
             filename, text = l_split[0], l_split[1]
-            if filename.endswith('.wav'):
-                filename = filename.split('.')[0]
             text = text.replace('\n', '')
             if any(el in text for el in list(upsample_indicators)):
                 upsample.extend([filename] * upsample_factor)

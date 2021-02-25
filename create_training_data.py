@@ -160,7 +160,7 @@ if not args.skip_phonemes:
         print(f'{i}:{phonemized_data[i]}')
         summary_manager.add_text(f'{i}/phonemes', text=phonemized_data[i])
     
-    new_metadata = [''.join([key, '|', phonemized_data[key], '\n']) for key in phonemized_data]
+    new_metadata = [f'{k}|{v}\n' for k, v in phonemized_data.items()]
     shuffled_metadata = np.random.permutation(new_metadata)
     train_metadata = shuffled_metadata[0:train_len]
     test_metadata = shuffled_metadata[-test_len:]
