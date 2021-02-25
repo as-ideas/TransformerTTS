@@ -5,36 +5,32 @@ from model.transformer_utils import positional_encoding, scaled_dot_product_atte
 
 class CNNResNorm(tf.keras.layers.Layer):
     def __init__(self,
-                 out_size: int,
-                 n_layers: int,
-                 hidden_size: int,
+                 filters: list,
                  kernel_size: int,
                  inner_activation: str,
                  last_activation: str,
                  padding: str,
-                 **kwargs):
-        super(CNNResNorm, self).__init__(**kwargs)
-        self.convolutions = [tf.keras.layers.Conv1D(filters=hidden_size,
+                 dout_rate: float):
+        super(CNNResNorm, self).__init__()
+        self.n_layers = len(filters)
+        self.convolutions = [tf.keras.layers.Conv1D(filters=f,
                                                     kernel_size=kernel_size,
                                                     padding=padding)
-                             for _ in range(n_layers - 1)]
-        self.inner_activations = [tf.keras.layers.Activation(inner_activation) for _ in range(n_layers - 1)]
-        self.last_conv = tf.keras.layers.Conv1D(filters=out_size,
-                                                kernel_size=kernel_size,
-                                                padding=padding)
+                             for f in filters]
+        self.inner_activations = [tf.keras.layers.Activation(inner_activation) for _ in range(self.n_layers - 1)]
         self.last_activation = tf.keras.layers.Activation(last_activation)
         self.normalization = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        self.dropout = tf.keras.layers.Dropout(rate=0.1)
+        self.dropout = tf.keras.layers.Dropout(rate=dout_rate)
     
     def call_convs(self, x):
-        for i in range(0, len(self.convolutions)):
+        for i in range(0, self.n_layers - 1):
             x = self.convolutions[i](x)
             x = self.inner_activations[i](x)
         return x
     
     def call(self, inputs, training):
         x = self.call_convs(inputs)
-        x = self.last_conv(x)
+        x = self.convolutions[-1](x)
         x = self.last_activation(x)
         x = self.dropout(x, training=training)
         return self.normalization(inputs + x)
@@ -157,18 +153,17 @@ class SelfAttentionConvBlock(tf.keras.layers.Layer):
                  model_dim: int,
                  num_heads: int,
                  dropout_rate: float,
-                 conv_filters: int,
+                 conv_filters: list,
                  kernel_size: int,
                  conv_activation: str,
                  **kwargs):
         super(SelfAttentionConvBlock, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
-        self.conv = CNNResNorm(out_size=model_dim,
-                               n_layers=2,
-                               hidden_size=conv_filters,
+        self.conv = CNNResNorm(filters=conv_filters,
                                kernel_size=kernel_size,
                                inner_activation=conv_activation,
                                last_activation=conv_activation,
+                               dout_rate=dropout_rate,
                                padding='same')
     
     def call(self, x, training, mask):
@@ -185,7 +180,7 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
                  feed_forward_dimension: int,
                  num_heads: list,
                  maximum_position_encoding: int,
-                 conv_filters: int,
+                 conv_filters: list,
                  dropout_rate: float,
                  dense_blocks: int,
                  kernel_size: int,
@@ -268,7 +263,7 @@ class CrossAttentionConvBlock(tf.keras.layers.Layer):
     def __init__(self,
                  model_dim: int,
                  num_heads: int,
-                 conv_filters: int,
+                 conv_filters: list,
                  dropout_rate: float,
                  kernel_size: int,
                  conv_padding: str,
@@ -277,13 +272,12 @@ class CrossAttentionConvBlock(tf.keras.layers.Layer):
         super(CrossAttentionConvBlock, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
         self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate)
-        self.conv = CNNResNorm(out_size=model_dim,
-                               n_layers=2,
-                               hidden_size=conv_filters,
+        self.conv = CNNResNorm(filters=conv_filters,
                                kernel_size=kernel_size,
                                inner_activation=conv_activation,
                                last_activation=conv_activation,
-                               padding=conv_padding)
+                               padding=conv_padding,
+                               dout_rate=dropout_rate)
     
     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
         attn1, attn_weights_block1 = self.sarn(x, mask=look_ahead_mask, training=training)
@@ -377,23 +371,20 @@ class Postnet(tf.keras.layers.Layer):
 
 class StatPredictor(tf.keras.layers.Layer):
     def __init__(self,
-                 model_dim: int,
+                 conv_filters: list,
                  kernel_size: int,
                  conv_padding: str,
                  conv_activation: str,
-                 conv_block_n: int,
                  dense_activation: str,
                  dropout_rate: float,
                  **kwargs):
         super(StatPredictor, self).__init__(**kwargs)
-        self.conv_blocks = CNNDropout(out_size=model_dim,
-                                      kernel_size=kernel_size,
-                                      padding=conv_padding,
-                                      inner_activation=conv_activation,
-                                      last_activation=conv_activation,
-                                      hidden_size=model_dim,
-                                      n_layers=conv_block_n,
-                                      dout_rate=dropout_rate)
+        self.conv_blocks = ClassificationCNN(filters=conv_filters,
+                                             kernel_size=kernel_size,
+                                             padding=conv_padding,
+                                             inner_activation=conv_activation,
+                                             last_activation=conv_activation,
+                                             dout_rate=dropout_rate)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
         self.linear = tf.keras.layers.Dense(1, activation=dense_activation)
     
@@ -405,31 +396,27 @@ class StatPredictor(tf.keras.layers.Layer):
         return x * mask
 
 
-class CNNDropout(tf.keras.layers.Layer):
+class ClassificationCNN(tf.keras.layers.Layer):
     def __init__(self,
-                 out_size: int,
-                 n_layers: int,
-                 hidden_size: int,
+                 filters: list,
                  kernel_size: int,
                  inner_activation: str,
                  last_activation: str,
                  padding: str,
                  dout_rate: float):
-        super(CNNDropout, self).__init__()
-        self.convolutions = [tf.keras.layers.Conv1D(filters=hidden_size,
+        super(ClassificationCNN, self).__init__()
+        self.n_layers = len(filters)
+        self.convolutions = [tf.keras.layers.Conv1D(filters=f,
                                                     kernel_size=kernel_size,
                                                     padding=padding)
-                             for _ in range(n_layers - 1)]
-        self.inner_activations = [tf.keras.layers.Activation(inner_activation) for _ in range(n_layers - 1)]
-        self.last_conv = tf.keras.layers.Conv1D(filters=out_size,
-                                                kernel_size=kernel_size,
-                                                padding=padding)
+                             for f in filters]
+        self.inner_activations = [tf.keras.layers.Activation(inner_activation) for _ in range(self.n_layers - 1)]
         self.last_activation = tf.keras.layers.Activation(last_activation)
-        self.dropouts = [tf.keras.layers.Dropout(rate=dout_rate) for _ in range(n_layers)]
-        self.normalization = [tf.keras.layers.LayerNormalization(epsilon=1e-6) for _ in range(n_layers)]
+        self.dropouts = [tf.keras.layers.Dropout(rate=dout_rate) for _ in range(self.n_layers)]
+        self.normalization = [tf.keras.layers.LayerNormalization(epsilon=1e-6) for _ in range(self.n_layers)]
     
     def call_convs(self, x, training):
-        for i in range(0, len(self.convolutions)):
+        for i in range(0, self.n_layers - 1):
             x = self.convolutions[i](x)
             x = self.inner_activations[i](x)
             x = self.normalization[i](x)
@@ -438,7 +425,7 @@ class CNNDropout(tf.keras.layers.Layer):
     
     def call(self, inputs, training):
         x = self.call_convs(inputs, training=training)
-        x = self.last_conv(x)
+        x = self.convolutions[-1](x)
         x = self.last_activation(x)
         x = self.normalization[-1](x)
         x = self.dropouts[-1](x, training=training)

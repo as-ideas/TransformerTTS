@@ -1,14 +1,14 @@
 # ARCHITECTURE
-decoder_model_dimension: 256
-encoder_model_dimension: 256
+decoder_model_dimension: 384
+encoder_model_dimension: 384
 decoder_num_heads: [2, 2, 2, 2, 2]  # the length of this defines the number of layers
 encoder_num_heads: [2, 2, 2, 2, 2]  # the length of this defines the number of layers
-encoder_feed_forward_dimension: 1024
-decoder_feed_forward_dimension: 1024
-decoder_prenet_dimension: 256
-encoder_prenet_dimension: 512
-encoder_attention_conv_filters: 1024
-decoder_attention_conv_filters: 1024
+encoder_feed_forward_dimension: null
+decoder_feed_forward_dimension: null
+decoder_prenet_dimension: 384
+encoder_prenet_dimension: 384
+encoder_attention_conv_filters: [1536, 384]
+decoder_attention_conv_filters: [1536, 384]
 encoder_attention_conv_kernel: 3
 decoder_attention_conv_kernel: 3
 encoder_max_position_encoding: 2000
@@ -16,15 +16,13 @@ decoder_max_position_encoding: 10000
 encoder_dense_blocks: 0
 decoder_dense_blocks: 0
 # STATS PREDICTORS ARCHITECTURE
-duration_model_size: 256
-pitch_model_size: 256
-duration_layer_n: 2
-pitch_layer_n: 2
+duration_conv_filters: [256, 226]
+pitch_conv_filters: [256, 226]
 duration_kernel_size: 3
 pitch_kernel_size: 3
-predictors_dropout: 0.2
 
 # TRAINING
+predictors_dropout: 0.1
 dropout_rate: 0.1
 learning_rate_schedule:
   - [0, 1.0e-4]
