@@ -141,7 +141,7 @@ Or in a python script
 from utils.config_manager import Config
 from data.audio import Audio
 
-config_loader = Config(config_path=f'config/session_paths.yaml', tts=True)
+config_loader = Config(config_path=f'config/session_paths.yaml')
 audio = Audio(config_loader.config)
 model = config_loader.load_model()
 out = model.predict('Please, say something.')

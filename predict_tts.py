@@ -32,10 +32,7 @@ if __name__ == '__main__':
         print(f'Specify either an input text (-t "some text") or a text input file (-f /path/to/file.txt)')
         exit()
     config_loader = Config(config_path=args.config)
-    if args.outdir is None:
-        outdir = config_loader.log_dir
-    else:
-        outdir = Path(args.outdir)
+    outdir = Path(args.outdir) if args.outdir is not None else config_loader.log_dir
     outdir = outdir / 'outputs' / f'{fname}'
     outdir.mkdir(exist_ok=True, parents=True)
     audio = Audio(config_loader.config)
