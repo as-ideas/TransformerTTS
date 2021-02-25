@@ -378,7 +378,6 @@ class ForwardTransformer(tf.keras.models.Model):
     
     def _apply_all_signatures(self):
         self.forward = self._apply_signature(self._forward, self.forward_input_signature)
-        self.forward_masked = self._apply_signature(self._forward_masked, self.forward_masked_input_signature)
         self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
     
@@ -432,11 +431,6 @@ class ForwardTransformer(tf.keras.models.Model):
                              durations_scalar=durations_scalar, max_durations_mask=None,
                              min_durations_mask=None)
     
-    def _forward_masked(self, input_sequence, durations_scalar, max_durations_mask, min_durations_mask):
-        return self.__call__(input_sequence, target_durations=None, target_pitch=None, training=False,
-                             durations_scalar=durations_scalar, max_durations_mask=max_durations_mask,
-                             min_durations_mask=min_durations_mask)
-    
     @property
     def step(self):
         return int(self.optimizer.iterations)
@@ -482,7 +476,7 @@ class ForwardTransformer(tf.keras.models.Model):
         return self.text_pipeline(text)
     
     def predict(self, inp, encode=True, speed_regulator=1., phoneme_max_duration=None, phoneme_min_duration=None,
-                max_durations_mask=None, min_durations_mask=None):
+                max_durations_mask=None, min_durations_mask=None, phoneme_durations=None, phoneme_pitch=None):
         if encode:
             inp = self.encode_text(inp)
         if len(tf.shape(inp)) < 2:
@@ -491,12 +485,16 @@ class ForwardTransformer(tf.keras.models.Model):
         duration_scalar = tf.cast(1. / speed_regulator, tf.float32)
         max_durations_mask = self._make_max_duration_mask(inp, phoneme_max_duration)
         min_durations_mask = self._make_min_duration_mask(inp, phoneme_min_duration)
-        out = self.forward_masked(inp, durations_scalar=duration_scalar,
-                                  max_durations_mask=max_durations_mask,
-                                  min_durations_mask=min_durations_mask)
+        out = self.call(inp,
+                        target_durations=phoneme_durations,
+                        target_pitch=phoneme_pitch,
+                        training=False,
+                        durations_scalar=duration_scalar,
+                        max_durations_mask=max_durations_mask,
+                        min_durations_mask=min_durations_mask)
         out['mel'] = tf.squeeze(out['mel'])
         return out
-
+    
     def _make_max_duration_mask(self, encoded_text, phoneme_max_duration):
         np_text = np.array(encoded_text)
         new_mask = np.ones(tf.shape(encoded_text)) * float('inf')
@@ -505,7 +503,7 @@ class ForwardTransformer(tf.keras.models.Model):
                 phon_idx = self.text_pipeline.tokenizer(item[0])[0]
                 new_mask[np_text == phon_idx] = item[1]
         return tf.cast(tf.convert_to_tensor(new_mask), tf.float32)
-
+    
     def _make_min_duration_mask(self, encoded_text, phoneme_min_duration):
         np_text = np.array(encoded_text)
         new_mask = np.zeros(tf.shape(encoded_text))
