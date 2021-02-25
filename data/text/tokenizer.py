@@ -56,6 +56,23 @@ class Phonemizer:
         self.punctuation = ';:,.!?¡¿—…"«»“”'
         self._whitespace_re = re.compile(r'\s+')
     
+    def __call__(self, text: Union[str, list], with_stress=None, njobs=None, language=None) -> Union[str, list]:
+        language = language or self.language
+        njobs = njobs or self.njobs
+        with_stress = with_stress or self.with_stress
+        # phonemizer does not like hyphens.
+        text = self._preprocess(text)
+        phonemes = phonemize(text,
+                             language=language,
+                             backend='espeak',
+                             strip=True,
+                             preserve_punctuation=True,
+                             with_stress=with_stress,
+                             punctuation_marks=self.punctuation,
+                             njobs=njobs,
+                             language_switch='remove-flags')
+        return self._postprocess(phonemes)
+    
     def _preprocess_string(self, text: str):
         text = text.replace('-', self.special_hyphen)
         return text
@@ -85,20 +102,3 @@ class Phonemizer:
             return self._postprocess_string(text)
         else:
             raise TypeError(f'{self} input must be list or str, not {type(text)}')
-    
-    def __call__(self, text: Union[str, list], with_stress=None, njobs=None, language=None) -> Union[str, list]:
-        language = language or self.language
-        njobs = njobs or self.njobs
-        with_stress = with_stress or self.with_stress
-        # phonemizer does not like hyphens.
-        text = self._preprocess(text)
-        phonemes = phonemize(text,
-                             language=language,
-                             backend='espeak',
-                             strip=True,
-                             preserve_punctuation=True,
-                             with_stress=with_stress,
-                             punctuation_marks=self.punctuation,
-                             njobs=njobs,
-                             language_switch='remove-flags')
-        return self._postprocess(phonemes)
