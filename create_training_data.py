@@ -100,9 +100,9 @@ if not args.skip_mels:
 
 if not args.skip_phonemes:
     remove_files = pickle.load(open(cm.data_dir / 'under-over_sized_mels.pkl', 'rb'))
-    phonemized_metadata_path = Path(cm.data_dir) / 'phonemized_metadata.txt'
-    train_metadata_path = Path(cm.data_dir) / cm.config['train_metadata_filename']
-    test_metadata_path = Path(cm.data_dir) / cm.config['valid_metadata_filename']
+    phonemized_metadata_path = cm.phonemized_metadata_path
+    train_metadata_path = cm.train_metadata_path
+    test_metadata_path = cm.valid_metadata_path
     print(f'\nReading metadata from {metadatareader.metadata_path}')
     print(f'\nFound {len(metadatareader.filenames)} lines.')
     filter_metadata = []
