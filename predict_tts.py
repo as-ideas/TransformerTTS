@@ -33,8 +33,6 @@ if __name__ == '__main__':
         exit()
     config_loader = Config(config_path=args.config)
     outdir = Path(args.outdir) if args.outdir is not None else config_loader.log_dir
-    else:
-        outdir = Path(args.outdir)
     outdir = outdir / 'outputs' / f'{fname}'
     outdir.mkdir(exist_ok=True, parents=True)
     audio = Audio(config_loader.config)
