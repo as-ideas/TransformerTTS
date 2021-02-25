@@ -16,8 +16,11 @@ class CNNResNorm(tf.keras.layers.Layer):
         self.convolutions = [tf.keras.layers.Conv1D(filters=f,
                                                     kernel_size=kernel_size,
                                                     padding=padding)
-                             for f in filters]
+                             for f in filters[:-1]]
         self.inner_activations = [tf.keras.layers.Activation(inner_activation) for _ in range(self.n_layers - 1)]
+        self.last_conv = tf.keras.layers.Conv1D(filters=filters[-1],
+                                                kernel_size=kernel_size,
+                                                padding=padding)
         self.last_activation = tf.keras.layers.Activation(last_activation)
         self.normalization = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.dropout = tf.keras.layers.Dropout(rate=dout_rate)
@@ -30,7 +33,7 @@ class CNNResNorm(tf.keras.layers.Layer):
     
     def call(self, inputs, training):
         x = self.call_convs(inputs)
-        x = self.convolutions[-1](x)
+        x = self.last_conv(x)
         x = self.last_activation(x)
         x = self.dropout(x, training=training)
         return self.normalization(inputs + x)
@@ -379,12 +382,12 @@ class StatPredictor(tf.keras.layers.Layer):
                  dropout_rate: float,
                  **kwargs):
         super(StatPredictor, self).__init__(**kwargs)
-        self.conv_blocks = ClassificationCNN(filters=conv_filters,
-                                             kernel_size=kernel_size,
-                                             padding=conv_padding,
-                                             inner_activation=conv_activation,
-                                             last_activation=conv_activation,
-                                             dout_rate=dropout_rate)
+        self.conv_blocks = CNNDropout(filters=conv_filters,
+                                      kernel_size=kernel_size,
+                                      padding=conv_padding,
+                                      inner_activation=conv_activation,
+                                      last_activation=conv_activation,
+                                      dout_rate=dropout_rate)
         self.linear = tf.keras.layers.Dense(1, activation=dense_activation)
     
     def call(self, x, training, mask):
@@ -394,7 +397,7 @@ class StatPredictor(tf.keras.layers.Layer):
         return x * mask
 
 
-class ClassificationCNN(tf.keras.layers.Layer):
+class CNNDropout(tf.keras.layers.Layer):
     def __init__(self,
                  filters: list,
                  kernel_size: int,
@@ -402,13 +405,16 @@ class ClassificationCNN(tf.keras.layers.Layer):
                  last_activation: str,
                  padding: str,
                  dout_rate: float):
-        super(ClassificationCNN, self).__init__()
+        super(CNNDropout, self).__init__()
         self.n_layers = len(filters)
         self.convolutions = [tf.keras.layers.Conv1D(filters=f,
                                                     kernel_size=kernel_size,
                                                     padding=padding)
-                             for f in filters]
+                             for f in filters[:-1]]
         self.inner_activations = [tf.keras.layers.Activation(inner_activation) for _ in range(self.n_layers - 1)]
+        self.last_conv = tf.keras.layers.Conv1D(filters=filters[-1],
+                                                kernel_size=kernel_size,
+                                                padding=padding)
         self.last_activation = tf.keras.layers.Activation(last_activation)
         self.dropouts = [tf.keras.layers.Dropout(rate=dout_rate) for _ in range(self.n_layers)]
         self.normalization = [tf.keras.layers.LayerNormalization(epsilon=1e-6) for _ in range(self.n_layers)]
@@ -423,7 +429,7 @@ class ClassificationCNN(tf.keras.layers.Layer):
     
     def call(self, inputs, training):
         x = self.call_convs(inputs, training=training)
-        x = self.convolutions[-1](x)
+        x = self.last_conv(x)
         x = self.last_activation(x)
         x = self.normalization[-1](x)
         x = self.dropouts[-1](x, training=training)
