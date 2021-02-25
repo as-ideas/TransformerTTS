@@ -3,13 +3,14 @@ import numpy as np
 from tqdm import trange
 
 from utils.config_manager import Config
-from preprocessing.datasets import TextMelDataset, AutoregressivePreprocessor
+from data.datasets import AlignerDataset, AlignerPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
 from utils.logging_utils import SummaryManager
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
 from utils.metrics import attention_score
 from utils.spectrogram_ops import mel_lengths, phoneme_lengths
+from utils.alignments import get_durations_from_alignment
 
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -19,13 +20,29 @@ parser = basic_train_parser()
 args = parser.parse_args()
 
 
+def cut_with_durations(durations, mel, phonemes, snippet_len=10):
+    phon_dur = np.pad(durations, (1, 0))
+    starts = np.cumsum(phon_dur)[:-1]
+    ends = np.cumsum(phon_dur)[1:]
+    cut_mels = []
+    cut_texts = []
+    for end_idx in range(snippet_len, len(phon_dur), snippet_len):
+        start_idx = end_idx - snippet_len
+        cut_mels.append(mel[starts[start_idx]: ends[end_idx - 1], :])
+        cut_texts.append(phonemes[start_idx: end_idx])
+    return cut_mels, cut_texts
+
+
 @ignore_exception
 @time_it
 def validate(model,
              val_dataset,
-             summary_manager):
+             summary_manager,
+             weighted_durations):
     val_loss = {'loss': 0.}
     norm = 0.
+    current_r = model.r
+    model.set_constants(reduction_factor=1)
     for val_mel, val_text, val_stop, fname in val_dataset.all_batches():
         model_out = model.val_step(inp=val_text,
                                    tar=val_mel,
@@ -34,42 +51,56 @@ def validate(model,
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
     summary_manager.display_loss(model_out, tag='Validation', plot_all=True)
-    summary_manager.display_attention_heads(model_out, tag='ValidationAttentionHeads')
-    # summary_manager.display_mel(mel=model_out['mel_linear'][0], tag=f'Validation/linear_mel_out')
-    summary_manager.display_mel(mel=model_out['final_output'][0],
-                                tag=f'Validation/predicted_mel_{fname[0].numpy().decode("utf-8")}')
-    # residual = abs(model_out['mel_linear'] - model_out['final_output'])
-    # summary_manager.display_mel(mel=residual[0], tag=f'Validation/conv-linear_residual')
-    summary_manager.display_mel(mel=val_mel[0], tag=f'Validation/target_mel_{fname[0].numpy().decode("utf-8")}')
+    summary_manager.display_last_attention(model_out, tag='ValidationAttentionHeads', fname=fname)
+    attention_values = model_out['decoder_attention']['Decoder_LastBlock_CrossAttention'].numpy()
+    text = val_text.numpy()
+    mel = val_mel.numpy()
+    model.set_constants(reduction_factor=current_r)
+    modes = list({False, weighted_durations})
+    for mode in modes:
+        durations, final_align, jumpiness, peakiness, diag_measure = get_durations_from_alignment(
+            batch_alignments=attention_values,
+            mels=mel,
+            phonemes=text,
+            weighted=mode)
+        for k in range(len(durations)):
+            phon_dur = durations[k]
+            imel = mel[k][1:]  # remove start token (is padded so end token can't be removed/not an issue)
+            itext = text[k][1:]  # remove start token (is padded so end token can't be removed/not an issue)
+            iphon = model.text_pipeline.tokenizer.decode(itext).replace('/', '')
+            cut_mels, cut_texts = cut_with_durations(durations=phon_dur, mel=imel, phonemes=iphon)
+            for cut_idx, cut_text in enumerate(cut_texts):
+                weighted_label = 'weighted_' * mode
+                summary_manager.display_audio(
+                    tag=f'CutAudio {weighted_label}{fname[k].numpy().decode("utf-8")}/{cut_idx}/{cut_text}',
+                    mel=cut_mels[cut_idx], description=iphon)
     return val_loss['loss']
 
 
-config_manager = Config(config_path=args.config, model_kind='autoregressive')
+config_manager = Config(config_path=args.config, aligner=True)
 config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,
                                   clear_weights=args.clear_weights)
 config_manager.dump_config()
 config_manager.print_config()
-#
-
 
 # get model, prepare data for model, create datasets
 model = config_manager.get_model()
 config_manager.compile_model(model)
-data_prep = AutoregressivePreprocessor.from_config(config_manager,
-                                                   tokenizer=model.text_pipeline.tokenizer)
-train_data_handler = TextMelDataset.from_config(config_manager,
+data_prep = AlignerPreprocessor.from_config(config_manager,
+                                            tokenizer=model.text_pipeline.tokenizer)  # TODO: tokenizer is now static
+train_data_handler = AlignerDataset.from_config(config_manager,
                                                 preprocessor=data_prep,
                                                 kind='train')
-valid_data_handler = TextMelDataset.from_config(config_manager,
+valid_data_handler = AlignerDataset.from_config(config_manager,
                                                 preprocessor=data_prep,
                                                 kind='valid')
 
 train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=config['bucket_batch_sizes'],
                                                bucket_boundaries=config['bucket_boundaries'],
                                                shuffle=True)
-valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1],
+valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=config['val_bucket_batch_size'],
                                                bucket_boundaries=config['bucket_boundaries'],
                                                shuffle=False, drop_remainder=True)
 
@@ -102,15 +133,16 @@ t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
     mel, phonemes, stop, sample_name = train_dataset.next_batch()
-    decoder_prenet_dropout = piecewise_linear_schedule(model.step, config['decoder_prenet_dropout_schedule'])
     learning_rate = piecewise_linear_schedule(model.step, config['learning_rate_schedule'])
     reduction_factor = reduction_schedule(model.step, config['reduction_factor_schedule'])
-    drop_n_heads = tf.cast(reduction_schedule(model.step, config['head_drop_schedule']), tf.int32)
     t.display(f'reduction factor {reduction_factor}', pos=10)
-    model.set_constants(decoder_prenet_dropout=decoder_prenet_dropout,
-                        learning_rate=learning_rate,
+    force_encoder_diagonal = model.step < config['force_encoder_diagonal_steps']
+    force_decoder_diagonal = model.step < config['force_decoder_diagonal_steps']
+    model.set_constants(learning_rate=learning_rate,
                         reduction_factor=reduction_factor,
-                        drop_n_heads=drop_n_heads)
+                        force_encoder_diagonal=force_encoder_diagonal,
+                        force_decoder_diagonal=force_decoder_diagonal)
+    
     output = model.train_step(inp=phonemes,
                               tar=mel,
                               stop_prob=stop)
@@ -122,19 +154,13 @@ for _ in t:
             t.display(f'{n_steps}-steps average loss: {sum(losses[-n_steps:]) / n_steps}', pos=pos + 2)
     
     summary_manager.display_loss(output, tag='Train')
-    summary_manager.display_scalar(tag='Meta/decoder_prenet_dropout', scalar_value=model.decoder_prenet.rate)
     summary_manager.display_scalar(tag='Meta/learning_rate', scalar_value=model.optimizer.lr)
     summary_manager.display_scalar(tag='Meta/reduction_factor', scalar_value=model.r)
-    summary_manager.display_scalar(tag='Meta/drop_n_heads', scalar_value=model.drop_n_heads)
+    summary_manager.display_scalar(scalar_value=t.avg_time, tag='Meta/iter_time')
+    summary_manager.display_scalar(scalar_value=tf.shape(sample_name)[0], tag='Meta/batch_size')
     if model.step % config['train_images_plotting_frequency'] == 0:
         summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
-        summary_manager.display_mel(mel=output['mel_linear'][0], tag=f'Train/linear_mel_out')
-        summary_manager.display_mel(mel=output['final_output'][0], tag=f'Train/predicted_mel')
-        residual = abs(output['mel_linear'] - output['final_output'])
-        summary_manager.display_mel(mel=residual[0], tag=f'Train/conv-linear_residual')
-        summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
-        summary_manager.display_audio(tag=f'Train/prediction', mel=output['final_output'][0])
-        summary_manager.display_audio(tag=f'Train/target', mel=mel[0])
+        summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/predicted_mel')
         for layer, k in enumerate(output['decoder_attention'].keys()):
             mel_lens = mel_lengths(mel_batch=mel, padding_value=0) // model.r  # [N]
             phon_len = phoneme_lengths(phonemes)
@@ -159,32 +185,11 @@ for _ in t:
         save_path = manager.save()
         t.display(f'checkpoint at step {model.step}: {save_path}', pos=len(config['n_steps_avg_losses']) + 2)
     
-    if model.step % config['validation_frequency'] == 0:
+    if model.step % config['validation_frequency'] == 0 and (model.step >= config['prediction_start_step']):
         val_loss, time_taken = validate(model=model,
                                         val_dataset=valid_dataset,
-                                        summary_manager=summary_manager)
+                                        summary_manager=summary_manager,
+                                        weighted_durations=config['extract_attention_weighted'])
         t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
                   pos=len(config['n_steps_avg_losses']) + 3)
-    
-    if model.step % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
-        for j in range(len(test_mel)):
-            if j < config['n_predictions']:
-                mel, phonemes, stop, fname = test_mel[j], test_phonemes[j], test_stop[j], test_fname[j]
-                mel = mel[tf.reduce_sum(tf.cast(mel != 0, tf.int32), axis=1) > 0]
-                t.display(f'Predicting {j}', pos=len(config['n_steps_avg_losses']) + 4)
-                pred = model.predict(phonemes,
-                                     max_length=mel.shape[0] + 50,
-                                     encode=False,
-                                     verbose=False)
-                pred_mel = pred['mel']
-                mel = mel[1:-1]
-                target_mel = mel
-                summary_manager.display_attention_heads(outputs=pred,
-                                                        tag=f'TestAttentionHeads/{fname.numpy().decode("utf-8")}')
-                summary_manager.display_mel(mel=pred_mel, tag=f'Test/{fname.numpy().decode("utf-8")}/predicted')
-                summary_manager.display_mel(mel=target_mel, tag=f'Test/{fname.numpy().decode("utf-8")}/target')
-                if model.step >= config['audio_start_step']:
-                    summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/target', mel=target_mel)
-                    summary_manager.display_audio(tag=f'{fname.numpy().decode("utf-8")}/prediction', mel=pred_mel)
-
 print('Done.')

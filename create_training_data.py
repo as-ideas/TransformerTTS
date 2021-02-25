@@ -3,14 +3,14 @@ from pathlib import Path
 import pickle
 
 import numpy as np
-from p_tqdm import p_uimap
+from p_tqdm import p_uimap, p_umap
 
 from utils.logging_utils import SummaryManager
-from preprocessing.text import TextToTokens
-from preprocessing.datasets import DataReader
+from data.text import TextToTokens
+from data.datasets import DataReader
 from utils.config_manager import Config
-from utils.audio import Audio
-from preprocessing.text.symbols import _alphabet
+from data.audio import Audio
+from data.text.symbols import _alphabet
 
 np.random.seed(42)
 
@@ -23,39 +23,72 @@ args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 
-cm = Config(args.config, model_kind='autoregressive')
+cm = Config(args.config, aligner=True)
 cm.create_remove_dirs()
 metadatareader = DataReader.from_config(cm, kind='original', scan_wavs=True)
 summary_manager = SummaryManager(model=None, log_dir=cm.log_dir / 'data_preprocessing', config=cm.config,
                                  default_writer='data_preprocessing')
+file_ids_from_wavs = list(metadatareader.wav_paths.keys())
+print(f"Reading wavs from {metadatareader.wav_directory}")
+print(f"Reading metadata from {metadatareader.metadata_path}")
+print(f'\nFound {len(metadatareader.filenames)} metadata lines.')
+print(f'\nFound {len(file_ids_from_wavs)} wav files.')
+cross_file_ids = [fid for fid in file_ids_from_wavs if fid in metadatareader.filenames]
+print(f'\nThere are {len(cross_file_ids)} wav file names that correspond to metadata lines.')
+
 if not args.skip_mels:
     
     def process_wav(wav_path: Path):
         file_name = wav_path.stem
         y, sr = audio.load_wav(str(wav_path))
+        pitch = audio.extract_pitch(y)
         mel = audio.mel_spectrogram(y)
         assert mel.shape[1] == audio.config['mel_channels'], len(mel.shape) == 2
+        assert mel.shape[0] == pitch.shape[0], f'{mel.shape[0]} == {pitch.shape[0]} (wav {y.shape})'
         mel_path = (cm.mel_dir / file_name).with_suffix('.npy')
+        pitch_path = (cm.pitch_dir / file_name).with_suffix('.npy')
         np.save(mel_path, mel)
-        return (file_name, mel.shape[0])
+        np.save(pitch_path, pitch)
+        return {'fname': file_name, 'mel.len': mel.shape[0], 'pitch.path': pitch_path, 'pitch': pitch}
     
     
-    print(f"Creating mels from all wavs found in {metadatareader.data_directory}")
     print(f"\nMels will be stored stored under")
     print(f"{cm.mel_dir}")
-    (cm.mel_dir).mkdir(exist_ok=True)
     audio = Audio(config=cm.config)
-    wav_files = [metadatareader.wav_paths[k] for k in metadatareader.wav_paths]
+    wav_files = [metadatareader.wav_paths[k] for k in cross_file_ids]
     len_dict = {}
     remove_files = []
     mel_lens = []
+    pitches = {}
     wav_iter = p_uimap(process_wav, wav_files)
-    for (fname, mel_len) in wav_iter:
-        len_dict.update({fname: mel_len})
-        if mel_len > cm.config['max_mel_len'] or mel_len < cm.config['min_mel_len']:
-            remove_files.append(fname)
+    for out_dict in wav_iter:
+        len_dict.update({out_dict['fname']: out_dict['mel.len']})
+        pitches.update({out_dict['pitch.path']: out_dict['pitch']})
+        if out_dict['mel.len'] > cm.config['max_mel_len'] or out_dict['mel.len'] < cm.config['min_mel_len']:
+            remove_files.append(out_dict['fname'])
         else:
-            mel_lens.append(mel_len)
+            mel_lens.append(out_dict['mel.len'])
+    
+    
+    def normalize_pitch_vectors(pitch_vecs):
+        nonzeros = np.concatenate([v[np.where(v != 0.0)[0]]
+                                   for v in pitch_vecs.values()])
+        mean, std = np.mean(nonzeros), np.std(nonzeros)
+        return mean, std
+    
+    
+    def process_pitches(item: tuple):
+        fname, pitch = item
+        zero_idxs = np.where(pitch == 0.0)[0]
+        pitch -= mean
+        pitch /= std
+        pitch[zero_idxs] = 0.0
+        np.save(fname, pitch)
+    
+    
+    mean, std = normalize_pitch_vectors(pitches)
+    pickle.dump({'pitch_mean': mean, 'pitch_std': std}, open(cm.data_dir / 'pitch_stats.pkl', 'wb'))
+    pitch_iter = p_umap(process_pitches, pitches.items())
     
     pickle.dump(len_dict, open(cm.data_dir / 'mel_len.pkl', 'wb'))
     pickle.dump(remove_files, open(cm.data_dir / 'under-over_sized_mels.pkl', 'wb'))
@@ -73,7 +106,7 @@ if not args.skip_phonemes:
     print(f'\nReading metadata from {metadatareader.metadata_path}')
     print(f'\nFound {len(metadatareader.filenames)} lines.')
     filter_metadata = []
-    for fname in metadatareader.filenames:
+    for fname in cross_file_ids:
         item = metadatareader.text_dict[fname]
         non_p = [c for c in item if c in _alphabet]
         if len(non_p) < 1:
@@ -84,9 +117,9 @@ if not args.skip_phonemes:
             print(f'{fname}: {metadatareader.text_dict[fname]}')
     print(f'\nRemoving {len(remove_files)} line(s) due to mel filtering.')
     remove_files += filter_metadata
-    metadatareader.filenames = [fname for fname in metadatareader.filenames if fname not in remove_files]
-    metadata_len = len(metadatareader.filenames)
-    sample_items = np.random.choice(metadatareader.filenames, 5)
+    metadata_file_ids = [fname for fname in cross_file_ids if fname not in remove_files]
+    metadata_len = len(metadata_file_ids)
+    sample_items = np.random.choice(metadata_file_ids, 5)
     test_len = cm.config['n_test']
     train_len = metadata_len - test_len
     print(f'\nMetadata contains {metadata_len} lines.')
@@ -98,11 +131,12 @@ if not args.skip_phonemes:
     print('\nMetadata samples:')
     for i in sample_items:
         print(f'{i}:{metadatareader.text_dict[i]}')
-        summary_manager.add_text(f'Metadata samples/{i}', text=metadatareader.text_dict[i])
+        summary_manager.add_text(f'{i}/text', text=metadatareader.text_dict[i])
     
     # run cleaner on raw text
     text_proc = TextToTokens.default(cm.config['phoneme_language'], add_start_end=False,
-                                     with_stress=cm.config['with_stress'], njobs=1)
+                                     with_stress=cm.config['with_stress'], model_breathing=cm.config['model_breathing'],
+                                     njobs=1)
     
     
     def process_phonemes(file_id):
@@ -117,16 +151,16 @@ if not args.skip_phonemes:
     
     print('\nPHONEMIZING')
     phonemized_data = {}
-    phon_iter = p_uimap(process_phonemes, metadatareader.filenames)
+    phon_iter = p_uimap(process_phonemes, metadata_file_ids)
     for (file_id, phonemes) in phon_iter:
         phonemized_data.update({file_id: phonemes})
     
     print('\nPhonemized metadata samples:')
     for i in sample_items:
         print(f'{i}:{phonemized_data[i]}')
-        summary_manager.add_text(f'Phonemized samples/{i}', text=phonemized_data[i])
+        summary_manager.add_text(f'{i}/phonemes', text=phonemized_data[i])
     
-    new_metadata = [''.join([key, '|', phonemized_data[key], '\n']) for key in phonemized_data]
+    new_metadata = [f'{k}|{v}\n' for k, v in phonemized_data.items()]
     shuffled_metadata = np.random.permutation(new_metadata)
     train_metadata = shuffled_metadata[0:train_len]
     test_metadata = shuffled_metadata[-test_len:]
@@ -142,4 +176,5 @@ if not args.skip_phonemes:
         f'Length of metadata ({metadata_len}) does not match the length of the phoneme array ({len(set(list(phonemized_data.keys())))}). Check for empty text lines in metadata.'
     assert len(train_metadata) + len(test_metadata) == metadata_len, \
         f'Train and/or validation lengths incorrect. ({len(train_metadata)} + {len(test_metadata)} != {metadata_len})'
+
 print('\nDone')

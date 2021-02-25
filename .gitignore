@@ -1,7 +1,7 @@
 ## CUSTOM
+vocoding
 samples
 .idea
-data
 *.pkl
 *.hdf5
 .DS_Store
@@ -137,3 +137,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+/vocoding/

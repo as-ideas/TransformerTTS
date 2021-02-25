@@ -1,10 +1,15 @@
 import sys
+import struct
 
 import librosa
 import numpy as np
 import librosa.display
 from matplotlib import pyplot as plt
 import soundfile as sf
+import webrtcvad
+from scipy.ndimage import binary_dilation
+import pyworld as pw
+
 
 class Audio():
     def __init__(self, config: dict):
@@ -73,10 +78,56 @@ class Audio():
     
     def load_wav(self, wav_path):
         y, sr = librosa.load(wav_path, sr=self.config['sampling_rate'])
+        if self.config['trim_long_silences']:
+            y = self.trim_long_silences(y)
+        if self.config['trim_silence']:
+            y = self.trim_silence(y)
+        if y.shape[0] % self.config['hop_length'] == 0:
+            y = np.pad(y, (0, 1))
         return y, sr
     
     def save_wav(self, y, wav_path):
         sf.write(wav_path, data=y, samplerate=self.config['sampling_rate'])
+    
+    def extract_pitch(self, y):
+        _f0, t = pw.dio(y.astype(np.float64), fs=self.config['sampling_rate'],
+                        frame_period=self.config['hop_length'] / self.config['sampling_rate'] * 1000)
+        f0 = pw.stonemask(y.astype(np.float64), _f0, t, fs=self.config['sampling_rate'])  # pitch refinement
+        
+        return f0
+    
+    def trim_silence(self, wav):
+        trimmed = librosa.effects.trim(wav,
+                                       top_db=self.config['trim_silence_top_db'],
+                                       frame_length=256,
+                                       hop_length=64)
+        return trimmed[0]
+    
+    # from https://github.com/resemble-ai/Resemblyzer/blob/master/resemblyzer/audio.py
+    def trim_long_silences(self, wav):
+        int16_max = (2 ** 15) - 1
+        samples_per_window = (self.config['vad_window_length'] * self.config['vad_sample_rate']) // 1000
+        wav = wav[:len(wav) - (len(wav) % samples_per_window)]
+        pcm_wave = struct.pack("%dh" % len(wav), *(np.round(wav * int16_max)).astype(np.int16))
+        voice_flags = []
+        vad = webrtcvad.Vad(mode=3)
+        for window_start in range(0, len(wav), samples_per_window):
+            window_end = window_start + samples_per_window
+            voice_flags.append(vad.is_speech(pcm_wave[window_start * 2:window_end * 2],
+                                             sample_rate=self.config['vad_sample_rate']))
+        voice_flags = np.array(voice_flags)
+        
+        def moving_average(array, width):
+            array_padded = np.concatenate((np.zeros((width - 1) // 2), array, np.zeros(width // 2)))
+            ret = np.cumsum(array_padded, dtype=float)
+            ret[width:] = ret[width:] - ret[:-width]
+            return ret[width - 1:] / width
+        
+        audio_mask = moving_average(voice_flags, self.config['vad_moving_average_width'])
+        audio_mask = np.round(audio_mask).astype(np.bool)
+        audio_mask[:] = binary_dilation(audio_mask[:], np.ones(self.config['vad_max_silence_length'] + 1))
+        audio_mask = np.repeat(audio_mask, samples_per_window)
+        return wav[audio_mask]
 
 
 class Normalizer:
