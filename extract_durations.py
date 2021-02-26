@@ -65,12 +65,11 @@ if __name__ == '__main__':
         new_alignments = []
         iterator = tqdm(enumerate(dataset.all_batches()))
         step = 0
-        for c, (mel_batch, text_batch, stop_batch, file_name_batch, tar_mel) in iterator:
+        for c, (mel_batch, text_batch, stop_batch, file_name_batch) in iterator:
             iterator.set_description(f'Processing dataset')
             outputs = model.val_step(inp=text_batch,
                                      tar=mel_batch,
-                                     stop_prob=stop_batch,
-                                     tar_mel=tar_mel)
+                                     stop_prob=stop_batch)
             attention_values = outputs['decoder_attention'][last_layer_key].numpy()
             text = text_batch.numpy()
             

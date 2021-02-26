@@ -288,12 +288,17 @@ class ForwardTransformer(tf.keras.models.Model):
                  decoder_maximum_position_encoding: int,
                  encoder_dense_blocks: int,
                  decoder_dense_blocks: int,
+                 duration_conv_filters: list,
+                 pitch_conv_filters: list,
+                 duration_kernel_size: int,
+                 pitch_kernel_size: int,
+                 predictors_dropout: float,
                  mel_channels: int,
                  phoneme_language: str,
                  with_stress: bool,
                  model_breathing: bool,
-                 encoder_attention_conv_filters: int = None,
-                 decoder_attention_conv_filters: int = None,
+                 encoder_attention_conv_filters: list = None,
+                 decoder_attention_conv_filters: list = None,
                  encoder_attention_conv_kernel: int = None,
                  decoder_attention_conv_kernel: int = None,
                  encoder_feed_forward_dimension: int = None,
@@ -319,20 +324,20 @@ class ForwardTransformer(tf.keras.models.Model):
                                            kernel_size=encoder_attention_conv_kernel,
                                            conv_activation='relu',
                                            name='Encoder')
-        self.dur_pred = StatPredictor(model_dim=encoder_model_dimension,
-                                      kernel_size=3,
+        self.dur_pred = StatPredictor(conv_filters=duration_conv_filters,
+                                      kernel_size=duration_kernel_size,
                                       conv_padding='same',
                                       conv_activation='relu',
-                                      conv_block_n=2,
                                       dense_activation='relu',
+                                      dropout_rate=predictors_dropout,
                                       name='dur_pred')
         self.expand = Expand(name='expand', model_dim=encoder_model_dimension)
-        self.pitch_pred = StatPredictor(model_dim=encoder_model_dimension,
-                                        kernel_size=3,
+        self.pitch_pred = StatPredictor(conv_filters=pitch_conv_filters,
+                                        kernel_size=pitch_kernel_size,
                                         conv_padding='same',
                                         conv_activation='relu',
-                                        conv_block_n=2,
                                         dense_activation='linear',
+                                        dropout_rate=predictors_dropout,
                                         name='pitch_pred')
         self.pitch_embed = tf.keras.layers.Dense(encoder_model_dimension, activation='relu')
         self.decoder = SelfAttentionBlocks(model_dim=decoder_model_dimension,
@@ -373,7 +378,6 @@ class ForwardTransformer(tf.keras.models.Model):
     
     def _apply_all_signatures(self):
         self.forward = self._apply_signature(self._forward, self.forward_input_signature)
-        self.forward_masked = self._apply_signature(self._forward_masked, self.forward_masked_input_signature)
         self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
     
@@ -427,11 +431,6 @@ class ForwardTransformer(tf.keras.models.Model):
                              durations_scalar=durations_scalar, max_durations_mask=None,
                              min_durations_mask=None)
     
-    def _forward_masked(self, input_sequence, durations_scalar, max_durations_mask, min_durations_mask):
-        return self.__call__(input_sequence, target_durations=None, target_pitch=None, training=False,
-                             durations_scalar=durations_scalar, max_durations_mask=max_durations_mask,
-                             min_durations_mask=min_durations_mask)
-    
     @property
     def step(self):
         return int(self.optimizer.iterations)
@@ -477,44 +476,39 @@ class ForwardTransformer(tf.keras.models.Model):
         return self.text_pipeline(text)
     
     def predict(self, inp, encode=True, speed_regulator=1., phoneme_max_duration=None, phoneme_min_duration=None,
-                max_durations_mask=None, min_durations_mask=None):
+                max_durations_mask=None, min_durations_mask=None, phoneme_durations=None, phoneme_pitch=None):
         if encode:
             inp = self.encode_text(inp)
         if len(tf.shape(inp)) < 2:
             inp = tf.expand_dims(inp, 0)
         inp = tf.cast(inp, tf.int32)
         duration_scalar = tf.cast(1. / speed_regulator, tf.float32)
-        if phoneme_max_duration is not None:
-            max_durations_mask = self._make_max_duration_mask(inp, phoneme_max_duration)
-        if phoneme_min_duration is not None:
-            min_durations_mask = self._make_min_duration_mask(inp, phoneme_min_duration)
-        if min_durations_mask or max_durations_mask:
-            out = self.forward_masked(inp, durations_scalar=duration_scalar,
-                                      max_durations_mask=max_durations_mask,
-                                      min_durations_mask=min_durations_mask)
-        else:
-            out = self.forward(inp, durations_scalar=duration_scalar)
+        max_durations_mask = self._make_max_duration_mask(inp, phoneme_max_duration)
+        min_durations_mask = self._make_min_duration_mask(inp, phoneme_min_duration)
+        out = self.call(inp,
+                        target_durations=phoneme_durations,
+                        target_pitch=phoneme_pitch,
+                        training=False,
+                        durations_scalar=duration_scalar,
+                        max_durations_mask=max_durations_mask,
+                        min_durations_mask=min_durations_mask)
         out['mel'] = tf.squeeze(out['mel'])
         return out
     
     def _make_max_duration_mask(self, encoded_text, phoneme_max_duration):
         np_text = np.array(encoded_text)
-        if 'any' in list(phoneme_max_duration.keys()):
-            new_mask = np.ones(tf.shape(encoded_text)) * phoneme_max_duration['any']
-        else:
-            new_mask = np.ones(tf.shape(encoded_text)) * float('inf')
-        for item in phoneme_max_duration.items():
-            phon_idx = self.text_pipeline.tokenizer(item[0])[0]
-            new_mask[np_text == phon_idx] = item[1]
+        new_mask = np.ones(tf.shape(encoded_text)) * float('inf')
+        if phoneme_max_duration is not None:
+            for item in phoneme_max_duration.items():
+                phon_idx = self.text_pipeline.tokenizer(item[0])[0]
+                new_mask[np_text == phon_idx] = item[1]
         return tf.cast(tf.convert_to_tensor(new_mask), tf.float32)
     
     def _make_min_duration_mask(self, encoded_text, phoneme_min_duration):
         np_text = np.array(encoded_text)
-        if 'any' in list(phoneme_min_duration.keys()):
-            new_mask = np.ones(tf.shape(encoded_text)) * phoneme_min_duration['any']
-        else:
-            new_mask = np.zeros(tf.shape(encoded_text))
-        for item in phoneme_min_duration.items():
-            phon_idx = self.text_pipeline.tokenizer(item[0])[0]
-            new_mask[np_text == phon_idx] = item[1]
+        new_mask = np.zeros(tf.shape(encoded_text))
+        if phoneme_min_duration is not None:
+            for item in phoneme_min_duration.items():
+                phon_idx = self.text_pipeline.tokenizer(item[0])[0]
+                new_mask[np_text == phon_idx] = item[1]
         return tf.cast(tf.convert_to_tensor(new_mask), tf.float32)
