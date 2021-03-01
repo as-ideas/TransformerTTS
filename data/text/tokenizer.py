@@ -3,7 +3,7 @@ import re
 
 from phonemizer.phonemize import phonemize
 
-from data.text.symbols import all_phonemes
+from data.text.symbols import all_phonemes, _punctuations
 
 
 class Tokenizer:
@@ -55,6 +55,7 @@ class Phonemizer:
         self.special_hyphen = '—'
         self.punctuation = ';:,.!?¡¿—…"«»“”'
         self._whitespace_re = re.compile(r'\s+')
+        self._whitespace_punctuation_re = re.compile(f'\s*([{_punctuations}])\s*')
     
     def __call__(self, text: Union[str, list], with_stress=None, njobs=None, language=None) -> Union[str, list]:
         language = language or self.language
@@ -86,7 +87,8 @@ class Phonemizer:
             raise TypeError(f'{self} input must be list or str, not {type(text)}')
     
     def _collapse_whitespace(self, text: str) -> str:
-        return re.sub(self._whitespace_re, ' ', text)
+        text = re.sub(self._whitespace_re, ' ', text)
+        return re.sub(self._whitespace_punctuation_re, r'\1', text)
     
     def _postprocess_string(self, text: str) -> str:
         text = text.replace(self.special_hyphen, '-')
