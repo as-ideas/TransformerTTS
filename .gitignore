@@ -1,5 +1,4 @@
 ## CUSTOM
-vocoding
 samples
 .idea
 *.pkl
@@ -7,6 +6,7 @@ samples
 .DS_Store
 private
 logs
+*.pt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
