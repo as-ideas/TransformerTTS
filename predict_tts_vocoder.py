@@ -37,7 +37,7 @@ if __name__ == '__main__':
         exit()
     config_loader = Config(config_path=args.config)
     if args.outdir is None:
-        outdir = config_loader.log_dir
+        outdir = Path(args.config).parent
     else:
         outdir = Path(args.outdir)
     outdir = outdir / 'outputs' / fname
