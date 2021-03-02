@@ -1,5 +1,6 @@
 matplotlib
 librosa==0.7.1
+numba==0.48
 numpy>=1.17.4
 phonemizer~=2.2.1
 ruamel.yaml>=0.16.6
