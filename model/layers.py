@@ -401,6 +401,16 @@ class DecoderPrenet(tf.keras.layers.Layer):
         return x
 
 
+class PostResNorm(CNNResNorm):
+
+    def call(self, inputs, training):
+        x = self.call_convs(inputs, training=training)
+        x = self.last_conv(x)
+        x = self.last_activation(x)
+        x = self.normalization[-2](x, training=training)
+        return inputs + x
+
+
 class Postnet(tf.keras.layers.Layer):
     
     def __init__(self, mel_channels: int,
@@ -411,15 +421,14 @@ class Postnet(tf.keras.layers.Layer):
         super(Postnet, self).__init__(**kwargs)
         self.mel_channels = mel_channels
         self.stop_linear = tf.keras.layers.Dense(3)
-        self.conv_blocks = CNNResNorm(out_size=mel_channels,
-                                      kernel_size=kernel_size,
-                                      padding='causal',
-                                      inner_activation='tanh',
-                                      last_activation='linear',
-                                      hidden_size=conv_filters,
-                                      n_layers=conv_layers,
-                                      normalization='batch')
-        self.add_layer = tf.keras.layers.Add()
+        self.conv_blocks = PostResNorm(out_size=mel_channels,
+                                       kernel_size=kernel_size,
+                                       padding='causal',
+                                       inner_activation='tanh',
+                                       last_activation='linear',
+                                       hidden_size=conv_filters,
+                                       n_layers=conv_layers,
+                                       normalization='batch')
     
     def call(self, x, training):
         stop = self.stop_linear(x)
