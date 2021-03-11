@@ -71,7 +71,7 @@ pip install -r requirements.txt
 Read the individual scripts for more command line arguments.
 
 ## Pre-Trained LJSpeech API
-Use our pre-trained model from command line with
+Use our pre-trained model (with Griffin-Lim) from command line with
 ```commandline
 python predict_tts.py -t "Please, say something." -lj
 ```
