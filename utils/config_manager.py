@@ -104,67 +104,19 @@ class Config:
         if not ignore_hash:
             self._check_hash()
         if self.model_kind == 'aligner':
-            return Aligner(mel_channels=self.config['mel_channels'],
-                           encoder_model_dimension=self.config['encoder_model_dimension'],
-                           decoder_model_dimension=self.config['decoder_model_dimension'],
-                           encoder_num_heads=self.config['encoder_num_heads'],
-                           decoder_num_heads=self.config['decoder_num_heads'],
-                           encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
-                           decoder_feed_forward_dimension=self.config['decoder_feed_forward_dimension'],
-                           encoder_maximum_position_encoding=self.config['encoder_max_position_encoding'],
-                           decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
-                           decoder_prenet_dimension=self.config['decoder_prenet_dimension'],
-                           encoder_prenet_dimension=self.config['encoder_prenet_dimension'],
-                           dropout_rate=self.config['dropout_rate'],
-                           decoder_prenet_dropout=self.config['decoder_prenet_dropout'],
-                           max_r=self.max_r,
-                           mel_start_value=self.config['mel_start_value'],
-                           mel_end_value=self.config['mel_end_value'],
-                           phoneme_language=self.config['phoneme_language'],
-                           with_stress=self.config['with_stress'],
-                           debug=self.config['debug'],
-                           model_breathing=self.config['model_breathing'])
-        
+            return Aligner.from_config(self.config, max_r=self.max_r)
         else:
-            return ForwardTransformer(encoder_model_dimension=self.config['encoder_model_dimension'],
-                                      decoder_model_dimension=self.config['decoder_model_dimension'],
-                                      dropout_rate=self.config['dropout_rate'],
-                                      decoder_num_heads=self.config['decoder_num_heads'],
-                                      encoder_num_heads=self.config['encoder_num_heads'],
-                                      encoder_maximum_position_encoding=self.config['encoder_max_position_encoding'],
-                                      decoder_maximum_position_encoding=self.config['decoder_max_position_encoding'],
-                                      encoder_feed_forward_dimension=self.config['encoder_feed_forward_dimension'],
-                                      decoder_feed_forward_dimension=self.config['decoder_feed_forward_dimension'],
-                                      encoder_attention_conv_filters=self.config['encoder_attention_conv_filters'],
-                                      decoder_attention_conv_filters=self.config['decoder_attention_conv_filters'],
-                                      encoder_attention_conv_kernel=self.config['encoder_attention_conv_kernel'],
-                                      decoder_attention_conv_kernel=self.config['decoder_attention_conv_kernel'],
-                                      duration_conv_filters=self.config['duration_conv_filters'],
-                                      pitch_conv_filters=self.config['pitch_conv_filters'],
-                                      duration_kernel_size=self.config['duration_kernel_size'],
-                                      pitch_kernel_size=self.config['pitch_kernel_size'],
-                                      predictors_dropout=self.config['predictors_dropout'],
-                                      mel_channels=self.config['mel_channels'],
-                                      encoder_dense_blocks=self.config['encoder_dense_blocks'],
-                                      decoder_dense_blocks=self.config['decoder_dense_blocks'],
-                                      phoneme_language=self.config['phoneme_language'],
-                                      with_stress=self.config['with_stress'],
-                                      debug=self.config['debug'],
-                                      model_breathing=self.config['model_breathing'])
+            return ForwardTransformer.from_config(self.config)
     
-    def compile_model(self, model):
+    def compile_model(self, model, beta_1=0.9, beta_2=0.98):
+        optimizer = tf.keras.optimizers.Adam(self.learning_rate,
+                                             beta_1=beta_1,
+                                             beta_2=beta_2,
+                                             epsilon=1e-9)
         if self.model_kind == 'aligner':
-            model._compile(stop_scaling=self.stop_scaling, optimizer=self.new_adam(self.learning_rate))
+            model._compile(stop_scaling=self.stop_scaling, optimizer=optimizer)
         else:
-            model._compile(optimizer=self.new_adam(self.learning_rate))
-    
-    # TODO: move to model
-    @staticmethod
-    def new_adam(learning_rate, beta_1=0.9, beta_2=0.98, ):
-        return tf.keras.optimizers.Adam(learning_rate,
-                                        beta_1=beta_1,
-                                        beta_2=beta_2,
-                                        epsilon=1e-9)
+            model._compile(optimizer=optimizer)
     
     def dump_config(self):
         self.update_config()
