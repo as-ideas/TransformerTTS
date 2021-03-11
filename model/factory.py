@@ -11,7 +11,7 @@ def tts_ljspeech(version='v1') -> [tf.keras.models.Model, dict]:
     weights_name = f'ljspeech_tts_weights_{version}.hdf5'
     remote_dir = 'https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/api_weights/'
     config_path = tf.keras.utils.get_file(config_name, remote_dir + config_name)
-    weights_path = tf.keras.utils.get_file(weights_name, remote_dir / weights_name)
+    weights_path = tf.keras.utils.get_file(weights_name, remote_dir + weights_name)
     return tts_custom(config_path, weights_path)
 
 
