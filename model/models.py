@@ -276,7 +276,7 @@ class Aligner(tf.keras.models.Model):
     def encode_text(self, text):
         return self.text_pipeline(text)
     
-    def build_model_weights(self, path: str = None):
+    def build_model_weights(self, path: str = None) -> None:
         _ = self(tf.zeros((1, 1)), tf.zeros((1, 1, self.mel_channels)), training=False)
         if path is not None:
             self.load_weights(path)
