@@ -541,7 +541,7 @@ class ForwardTransformer(tf.keras.models.Model):
                 new_mask[np_text == phon_idx] = item[1]
         return tf.cast(tf.convert_to_tensor(new_mask), tf.float32)
     
-    def build_model_weights(self, path: str = None):
+    def build_model_weights(self, path: str = None) -> None:
         _ = self(tf.zeros((1, 1)), target_durations=None, target_pitch=None, training=False)
         if path is not None:
             self.load_weights(path)
