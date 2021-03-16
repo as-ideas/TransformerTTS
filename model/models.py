@@ -275,6 +275,34 @@ class Aligner(tf.keras.models.Model):
     
     def encode_text(self, text):
         return self.text_pipeline(text)
+    
+    def build_model_weights(self, path: str = None) -> None:
+        _ = self(tf.zeros((1, 1)), tf.zeros((1, 1, self.mel_channels)), training=False)
+        if path is not None:
+            self.load_weights(path)
+    
+    @classmethod
+    def from_config(cls, config, max_r=10):
+        return cls(mel_channels=config['mel_channels'],
+                   encoder_model_dimension=config['encoder_model_dimension'],
+                   decoder_model_dimension=config['decoder_model_dimension'],
+                   encoder_num_heads=config['encoder_num_heads'],
+                   decoder_num_heads=config['decoder_num_heads'],
+                   encoder_feed_forward_dimension=config['encoder_feed_forward_dimension'],
+                   decoder_feed_forward_dimension=config['decoder_feed_forward_dimension'],
+                   encoder_maximum_position_encoding=config['encoder_max_position_encoding'],
+                   decoder_maximum_position_encoding=config['decoder_max_position_encoding'],
+                   decoder_prenet_dimension=config['decoder_prenet_dimension'],
+                   encoder_prenet_dimension=config['encoder_prenet_dimension'],
+                   dropout_rate=config['dropout_rate'],
+                   decoder_prenet_dropout=config['decoder_prenet_dropout'],
+                   max_r=max_r,
+                   mel_start_value=config['mel_start_value'],
+                   mel_end_value=config['mel_end_value'],
+                   phoneme_language=config['phoneme_language'],
+                   with_stress=config['with_stress'],
+                   debug=config['debug'],
+                   model_breathing=config['model_breathing'])
 
 
 class ForwardTransformer(tf.keras.models.Model):
@@ -512,3 +540,37 @@ class ForwardTransformer(tf.keras.models.Model):
                 phon_idx = self.text_pipeline.tokenizer(item[0])[0]
                 new_mask[np_text == phon_idx] = item[1]
         return tf.cast(tf.convert_to_tensor(new_mask), tf.float32)
+    
+    def build_model_weights(self, path: str = None) -> None:
+        _ = self(tf.zeros((1, 1)), target_durations=None, target_pitch=None, training=False)
+        if path is not None:
+            self.load_weights(path)
+    
+    @classmethod
+    def from_config(cls, config: dict, custom_objects=None):
+        return cls(
+            encoder_model_dimension=config['encoder_model_dimension'],
+            decoder_model_dimension=config['decoder_model_dimension'],
+            dropout_rate=config['dropout_rate'],
+            decoder_num_heads=config['decoder_num_heads'],
+            encoder_num_heads=config['encoder_num_heads'],
+            encoder_maximum_position_encoding=config['encoder_max_position_encoding'],
+            decoder_maximum_position_encoding=config['decoder_max_position_encoding'],
+            encoder_feed_forward_dimension=config['encoder_feed_forward_dimension'],
+            decoder_feed_forward_dimension=config['decoder_feed_forward_dimension'],
+            encoder_attention_conv_filters=config['encoder_attention_conv_filters'],
+            decoder_attention_conv_filters=config['decoder_attention_conv_filters'],
+            encoder_attention_conv_kernel=config['encoder_attention_conv_kernel'],
+            decoder_attention_conv_kernel=config['decoder_attention_conv_kernel'],
+            duration_conv_filters=config['duration_conv_filters'],
+            pitch_conv_filters=config['pitch_conv_filters'],
+            duration_kernel_size=config['duration_kernel_size'],
+            pitch_kernel_size=config['pitch_kernel_size'],
+            predictors_dropout=config['predictors_dropout'],
+            mel_channels=config['mel_channels'],
+            encoder_dense_blocks=config['encoder_dense_blocks'],
+            decoder_dense_blocks=config['decoder_dense_blocks'],
+            phoneme_language=config['phoneme_language'],
+            with_stress=config['with_stress'],
+            debug=config['debug'],
+            model_breathing=config['model_breathing'])

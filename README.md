@@ -36,7 +36,7 @@ These samples' spectrograms are converted using the pre-trained [MelGAN](https:/
 
 Try it out on Colab:
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/master/notebooks/synthesize_forward_melgan.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/main/notebooks/synthesize_forward_melgan.ipynb)
 
 ## Updates
 - 06/20: Added normalisation and pre-trained models compatible with the faster [MelGAN](https://github.com/seungwonpark/melgan) vocoder.
@@ -44,12 +44,13 @@ Try it out on Colab:
 
 ## 📖 Contents
 - [Installation](#installation)
+- [API](#pre-trained-ljspeech-api)
 - [Dataset](#dataset)
 - [Training](#training)
     - [Aligner](#train-aligner-model)
     - [TTS](#train-tts-model)
 - [Prediction](#prediction)
-- [Model Weights](#model_weights)
+- [Model Weights](#model-weights)
 
 ## Installation
 
@@ -68,6 +69,25 @@ pip install -r requirements.txt
 ```
 
 Read the individual scripts for more command line arguments.
+
+## Pre-Trained LJSpeech API
+Use our pre-trained model (with Griffin-Lim) from command line with
+```commandline
+python predict_tts.py -t "Please, say something." -lj
+```
+Or in a python script
+```python
+from data.audio import Audio
+from model.factory import tts_ljspeech
+
+model, config = tts_ljspeech()
+audio = Audio(config)
+out = model.predict('Please, say something.')
+
+# Convert spectrogram to wav (with griffin lim)
+wav = audio.reconstruct_waveform(out['mel'].numpy().T)
+```
+
 
 ## Dataset
 You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
@@ -130,8 +150,13 @@ tensorboard --logdir /logs/directory/
 ```
 
 ![Tensorboard Demo](https://raw.githubusercontent.com/as-ideas/TransformerTTS/master/docs/tboard_demo.gif)
-
+#### Checkpoint to hdf5 weights \[optional\]
+You can convert the checkpoint files to hdf5 model weights by running
+```bash
+python checkpoints_to_weights.py --config config/session_paths.yaml
+```
 ## Prediction
+### With training checkpoints
 From command line with
 ```commandline
 python predict_tts.py -t "Please, say something." --config config/session_paths.yaml
@@ -143,7 +168,25 @@ from data.audio import Audio
 
 config_loader = Config(config_path=f'config/session_paths.yaml')
 audio = Audio(config_loader.config)
-model = config_loader.load_model()
+model = config_loader.load_model() # optional: can specify checkpoint name
+out = model.predict('Please, say something.')
+
+# Convert spectrogram to wav (with griffin lim)
+wav = audio.reconstruct_waveform(out['mel'].numpy().T)
+```
+### With model weights
+From command line with
+```commandline
+python predict_tts.py -t "Please, say something." -c config/session_paths.yaml -w path/to/model_weights.hdf5
+```
+Or in a python script
+```python
+from data.audio import Audio
+from model.factory import tts_custom
+
+model, config = tts_custom(config_path='path/to/config.yaml', 
+                           weights_path='path/to/weights.hdf5')
+audio = Audio(config)
 out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
@@ -153,6 +196,7 @@ wav = audio.reconstruct_waveform(out['mel'].numpy().T)
 
 | Model URL | Commit | Vocoder Commit|
 |---|---|---|
+|[ljspeech_tts_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/ljspeech_weights_tts.zip) (latest) | 0cd7d33 | aca5990 |
 |[ljspeech_melgan_forward_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_melgan_forward_transformer.zip)| 1c1cb03| aca5990 |
 |[ljspeech_melgan_autoregressive_model_v2](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_melgan_autoregressive_transformer.zip)| 1c1cb03| aca5990 |
 |[ljspeech_wavernn_forward_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_wavernn_forward_transformer.zip)| 1c1cb03| 3595219 |
