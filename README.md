@@ -21,6 +21,8 @@ Our pre-trained LJSpeech model is compatible with the pre-trained vocoders:
 
 (older versions are available also for [WaveRNN](https://github.com/fatchord/WaveRNN))
 
+For quick inference with these vocoders, checkout the [Vocoding branch](https://github.com/as-ideas/TransformerTTS/tree/vocoding)
+
 #### Non-Autoregressive
 Being non-autoregressive, this Transformer model is:
 - Robust: No repeats and failed attention modes for challenging sentences.
@@ -41,6 +43,7 @@ Try it out on Colab:
 ## Updates
 - 06/20: Added normalisation and pre-trained models compatible with the faster [MelGAN](https://github.com/seungwonpark/melgan) vocoder.
 - 11/20: Added pitch prediction. Autoregressive model is now specialized as an Aligner and Forward is now the only TTS model. Changed models architectures. Discontinued WaveRNN support. Improved duration extraction with Dijkstra algorithm.
+- 03/20: Vocoding branch.
 
 ## 📖 Contents
 - [Installation](#installation)
