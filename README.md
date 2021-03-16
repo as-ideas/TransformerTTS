@@ -36,8 +36,9 @@ These samples' spectrograms are converted using the pre-trained [MelGAN](https:/
 
 Try it out on Colab:
 
-[![HifiGAN](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/vocoding/notebooks/synthesize_forward_hifigan.ipynb)
-[![MelGAN](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/main/notebooks/synthesize_forward_melgan.ipynb)
+|Hifigan|MelGAN|
+|---|---|
+|[![](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/vocoding/notebooks/synthesize_forward_hifigan.ipynb)|[![](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/main/notebooks/synthesize_forward_melgan.ipynb)|
 
 ## Updates
 - 06/20: Added normalisation and pre-trained models compatible with the faster [MelGAN](https://github.com/seungwonpark/melgan) vocoder.
