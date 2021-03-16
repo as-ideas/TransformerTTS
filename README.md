@@ -41,7 +41,8 @@ Try it out on Colab:
 ## Updates
 - 06/20: Added normalisation and pre-trained models compatible with the faster [MelGAN](https://github.com/seungwonpark/melgan) vocoder.
 - 11/20: Added pitch prediction. Autoregressive model is now specialized as an Aligner and Forward is now the only TTS model. Changed models architectures. Discontinued WaveRNN support. Improved duration extraction with Dijkstra algorithm.
-
+- 01-21: Added model and prediction code for pre-trained MelGAN and HiFiGAN vocoders.
+ 
 ## 📖 Contents
 - [Installation](#installation)
 - [API](#pre-trained-ljspeech-api)
@@ -70,10 +71,15 @@ pip install -r requirements.txt
 
 Read the individual scripts for more command line arguments.
 
+If you intend to use the pre-trained vocoders, also install the extra requirements under `vocoding`
+```bash
+pip install -r vocoding/extra_requirements.txt
+```
+
 ## Pre-Trained LJSpeech API
-Use our pre-trained model (with Griffin-Lim) from command line with
+Use our pre-trained model (Griffin-Lim, HiFiGAN or MelGAN) from command line with
 ```commandline
-python predict_tts.py -t "Please, say something." -lj
+python predict_tts_vocoder.py -t "Please, say something." --hifigan
 ```
 Or in a python script
 ```python
