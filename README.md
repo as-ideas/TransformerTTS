@@ -73,7 +73,7 @@ Read the individual scripts for more command line arguments.
 ## Pre-Trained LJSpeech API
 Use our pre-trained model (with Griffin-Lim) from command line with
 ```commandline
-python predict_tts.py -t "Please, say something." -lj
+python predict_tts.py -t "Please, say something."
 ```
 Or in a python script
 ```python

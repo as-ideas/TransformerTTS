@@ -6,7 +6,7 @@ import ruamel.yaml
 from model.models import ForwardTransformer, Aligner
 
 
-def tts_ljspeech(version='v1') -> Tuple[tf.keras.models.Model, dict]:
+def tts_ljspeech(version='v1') -> Tuple[ForwardTransformer, dict]:
     config_name = f'ljspeech_tts_config_{version}.yaml'
     weights_name = f'ljspeech_tts_weights_{version}.hdf5'
     remote_dir = 'https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/api_weights/'
@@ -15,7 +15,7 @@ def tts_ljspeech(version='v1') -> Tuple[tf.keras.models.Model, dict]:
     return tts_custom(config_path, weights_path)
 
 
-def tts_custom(config_path: str, weights_path: str) -> Tuple[tf.keras.models.Model, dict]:
+def tts_custom(config_path: str, weights_path: str) -> Tuple[ForwardTransformer, dict]:
     yaml = ruamel.yaml.YAML()
     with open(config_path, 'rb') as session_yaml:
         config = yaml.load(session_yaml)
@@ -24,7 +24,7 @@ def tts_custom(config_path: str, weights_path: str) -> Tuple[tf.keras.models.Mod
     return model, config
 
 
-def aligner_custom(config_path: str, weights_path: str) -> Tuple[tf.keras.models.Model, dict]:
+def aligner_custom(config_path: str, weights_path: str) -> Tuple[Aligner, dict]:
     yaml = ruamel.yaml.YAML()
     with open(config_path, 'rb') as session_yaml:
         config = yaml.load(session_yaml)
