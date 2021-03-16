@@ -9,12 +9,11 @@ from data.audio import Audio
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--config', '-c', dest='config')
+    parser.add_argument('--config', '-c', dest='config', default=None, type=str)
     parser.add_argument('--text', '-t', dest='text', default=None, type=str)
     parser.add_argument('--file', '-f', dest='file', default=None, type=str)
     parser.add_argument('--weights', '-w', dest='weights', default=None, type=str)
     parser.add_argument('--checkpoint', '-ckpt', dest='checkpoint', default=None, type=str)
-    parser.add_argument('--ljspeech', '-lj', dest='ljspeech', action='store_true')
     parser.add_argument('--outdir', '-o', dest='outdir', default=None, type=str)
     parser.add_argument('--store_mel', '-m', dest='store_mel', action='store_true')
     parser.add_argument('--verbose', '-v', dest='verbose', action='store_true')
@@ -35,18 +34,19 @@ if __name__ == '__main__':
         exit()
     # load the appropriate model
     outdir = Path(args.outdir) if args.outdir is not None else Path('.')
-    if args.ljspeech:
+    if args.config is not None:
+        if args.weights is not None:
+            model, conf = tts_custom(args.config, args.weights)
+            file_name = f'{fname}_{Path(args.weights).stem}'
+        else:
+            config_loader = Config(config_path=args.config)
+            outdir = Path(args.outdir) if args.outdir is not None else Path(config_loader.log_dir)
+            conf = config_loader.config
+            model = config_loader.load_model(args.checkpoint)  # if None defaults to latest
+            file_name = f'{fname}_tts_step{model.step}'
+    else:
         model, conf = tts_ljspeech()
         file_name = f'{fname}_ljspeech_v1'
-    elif args.weights is not None:
-        model, conf = tts_custom(args.config, args.weights)
-        file_name = f'{fname}_{Path(args.weights).stem}'
-    else:
-        config_loader = Config(config_path=args.config)
-        outdir = Path(args.outdir) if args.outdir is not None else Path(config_loader.log_dir)
-        conf = config_loader.config
-        model = config_loader.load_model(args.checkpoint)  # if None defaults to latest
-        file_name = f'{fname}_tts_step{model.step}'
     
     outdir = outdir / 'outputs' / f'{fname}'
     outdir.mkdir(exist_ok=True, parents=True)
