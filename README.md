@@ -8,6 +8,10 @@
 <p>A Text-to-Speech Transformer in TensorFlow 2</p>
 </h2>
 
+### Workshop notebook
+[![](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/as-ideas/TransformerTTS/blob/ODSC/notebooks/TTS_workshop.ipynb)
+##
+
 Implementation of a non-autoregressive Transformer based neural network for Text-to-Speech (TTS). <br>
 This repo is based, among others, on the following papers:
 - [Neural Speech Synthesis with Transformer Network](https://arxiv.org/abs/1809.08895)
