@@ -47,18 +47,14 @@ class FFNResNorm(tf.keras.layers.Layer):
                  dropout_rate: float,
                  **kwargs):
         super(FFNResNorm, self).__init__(**kwargs)
-        self.d1 = tf.keras.layers.Dense(dense_hidden_units)
-        self.activation = tf.keras.layers.Activation('relu')
+        self.d1 = tf.keras.layers.Dense(dense_hidden_units, 'relu')
         self.d2 = tf.keras.layers.Dense(model_dim)
         self.dropout = tf.keras.layers.Dropout(dropout_rate)
-        self.ln = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.last_ln = tf.keras.layers.LayerNormalization(epsilon=1e-6)
     
     def call(self, x, training):
         ffn_out = self.d1(x)
         ffn_out = self.d2(ffn_out)  # (batch_size, input_seq_len, model_dim)
-        ffn_out = self.ln(ffn_out)  # (batch_size, input_seq_len, model_dim)
-        ffn_out = self.activation(ffn_out)
         ffn_out = self.dropout(ffn_out, training=training)
         return self.last_ln(ffn_out + x)
 
