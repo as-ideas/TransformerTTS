@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from model.transformer_utils import positional_encoding, scaled_dot_product_attention
+from model.transformer_utils import positional_encoding
 
 
 class CNNResNorm(tf.keras.layers.Layer):
@@ -8,7 +8,6 @@ class CNNResNorm(tf.keras.layers.Layer):
                  filters: list,
                  kernel_size: int,
                  inner_activation: str,
-                 last_activation: str,
                  padding: str,
                  dout_rate: float):
         super(CNNResNorm, self).__init__()
@@ -21,7 +20,6 @@ class CNNResNorm(tf.keras.layers.Layer):
         self.last_conv = tf.keras.layers.Conv1D(filters=filters[-1],
                                                 kernel_size=kernel_size,
                                                 padding=padding)
-        self.last_activation = tf.keras.layers.Activation(last_activation)
         self.normalization = tf.keras.layers.LayerNormalization(epsilon=1e-6)
         self.dropout = tf.keras.layers.Dropout(rate=dout_rate)
     
@@ -34,7 +32,6 @@ class CNNResNorm(tf.keras.layers.Layer):
     def call(self, inputs, training):
         x = self.call_convs(inputs)
         x = self.last_conv(x)
-        x = self.last_activation(x)
         x = self.dropout(x, training=training)
         return self.normalization(inputs + x)
 
@@ -61,7 +58,7 @@ class FFNResNorm(tf.keras.layers.Layer):
 
 class MultiHeadAttention(tf.keras.layers.Layer):
     
-    def __init__(self, model_dim: int, num_heads: int, **kwargs):
+    def __init__(self, model_dim: int, num_heads: int, dropout: float, **kwargs):
         super(MultiHeadAttention, self).__init__(**kwargs)
         self.num_heads = num_heads
         self.model_dim = model_dim
@@ -73,8 +70,9 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         self.wq = tf.keras.layers.Dense(model_dim)
         self.wk = tf.keras.layers.Dense(model_dim)
         self.wv = tf.keras.layers.Dense(model_dim)
-        
+        self.attention = ScaledDotProductAttention(dropout=dropout)
         self.dense = tf.keras.layers.Dense(model_dim)
+        self.dropout = tf.keras.layers.Dropout(dropout)
     
     def split_heads(self, x, batch_size: int):
         """ Split the last dimension into (num_heads, depth).
@@ -95,7 +93,7 @@ class MultiHeadAttention(tf.keras.layers.Layer):
         k = self.split_heads(k, batch_size)  # (batch_size, num_heads, seq_len_k, depth)
         v = self.split_heads(v, batch_size)  # (batch_size, num_heads, seq_len_v, depth)
         
-        scaled_attention, attention_weights = scaled_dot_product_attention(q, k, v, mask)
+        scaled_attention, attention_weights = self.scaled_dot_product_attention([q, k, v, mask], training=training)
         
         scaled_attention = tf.transpose(scaled_attention,
                                         perm=[0, 2, 1, 3])  # (batch_size, seq_len_q, num_heads, depth)
@@ -103,9 +101,52 @@ class MultiHeadAttention(tf.keras.layers.Layer):
                                       (batch_size, -1, self.model_dim))  # (batch_size, seq_len_q, model_dim)
         concat_query = tf.concat([q_in, concat_attention], axis=-1)
         output = self.dense(concat_query)  # (batch_size, seq_len_q, model_dim)
-        
+        output = self.dropout(output, training=training)
         return output, attention_weights
 
+
+class ScaledDotProductAttention(tf.keras.layers.Layer):
+    """ Calculate the attention weights.
+        q, k, v must have matching leading dimensions.
+        k, v must have matching penultimate dimension, i.e.: seq_len_k = seq_len_v.
+        The mask has different shapes depending on its type(padding or look ahead)
+        but it must be broadcastable for addition.
+
+        Args:
+            q: query shape == (..., seq_len_q, depth)
+            k: key shape == (..., seq_len_k, depth)
+            v: value shape == (..., seq_len_v, depth_v)
+            mask: Float tensor with shape broadcastable
+                  to (..., seq_len_q, seq_len_k). Defaults to None.
+
+        Returns:
+            output, attention_weights
+      """
+    
+    def __init__(self, dropout: float):
+        super(ScaledDotProductAttention, self).__init__()
+        self.dropout = tf.keras.layers.Dropout(rate=dropout)
+    
+    def call(self, inputs, training=False):
+        q, k, v, mask = inputs
+        
+        matmul_qk = tf.matmul(q, k, transpose_b=True)  # (..., seq_len_q, seq_len_k)
+        
+        # scale matmul_qk
+        dk = tf.cast(tf.shape(k)[-1], tf.float32)
+        scaled_attention_logits = matmul_qk / tf.math.sqrt(dk)
+        
+        # add the mask to the scaled tensor.
+        if mask is not None:
+            scaled_attention_logits += mask * -1e9  # TODO: add mask expansion here and remove from create padding mask
+        
+        # softmax is normalized on the last axis (seq_len_k) so that the scores
+        # add up to 1.
+        attention_weights = tf.nn.softmax(scaled_attention_logits, axis=-1)  # (..., seq_len_q, seq_len_k)
+        attention_weights = self.dropout(attention_weights, training=training)
+        output = tf.matmul(attention_weights, v)  # (..., seq_len_q, depth_v)
+        
+        return output, attention_weights
 
 class SelfAttentionResNorm(tf.keras.layers.Layer):
     
@@ -115,16 +156,12 @@ class SelfAttentionResNorm(tf.keras.layers.Layer):
                  dropout_rate: float,
                  **kwargs):
         super(SelfAttentionResNorm, self).__init__(**kwargs)
-        self.mha = MultiHeadAttention(model_dim, num_heads)
-        self.ln = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        self.dropout = tf.keras.layers.Dropout(dropout_rate)
+        self.mha = MultiHeadAttention(model_dim, num_heads, dropout=dropout_rate)
         self.last_ln = tf.keras.layers.LayerNormalization(epsilon=1e-6)
     
     def call(self, x, training, mask):
         attn_out, attn_weights = self.mha(x, x, x, mask, training=training)  # (batch_size, input_seq_len, model_dim)
-        attn_out = self.ln(attn_out)  # (batch_size, input_seq_len, model_dim)
-        out = self.dropout(attn_out, training=training)
-        return self.last_ln(out + x), attn_weights
+        return self.last_ln(attn_out + x), attn_weights
 
 
 class SelfAttentionDenseBlock(tf.keras.layers.Layer):
@@ -161,7 +198,6 @@ class SelfAttentionConvBlock(tf.keras.layers.Layer):
         self.conv = CNNResNorm(filters=conv_filters,
                                kernel_size=kernel_size,
                                inner_activation=conv_activation,
-                               last_activation=conv_activation,
                                dout_rate=dropout_rate,
                                padding='same')
     
@@ -224,13 +260,11 @@ class CrossAttentionResnorm(tf.keras.layers.Layer):
                  dropout_rate: float,
                  **kwargs):
         super(CrossAttentionResnorm, self).__init__(**kwargs)
-        self.mha = MultiHeadAttention(model_dim, num_heads)
+        self.mha = MultiHeadAttention(model_dim, num_heads, dropout=dropout_rate)
         self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
-        self.dropout = tf.keras.layers.Dropout(dropout_rate)
     
     def call(self, q, k, v, training, mask):
         attn_values, attn_weights = self.mha(v, k=k, q_in=q, mask=mask, training=training)
-        attn_values = self.dropout(attn_values, training=training)
         out = self.layernorm(attn_values + q)
         return out, attn_weights
 
@@ -274,7 +308,6 @@ class CrossAttentionConvBlock(tf.keras.layers.Layer):
         self.conv = CNNResNorm(filters=conv_filters,
                                kernel_size=kernel_size,
                                inner_activation=conv_activation,
-                               last_activation=conv_activation,
                                padding=conv_padding,
                                dout_rate=dropout_rate)
     
