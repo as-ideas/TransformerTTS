@@ -4,6 +4,9 @@ from model.transformer_utils import positional_encoding
 
 
 class CNNResNorm(tf.keras.layers.Layer):
+    """
+    Module used in attention blocks, after MHA
+    """
     def __init__(self,
                  filters: list,
                  kernel_size: int,
@@ -30,13 +33,18 @@ class CNNResNorm(tf.keras.layers.Layer):
         return x
     
     def call(self, inputs, training):
-        x = self.call_convs(inputs)
+        x = tf.transpose(inputs, (0, 1, 2))
+        x = self.call_convs(x)
         x = self.last_conv(x)
+        x = tf.transpose(x, (0, 1, 2))
         x = self.dropout(x, training=training)
         return self.normalization(inputs + x)
 
 
 class FFNResNorm(tf.keras.layers.Layer):
+    """
+    Module used in attention blocks, after MHA
+    """
     
     def __init__(self,
                  model_dim: int,
@@ -147,6 +155,7 @@ class ScaledDotProductAttention(tf.keras.layers.Layer):
         output = tf.matmul(attention_weights, v)  # (..., seq_len_q, depth_v)
         
         return output, attention_weights
+
 
 class SelfAttentionResNorm(tf.keras.layers.Layer):
     
