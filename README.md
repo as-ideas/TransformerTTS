@@ -91,6 +91,8 @@ out = model.predict('Please, say something.')
 wav = audio.reconstruct_waveform(out['mel'].numpy().T)
 ```
 
+<b>IMPORTANT:</b> make sure to checkout the correct repository version to use the API.<br>
+Currently c6d5775e549666e2461054d89002bef680fe2f09
 
 ## Dataset
 You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
