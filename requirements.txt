@@ -1,4 +1,4 @@
-matplotlib
+matplotlib==3.2.2
 librosa==0.7.1
 numba==0.48
 numpy>=1.17.4
