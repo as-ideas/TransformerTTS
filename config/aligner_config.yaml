@@ -1,3 +1,5 @@
+aligner_config_name: aligner_standard
+
 # ARCHITECTURE
 decoder_model_dimension: 256
 encoder_model_dimension: 256
