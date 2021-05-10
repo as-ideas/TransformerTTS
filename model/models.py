@@ -113,6 +113,16 @@ class Aligner(tf.keras.models.Model):
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
         self.forward_encoder = self._apply_signature(self._forward_encoder, self.encoder_signature)
         self.forward_decoder = self._apply_signature(self._forward_decoder, self.decoder_signature)
+        
+    def _make_config(self, locals) -> dict:
+        config = {}
+        for k in locals:
+            if (k != 'self') and (k != '__class__'):
+                if isinstance(locals[k], dict):
+                    config.update(locals[k])
+                else:
+                    config.update({k: locals[k]})
+        return dict(config)
     
     def _call_encoder(self, inputs, training):
         padding_mask = create_encoder_padding_mask(inputs)
