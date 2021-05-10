@@ -20,7 +20,8 @@ def tts_custom(config_path: str, weights_path: str) -> Tuple[ForwardTransformer,
     with open(config_path, 'rb') as session_yaml:
         config = yaml.load(session_yaml)
     model = ForwardTransformer.from_config(config)
-    model.build_model_weights(weights_path)
+    model.build_model_weights()
+    model.load_weights(weights_path)
     return model, config
 
 
@@ -29,5 +30,6 @@ def aligner_custom(config_path: str, weights_path: str) -> Tuple[Aligner, dict]:
     with open(config_path, 'rb') as session_yaml:
         config = yaml.load(session_yaml)
     model = Aligner.from_config(config)
-    model.build_model_weights(weights_path)
+    model.build_model_weights()
+    model.load_weights(weights_path)
     return model, config

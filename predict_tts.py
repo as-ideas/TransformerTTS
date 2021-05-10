@@ -50,7 +50,7 @@ if __name__ == '__main__':
     
     outdir = outdir / 'outputs' / f'{fname}'
     outdir.mkdir(exist_ok=True, parents=True)
-    audio = Audio(conf)
+    audio = Audio.from_config(conf)
     print(f'Output wav under {outdir}')
     wavs = []
     for i, text_line in enumerate(text):

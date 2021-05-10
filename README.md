@@ -84,7 +84,7 @@ from data.audio import Audio
 from model.factory import tts_ljspeech
 
 model, config = tts_ljspeech()
-audio = Audio(config)
+audio = Audio.from_config(config)
 out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
@@ -172,7 +172,7 @@ from utils.config_manager import Config
 from data.audio import Audio
 
 config_loader = Config(config_path=f'config/session_paths.yaml')
-audio = Audio(config_loader.config)
+audio = Audio.from_config(config_loader.config)
 model = config_loader.load_model() # optional: can specify checkpoint name
 out = model.predict('Please, say something.')
 
@@ -191,7 +191,7 @@ from model.factory import tts_custom
 
 model, config = tts_custom(config_path='path/to/config.yaml', 
                            weights_path='path/to/weights.hdf5')
-audio = Audio(config)
+audio = Audio.from_config(config)
 out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
