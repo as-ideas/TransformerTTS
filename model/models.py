@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 
 import tensorflow as tf
 import numpy as np
@@ -573,6 +574,11 @@ class ForwardTransformer(tf.keras.models.Model):
         path.mkdir(parents=True, exist_ok=True)
         if hasattr(self, 'step'):
             self.config.update({'step': self.step})
+        try:
+            git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode()
+            self.config.update({'git_hash': git_hash})
+        except Exception as e:
+            print(f'WARNING: could not retrieve git hash. {e}')
         with open(path / 'config.yaml', 'w') as f:
             yaml.dump(dict(self.config), f)  # conversion necessary (is tf wrapper otherwise)
         # only needed when model was loaded from a checkpoint
@@ -586,11 +592,15 @@ class ForwardTransformer(tf.keras.models.Model):
         with open(path / 'config.yaml', 'r') as f:
             config = yaml.load(f)
         model = cls.from_config(config)
-        optimizer = tf.keras.optimizers.Adam(tf.Variable(0.01),
-                                             beta_1=tf.Variable(.9),
-                                             beta_2=tf.Variable(.9),
-                                             epsilon=tf.Variable(1e-9))
-        model.compile(optimizer=optimizer)
+        try:
+            git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode()
+            if 'git_hash' in config:
+                if config['git_hash'] != git_hash:
+                    print(f"WARNING: git_hash mosmatch: {config['git_hash']}(config) vs {git_hash}(local).")
+            else:
+                print(f'WARNING: could not check git hash from config.')
+        except Exception as e:
+            print(f'WARNING: could not retrieve git hash. {e}')
         model.build_model_weights()
         model.load_weights(path / 'model_weights.hdf5')
         return model
