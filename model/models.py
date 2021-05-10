@@ -1,5 +1,8 @@
+from pathlib import Path
+
 import tensorflow as tf
 import numpy as np
+from ruamel.yaml import YAML
 
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
@@ -15,8 +18,8 @@ class Aligner(tf.keras.models.Model):
                  decoder_model_dimension: int,
                  encoder_num_heads: list,
                  decoder_num_heads: list,
-                 encoder_maximum_position_encoding: int,
-                 decoder_maximum_position_encoding: int,
+                 encoder_max_position_encoding: int,
+                 decoder_max_position_encoding: int,
                  encoder_prenet_dimension: int,
                  decoder_prenet_dimension: int,
                  dropout_rate: float,
@@ -33,6 +36,7 @@ class Aligner(tf.keras.models.Model):
                  debug=False,
                  **kwargs):
         super(Aligner, self).__init__(**kwargs)
+        self.config = self._make_config(locals())
         self.start_vec = tf.ones((1, mel_channels), dtype=tf.float32) * mel_start_value
         self.end_vec = tf.ones((1, mel_channels), dtype=tf.float32) * mel_end_value
         self.stop_prob_index = 2
@@ -52,7 +56,7 @@ class Aligner(tf.keras.models.Model):
                                            dropout_rate=dropout_rate,
                                            num_heads=encoder_num_heads,
                                            feed_forward_dimension=encoder_feed_forward_dimension,
-                                           maximum_position_encoding=encoder_maximum_position_encoding,
+                                           maximum_position_encoding=encoder_max_position_encoding,
                                            dense_blocks=len(encoder_num_heads),
                                            conv_filters=None,
                                            kernel_size=None,
@@ -66,7 +70,7 @@ class Aligner(tf.keras.models.Model):
                                             dropout_rate=dropout_rate,
                                             num_heads=decoder_num_heads,
                                             feed_forward_dimension=decoder_feed_forward_dimension,
-                                            maximum_position_encoding=decoder_maximum_position_encoding,
+                                            maximum_position_encoding=decoder_max_position_encoding,
                                             name='Decoder')
         self.final_proj_mel = tf.keras.layers.Dense(self.mel_channels * self.max_r, name='FinalProj')
         self.decoder_postnet = Postnet(mel_channels=mel_channels,
@@ -290,8 +294,8 @@ class Aligner(tf.keras.models.Model):
                    decoder_num_heads=config['decoder_num_heads'],
                    encoder_feed_forward_dimension=config['encoder_feed_forward_dimension'],
                    decoder_feed_forward_dimension=config['decoder_feed_forward_dimension'],
-                   encoder_maximum_position_encoding=config['encoder_max_position_encoding'],
-                   decoder_maximum_position_encoding=config['decoder_max_position_encoding'],
+                   encoder_max_position_encoding=config['encoder_max_position_encoding'],
+                   decoder_max_position_encoding=config['decoder_max_position_encoding'],
                    decoder_prenet_dimension=config['decoder_prenet_dimension'],
                    encoder_prenet_dimension=config['encoder_prenet_dimension'],
                    dropout_rate=config['dropout_rate'],
@@ -312,8 +316,8 @@ class ForwardTransformer(tf.keras.models.Model):
                  dropout_rate: float,
                  decoder_num_heads: list,
                  encoder_num_heads: list,
-                 encoder_maximum_position_encoding: int,
-                 decoder_maximum_position_encoding: int,
+                 encoder_max_position_encoding: int,
+                 decoder_max_position_encoding: int,
                  encoder_dense_blocks: int,
                  decoder_dense_blocks: int,
                  duration_conv_filters: list,
@@ -332,8 +336,16 @@ class ForwardTransformer(tf.keras.models.Model):
                  encoder_feed_forward_dimension: int = None,
                  decoder_feed_forward_dimension: int = None,
                  debug=False,
+                 sampling_rate: int = None,
+                 n_fft: int = None,
+                 hop_length: int = None,
+                 win_length: int = None,
+                 f_min: int = None,
+                 f_max: int = None,
+                 normalizer: str = None,
                  **kwargs):
         super(ForwardTransformer, self).__init__(**kwargs)
+        self.config = self._make_config(locals())
         self.text_pipeline = TextToTokens.default(phoneme_language,
                                                   add_start_end=False,
                                                   with_stress=with_stress,
@@ -346,7 +358,7 @@ class ForwardTransformer(tf.keras.models.Model):
                                            dropout_rate=dropout_rate,
                                            num_heads=encoder_num_heads,
                                            feed_forward_dimension=encoder_feed_forward_dimension,
-                                           maximum_position_encoding=encoder_maximum_position_encoding,
+                                           maximum_position_encoding=encoder_max_position_encoding,
                                            dense_blocks=encoder_dense_blocks,
                                            conv_filters=encoder_attention_conv_filters,
                                            kernel_size=encoder_attention_conv_kernel,
@@ -372,7 +384,7 @@ class ForwardTransformer(tf.keras.models.Model):
                                            dropout_rate=dropout_rate,
                                            num_heads=decoder_num_heads,
                                            feed_forward_dimension=decoder_feed_forward_dimension,
-                                           maximum_position_encoding=decoder_maximum_position_encoding,
+                                           maximum_position_encoding=decoder_max_position_encoding,
                                            dense_blocks=decoder_dense_blocks,
                                            conv_filters=decoder_attention_conv_filters,
                                            kernel_size=decoder_attention_conv_kernel,
@@ -408,6 +420,16 @@ class ForwardTransformer(tf.keras.models.Model):
         self.forward = self._apply_signature(self._forward, self.forward_input_signature)
         self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
+    
+    def _make_config(self, locals) -> dict:
+        config = {}
+        for k in locals:
+            if (k != 'self') and (k != '__class__'):
+                if isinstance(locals[k], dict):
+                    config.update(locals[k])
+                else:
+                    config.update({k: locals[k]})
+        return dict(config)
     
     def _train_step(self, input_sequence, target_sequence, target_durations, target_pitch):
         target_durations = tf.expand_dims(target_durations, -1)
@@ -463,7 +485,8 @@ class ForwardTransformer(tf.keras.models.Model):
     def step(self):
         return int(self.optimizer.iterations)
     
-    def call(self, x, target_durations, target_pitch, training, durations_scalar=1., max_durations_mask=None,
+    def call(self, x, target_durations=None, target_pitch=None, training=False, durations_scalar=1.,
+             max_durations_mask=None,
              min_durations_mask=None):
         encoder_padding_mask = create_encoder_padding_mask(x)
         x = self.encoder_prenet(x)
@@ -541,10 +564,36 @@ class ForwardTransformer(tf.keras.models.Model):
                 new_mask[np_text == phon_idx] = item[1]
         return tf.cast(tf.convert_to_tensor(new_mask), tf.float32)
     
-    def build_model_weights(self, path: str = None) -> None:
+    def build_model_weights(self) -> None:
         _ = self(tf.zeros((1, 1)), target_durations=None, target_pitch=None, training=False)
-        if path is not None:
-            self.load_weights(path)
+    
+    def save_model(self, path: str):
+        yaml = YAML()
+        path = Path(path)
+        path.mkdir(parents=True, exist_ok=True)
+        if hasattr(self, 'step'):
+            self.config.update({'step': self.step})
+        with open(path / 'config.yaml', 'w') as f:
+            yaml.dump(dict(self.config), f)  # conversion necessary (is tf wrapper otherwise)
+        # only needed when model was loaded from a checkpoint
+        self.build_model_weights()
+        self.save_weights(path / 'model_weights.hdf5')
+    
+    @classmethod
+    def load_model(cls, path):
+        yaml = YAML()
+        path = Path(path)
+        with open(path / 'config.yaml', 'r') as f:
+            config = yaml.load(f)
+        model = cls.from_config(config)
+        optimizer = tf.keras.optimizers.Adam(tf.Variable(0.01),
+                                             beta_1=tf.Variable(.9),
+                                             beta_2=tf.Variable(.9),
+                                             epsilon=tf.Variable(1e-9))
+        model.compile(optimizer=optimizer)
+        model.build_model_weights()
+        model.load_weights(path / 'model_weights.hdf5')
+        return model
     
     @classmethod
     def from_config(cls, config: dict, custom_objects=None):
@@ -554,8 +603,8 @@ class ForwardTransformer(tf.keras.models.Model):
             dropout_rate=config['dropout_rate'],
             decoder_num_heads=config['decoder_num_heads'],
             encoder_num_heads=config['encoder_num_heads'],
-            encoder_maximum_position_encoding=config['encoder_max_position_encoding'],
-            decoder_maximum_position_encoding=config['decoder_max_position_encoding'],
+            encoder_max_position_encoding=config['encoder_max_position_encoding'],
+            decoder_max_position_encoding=config['decoder_max_position_encoding'],
             encoder_feed_forward_dimension=config['encoder_feed_forward_dimension'],
             decoder_feed_forward_dimension=config['decoder_feed_forward_dimension'],
             encoder_attention_conv_filters=config['encoder_attention_conv_filters'],
@@ -573,4 +622,12 @@ class ForwardTransformer(tf.keras.models.Model):
             phoneme_language=config['phoneme_language'],
             with_stress=config['with_stress'],
             debug=config['debug'],
-            model_breathing=config['model_breathing'])
+            model_breathing=config['model_breathing'],
+            sampling_rate=config['sampling_rate'],
+            n_fft=config['n_fft'],
+            hop_length=config['hop_length'],
+            win_length=config['win_length'],
+            f_min=config['f_min'],
+            f_max=config['f_max'],
+            normalizer=config['normalizer'],
+        )
