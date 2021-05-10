@@ -1,4 +1,4 @@
-tts_config_name: tts_standard
+tts_config_name: tts_swapped_axis
 
 # ARCHITECTURE
 decoder_model_dimension: 384
