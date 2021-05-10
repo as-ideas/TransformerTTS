@@ -1,5 +1,3 @@
-tts_config_name: tts_standard
-
 # ARCHITECTURE
 decoder_model_dimension: 384
 encoder_model_dimension: 384
