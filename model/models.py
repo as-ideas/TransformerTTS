@@ -580,6 +580,8 @@ class ForwardTransformer(tf.keras.models.Model):
         yaml = YAML()
         path = Path(path)
         path.mkdir(parents=True, exist_ok=True)
+        if hasattr(self, 'text_pipeline'):
+            self.config.update({'alphabet': self.text_pipeline.tokenizer.alphabet})
         if hasattr(self, 'step'):
             self.config.update({'step': self.step})
         try:
