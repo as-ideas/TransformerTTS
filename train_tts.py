@@ -181,9 +181,11 @@ for _ in t:
     
     if model.step % 1000 == 0:
         save_path = manager_training.save()
-    if (model.step % config_dict['weights_save_frequency']) & (model.step >= config_dict['weights_save_starting_step']):
+    if (model.step % config_dict['weights_save_frequency'] == 0) & (
+            model.step >= config_dict['weights_save_starting_step']):
         model.save_model(config.weights_dir / f'step_{model.step}')
-        t.display(f'checkpoint at step {model.step}: {config.weights_dir / f"step_{model.step}"}', pos=len(config_dict['n_steps_avg_losses']) + 2)
+        t.display(f'checkpoint at step {model.step}: {config.weights_dir / f"step_{model.step}"}',
+                  pos=len(config_dict['n_steps_avg_losses']) + 2)
     
     if model.step % config_dict['validation_frequency'] == 0:
         t.display(f'Validating', pos=len(config_dict['n_steps_avg_losses']) + 3)
