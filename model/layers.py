@@ -362,11 +362,11 @@ class DecoderPrenet(tf.keras.layers.Layer):
     
     def __init__(self,
                  model_dim: int,
-                 dense_hidden_units: int,
+                 # dense_hidden_units: int,
                  dropout_rate: float,
                  **kwargs):
         super(DecoderPrenet, self).__init__(**kwargs)
-        self.d1 = tf.keras.layers.Dense(dense_hidden_units,
+        self.d1 = tf.keras.layers.Dense(32,
                                         activation='relu')  # (batch_size, seq_len, dense_hidden_units)
         self.d2 = tf.keras.layers.Dense(model_dim, activation='relu')  # (batch_size, seq_len, model_dim)
         self.rate = tf.Variable(dropout_rate, trainable=False)
@@ -382,6 +382,19 @@ class DecoderPrenet(tf.keras.layers.Layer):
         x = self.d2(x)
         x = self.dropout_2(x, training=training)
         return x
+
+
+class LayerNormEmbeddings(tf.keras.layers.Layer):
+    def __init__(self, vocab_size, model_dim, **kwargs):
+        super(LayerNormEmbeddings, self).__init__(**kwargs)
+        self.embeds = tf.keras.layers.Embedding(vocab_size,
+                                                model_dim,
+                                                name='Embedding')
+        self.ln = tf.keras.layers.LayerNormalization(epsilon=1e-6)  # https://arxiv.org/pdf/2006.04664.pdf
+    
+    def call(self, inputs, training=False):
+        x = self.embeds(inputs)
+        return self.ln(x)
 
 
 class Postnet(tf.keras.layers.Layer):

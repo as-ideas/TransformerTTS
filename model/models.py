@@ -8,7 +8,7 @@ from ruamel.yaml import YAML
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
 from data.text import TextToTokens
-from model.layers import DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
+from model.layers import LayerNormEmbeddings, DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
 from utils.metrics import batch_diagonal_mask
 
 
@@ -50,9 +50,9 @@ class Aligner(tf.keras.models.Model):
                                                   add_start_end=True,
                                                   with_stress=with_stress,
                                                   model_breathing=model_breathing)
-        self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
-                                                        encoder_prenet_dimension,
-                                                        name='Embedding')
+        self.encoder_prenet = LayerNormEmbeddings(vocab_size=self.text_pipeline.tokenizer.vocab_size,
+                                                   model_dim=encoder_prenet_dimension,
+                                                   name='EncoderPrenet')
         self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dimension,
                                            dropout_rate=dropout_rate,
                                            num_heads=encoder_num_heads,
@@ -64,7 +64,7 @@ class Aligner(tf.keras.models.Model):
                                            conv_activation=None,
                                            name='Encoder')
         self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
-                                            dense_hidden_units=decoder_prenet_dimension,
+                                            # dense_hidden_units=decoder_prenet_dimension,
                                             dropout_rate=decoder_prenet_dropout,
                                             name='DecoderPrenet')
         self.decoder = CrossAttentionBlocks(model_dim=decoder_model_dimension,
@@ -360,9 +360,9 @@ class ForwardTransformer(tf.keras.models.Model):
                                                   with_stress=with_stress,
                                                   model_breathing=model_breathing)
         self.mel_channels = mel_channels
-        self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
-                                                        encoder_model_dimension,
-                                                        name='Embedding')
+        self.encoder_prenet = LayerNormEmbeddings(vocab_size=self.text_pipeline.tokenizer.vocab_size,
+                                                  model_dim=encoder_model_dimension,
+                                                  name='EncoderPrenet')
         self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dimension,
                                            dropout_rate=dropout_rate,
                                            num_heads=encoder_num_heads,
