@@ -1,8 +1,8 @@
 # ARCHITECTURE
 decoder_model_dimension: 256
 encoder_model_dimension: 256
-decoder_num_heads: [4, 4, 4, 1]  # the length of this defines the number of layers
-encoder_num_heads: [4, 4, 4, 4]  # the length of this defines the number of layers
+decoder_num_heads: [2, 2, 2, 2]  # the length of this defines the number of layers
+encoder_num_heads: [2, 2, 2, 2]  # the length of this defines the number of layers
 encoder_feed_forward_dimension: 512
 decoder_feed_forward_dimension: 512
 decoder_prenet_dimension: 256
@@ -22,8 +22,8 @@ reduction_factor_schedule:
   - [0, 10]
   - [80_000, 1]
 max_steps: 160_000
-force_encoder_diagonal_steps: 1_000
-force_decoder_diagonal_steps: 7_000
+force_encoder_diagonal_steps: 3_000
+force_decoder_diagonal_steps: 10_000
 extract_attention_weighted: False # weighted average between last layer decoder attention heads when extracting durations
 debug: False
 
