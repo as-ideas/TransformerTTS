@@ -359,6 +359,7 @@ class ForwardTransformer(tf.keras.models.Model):
                                                   add_start_end=False,
                                                   with_stress=with_stress,
                                                   model_breathing=model_breathing)
+        self.symbols = self.text_pipeline.tokenizer.alphabet
         self.mel_channels = mel_channels
         self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
                                                         encoder_model_dimension,
@@ -581,7 +582,7 @@ class ForwardTransformer(tf.keras.models.Model):
         path = Path(path)
         path.mkdir(parents=True, exist_ok=True)
         if hasattr(self, 'text_pipeline'):
-            save_list = [x for x in self.text_pipeline.tokenizer.alphabet]
+            save_list = ''.join(self.symbols)
             self.config.update({'alphabet': save_list})
         if hasattr(self, 'step'):
             self.config.update({'step': self.step})
