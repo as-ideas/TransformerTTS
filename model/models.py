@@ -368,20 +368,14 @@ class ForwardTransformer(tf.keras.models.Model):
                  encoder_feed_forward_dimension: int = None,
                  decoder_feed_forward_dimension: int = None,
                  debug=False,
-                 sampling_rate: int = None,
-                 n_fft: int = None,
-                 hop_length: int = None,
-                 win_length: int = None,
-                 f_min: int = None,
-                 f_max: int = None,
-                 normalizer: str = None,
                  **kwargs):
-        super(ForwardTransformer, self).__init__(**kwargs)
-        self.config = self._make_config(locals())
+        super(ForwardTransformer, self).__init__()
+        self.config = self._make_config(locals(), kwargs)
         self.text_pipeline = TextToTokens.default(phoneme_language,
                                                   add_start_end=False,
                                                   with_stress=with_stress,
                                                   model_breathing=model_breathing)
+        self.symbols = self.text_pipeline.tokenizer.alphabet
         self.mel_channels = mel_channels
         self.encoder_prenet = LayerNormEmbeddings(vocab_size=self.text_pipeline.tokenizer.vocab_size,
                                                   model_dim=encoder_model_dimension,
@@ -453,15 +447,16 @@ class ForwardTransformer(tf.keras.models.Model):
         self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
     
-    def _make_config(self, locals) -> dict:
+    def _make_config(self, locals:dict, kwargs:dict) -> dict:
         config = {}
-        for k in locals:
-            if (k != 'self') and (k != '__class__'):
-                if isinstance(locals[k], dict):
-                    config.update(locals[k])
-                else:
-                    config.update({k: locals[k]})
-        return dict(config)
+        keys = [k for k in locals.keys() if (k not in kwargs) and (k not in ['self', '__class__', 'kwargs'] )]
+        for k in keys:
+            if isinstance(locals[k], dict):
+                config.update(locals[k])
+            else:
+                config.update({k: locals[k]})
+        config.update(kwargs)
+        return config
     
     def _train_step(self, input_sequence, target_sequence, target_durations, target_pitch):
         target_durations = tf.expand_dims(target_durations, -1)
@@ -604,7 +599,7 @@ class ForwardTransformer(tf.keras.models.Model):
         path = Path(path)
         path.mkdir(parents=True, exist_ok=True)
         if hasattr(self, 'text_pipeline'):
-            save_list = [x for x in self.text_pipeline.tokenizer.alphabet]
+            save_list = ''.join(self.symbols)
             self.config.update({'alphabet': save_list})
         if hasattr(self, 'step'):
             self.config.update({'step': self.step})
@@ -641,37 +636,4 @@ class ForwardTransformer(tf.keras.models.Model):
     
     @classmethod
     def from_config(cls, config: dict, custom_objects=None):
-        return cls(
-            encoder_model_dimension=config['encoder_model_dimension'],
-            decoder_model_dimension=config['decoder_model_dimension'],
-            dropout_rate=config['dropout_rate'],
-            decoder_num_heads=config['decoder_num_heads'],
-            encoder_num_heads=config['encoder_num_heads'],
-            encoder_max_position_encoding=config['encoder_max_position_encoding'],
-            decoder_max_position_encoding=config['decoder_max_position_encoding'],
-            encoder_feed_forward_dimension=config['encoder_feed_forward_dimension'],
-            decoder_feed_forward_dimension=config['decoder_feed_forward_dimension'],
-            encoder_attention_conv_filters=config['encoder_attention_conv_filters'],
-            decoder_attention_conv_filters=config['decoder_attention_conv_filters'],
-            encoder_attention_conv_kernel=config['encoder_attention_conv_kernel'],
-            decoder_attention_conv_kernel=config['decoder_attention_conv_kernel'],
-            duration_conv_filters=config['duration_conv_filters'],
-            pitch_conv_filters=config['pitch_conv_filters'],
-            duration_kernel_size=config['duration_kernel_size'],
-            pitch_kernel_size=config['pitch_kernel_size'],
-            predictors_dropout=config['predictors_dropout'],
-            mel_channels=config['mel_channels'],
-            encoder_dense_blocks=config['encoder_dense_blocks'],
-            decoder_dense_blocks=config['decoder_dense_blocks'],
-            phoneme_language=config['phoneme_language'],
-            with_stress=config['with_stress'],
-            debug=config['debug'],
-            model_breathing=config['model_breathing'],
-            sampling_rate=config['sampling_rate'],
-            n_fft=config['n_fft'],
-            hop_length=config['hop_length'],
-            win_length=config['win_length'],
-            f_min=config['f_min'],
-            f_max=config['f_max'],
-            normalizer=config['normalizer'],
-        )
+        return cls(**config)
