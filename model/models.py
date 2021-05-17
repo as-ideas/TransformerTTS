@@ -8,8 +8,10 @@ from ruamel.yaml import YAML
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
 from data.text import TextToTokens
-from model.layers import LayerNormEmbeddings, DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
+from model.layers import LayerNormEmbeddings, DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, \
+    CrossAttentionBlocks
 from utils.metrics import batch_diagonal_mask
+from model.transformer_utils import positional_encoding
 
 
 class Aligner(tf.keras.models.Model):
@@ -44,6 +46,7 @@ class Aligner(tf.keras.models.Model):
         self.max_r = max_r
         self.r = max_r
         self.mel_channels = mel_channels
+        self.mel_PE = positional_encoding(decoder_max_position_encoding, mel_channels)
         self.force_encoder_diagonal = False
         self.force_decoder_diagonal = False
         self.text_pipeline = TextToTokens.default(phoneme_language,
@@ -171,6 +174,8 @@ class Aligner(tf.keras.models.Model):
         tar_stop_prob = stop_prob[:, 1:]
         
         mel_len = int(tf.shape(tar_inp)[1])
+        mel_mask = create_mel_padding_mask(tar_real)
+        tar_real = (tar_real + self.mel_PE[:, :mel_len, :]) * (1 - mel_mask[:, 0, 0, :, None])
         tar_mel = tar_inp[:, 0::self.r, :]
         
         with tf.GradientTape() as tape:
@@ -447,9 +452,9 @@ class ForwardTransformer(tf.keras.models.Model):
         self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
     
-    def _make_config(self, locals:dict, kwargs:dict) -> dict:
+    def _make_config(self, locals: dict, kwargs: dict) -> dict:
         config = {}
-        keys = [k for k in locals.keys() if (k not in kwargs) and (k not in ['self', '__class__', 'kwargs'] )]
+        keys = [k for k in locals.keys() if (k not in kwargs) and (k not in ['self', '__class__', 'kwargs'])]
         for k in keys:
             if isinstance(locals[k], dict):
                 config.update(locals[k])
