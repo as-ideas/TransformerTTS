@@ -278,8 +278,8 @@ class Aligner(tf.keras.models.Model):
         encoder_output, padding_mask, encoder_attention = self.forward_encoder(inp)
         for i in range(int(max_length // self.r) + 1):
             model_out = self.forward_decoder(encoder_output, output, padding_mask)
-            output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
-            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.r:, :]],
+            output = tf.concat([output, model_out['mel'][:1, -1:, :]], axis=-2)
+            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['mel'][:1, -self.r:, :]],
                                       axis=-2)
             stop_pred = model_out['stop_prob'][:, -1]
             out_dict = {'mel': output_concat[0, 1:, :],

@@ -34,7 +34,7 @@ train_images_plotting_frequency: 1_000
 keep_n_weights: 2
 keep_checkpoint_every_n_hours: 12
 n_steps_avg_losses: [100, 500, 1_000, 5_000]  # command line display of average loss values for the last n steps
-prediction_start_step: 30_000 # step after which to predict durations at validation time
+prediction_start_step: 10_000 # step after which to predict durations at validation time
 prediction_frequency: 5_000
 test_stencences:
   - aligner_test_sentences.txt
