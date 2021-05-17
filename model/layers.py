@@ -148,6 +148,7 @@ class ScaledDotProductAttention(tf.keras.layers.Layer):
         
         return output, attention_weights
 
+
 class SelfAttentionResNorm(tf.keras.layers.Layer):
     
     def __init__(self,
@@ -238,8 +239,8 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
     
     def call(self, inputs, training, padding_mask, reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
-        x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
-        x += self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
+        # x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
+        x = inputs + self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}
         for i, block in enumerate(self.encoder_SADB):
@@ -346,8 +347,8 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
     def call(self, inputs, enc_output, training, decoder_padding_mask, encoder_padding_mask,
              reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
-        x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
-        x += self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
+        # x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
+        x = inputs + self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}
         for i, block in enumerate(self.CADB):
@@ -372,6 +373,7 @@ class DecoderPrenet(tf.keras.layers.Layer):
         self.rate = tf.Variable(dropout_rate, trainable=False)
         self.dropout_1 = tf.keras.layers.Dropout(self.rate)
         self.dropout_2 = tf.keras.layers.Dropout(self.rate)
+        self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
     
     def call(self, x, training):
         self.dropout_1.rate = self.rate
@@ -381,6 +383,7 @@ class DecoderPrenet(tf.keras.layers.Layer):
         x = self.dropout_1(x, training=training)
         x = self.d2(x)
         x = self.dropout_2(x, training=training)
+        x = self.layernorm(x)
         return x
 
 

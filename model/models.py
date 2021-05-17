@@ -51,8 +51,8 @@ class Aligner(tf.keras.models.Model):
                                                   with_stress=with_stress,
                                                   model_breathing=model_breathing)
         self.encoder_prenet = LayerNormEmbeddings(vocab_size=self.text_pipeline.tokenizer.vocab_size,
-                                                   model_dim=encoder_prenet_dimension,
-                                                   name='EncoderPrenet')
+                                                  model_dim=encoder_prenet_dimension,
+                                                  name='EncoderPrenet')
         self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dimension,
                                            dropout_rate=dropout_rate,
                                            num_heads=encoder_num_heads,
@@ -113,7 +113,7 @@ class Aligner(tf.keras.models.Model):
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
         self.forward_encoder = self._apply_signature(self._forward_encoder, self.encoder_signature)
         self.forward_decoder = self._apply_signature(self._forward_decoder, self.decoder_signature)
-        
+    
     def _make_config(self, locals) -> dict:
         config = {}
         for k in locals:
@@ -267,6 +267,29 @@ class Aligner(tf.keras.models.Model):
         model_out = self.forward(inp=text, output=autoregr_tar_mel)
         attn_weights = model_out['decoder_attention']['Decoder_LastBlock_CrossAttention']
         return attn_weights, model_out
+    
+    def predict(self, inp, max_length=1000, encode=True, verbose=True):
+        if encode:
+            inp = self.encode_text(inp)
+        inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
+        output = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
+        output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
+        out_dict = {}
+        encoder_output, padding_mask, encoder_attention = self.forward_encoder(inp)
+        for i in range(int(max_length // self.r) + 1):
+            model_out = self.forward_decoder(encoder_output, output, padding_mask)
+            output = tf.concat([output, model_out['final_output'][:1, -1:, :]], axis=-2)
+            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['final_output'][:1, -self.r:, :]],
+                                      axis=-2)
+            stop_pred = model_out['stop_prob'][:, -1]
+            out_dict = {'mel': output_concat[0, 1:, :],
+                        'decoder_attention': model_out['decoder_attention'],
+                        'encoder_attention': encoder_attention}
+            if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
+                if verbose:
+                    print('Stopping')
+                break
+        return out_dict
     
     def call(self, inputs, targets, training):
         encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)
