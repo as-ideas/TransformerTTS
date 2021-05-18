@@ -171,8 +171,8 @@ class Aligner(tf.keras.models.Model):
     def _gta_forward(self, inp, tar, stop_prob, training):
         mel_mask = create_mel_padding_mask(tar)
         mel_len_tar = int(tf.shape(tar)[1])
-        tar = (tar + .5*self.mel_PE[:, :mel_len_tar, :]) * (1 - mel_mask[:, 0, 0, :, None])
-
+        tar = (tar + .5 * self.mel_PE[:, :mel_len_tar, :]) * (1 - mel_mask[:, 0, 0, :, None])
+        
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
         tar_stop_prob = stop_prob[:, 1:]
@@ -197,7 +197,8 @@ class Aligner(tf.keras.models.Model):
             if self.force_decoder_diagonal:
                 mel_lenght = tf.reduce_sum(1. - tf.squeeze(model_out['mel_mask'], axis=(1, 2)), axis=1)
                 dec_key_list = list(model_out['decoder_attention'].keys())
-                decoder_dmask = batch_diagonal_mask(model_out['decoder_attention'][dec_key_list[0]], mel_lenght, phon_len)
+                decoder_dmask = batch_diagonal_mask(model_out['decoder_attention'][dec_key_list[0]], mel_lenght,
+                                                    phon_len)
                 for key in dec_key_list:
                     d_measure = tf.reduce_sum(model_out['decoder_attention'][key] * decoder_dmask, axis=(-2, -1))
                     d_loss += tf.reduce_mean(d_measure) / 10.
@@ -213,7 +214,7 @@ class Aligner(tf.keras.models.Model):
             d_loss /= norm_factor
             loss += d_loss
         model_out.update({'loss': loss})
-        model_out['mel'] = model_out['mel'] - .5*self.mel_PE[:, :mel_len, :]
+        model_out['mel'] = model_out['mel'] - .5 * self.mel_PE[:, :mel_len + 1, :]
         model_out.update({'losses': {'mel': loss_vals[0], 'stop_prob': loss_vals[1], 'diag_loss': d_loss}})
         return model_out, tape
     
