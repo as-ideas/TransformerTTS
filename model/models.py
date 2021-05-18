@@ -214,7 +214,8 @@ class Aligner(tf.keras.models.Model):
             d_loss /= norm_factor
             loss += d_loss
         model_out.update({'loss': loss})
-        model_out['mel'] = model_out['mel'] - .5 * self.mel_PE[:, :mel_len + 1, :]
+        mel_len = int(tf.shape(model_out['mel'])[1])
+        model_out['mel'] = model_out['mel'] - .5 * self.mel_PE[:, :mel_len, :]
         model_out.update({'losses': {'mel': loss_vals[0], 'stop_prob': loss_vals[1], 'diag_loss': d_loss}})
         return model_out, tape
     
