@@ -169,13 +169,15 @@ class Aligner(tf.keras.models.Model):
         return self._call_decoder(encoder_output, targets, encoder_padding_mask, training=False)
     
     def _gta_forward(self, inp, tar, stop_prob, training):
+        mel_mask = create_mel_padding_mask(tar)
+        mel_len_tar = int(tf.shape(tar)[1])
+        tar = (tar + .5*self.mel_PE[:, :mel_len_tar, :]) * (1 - mel_mask[:, 0, 0, :, None])
+
         tar_inp = tar[:, :-1]
         tar_real = tar[:, 1:]
         tar_stop_prob = stop_prob[:, 1:]
         
         mel_len = int(tf.shape(tar_inp)[1])
-        mel_mask = create_mel_padding_mask(tar_real)
-        tar_real = (tar_real + self.mel_PE[:, :mel_len, :]) * (1 - mel_mask[:, 0, 0, :, None])
         tar_mel = tar_inp[:, 0::self.r, :]
         
         with tf.GradientTape() as tape:
@@ -211,6 +213,7 @@ class Aligner(tf.keras.models.Model):
             d_loss /= norm_factor
             loss += d_loss
         model_out.update({'loss': loss})
+        model_out['mel'] = model_out['mel'] - .5*self.mel_PE[:, :mel_len, :]
         model_out.update({'losses': {'mel': loss_vals[0], 'stop_prob': loss_vals[1], 'diag_loss': d_loss}})
         return model_out, tape
     
