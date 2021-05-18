@@ -195,9 +195,9 @@ class Aligner(tf.keras.models.Model):
             d_loss = 0.
             norm_factor = 1.
             if self.force_decoder_diagonal:
-                mel_len = tf.reduce_sum(1. - tf.squeeze(model_out['mel_mask'], axis=(1, 2)), axis=1)
+                mel_lenght = tf.reduce_sum(1. - tf.squeeze(model_out['mel_mask'], axis=(1, 2)), axis=1)
                 dec_key_list = list(model_out['decoder_attention'].keys())
-                decoder_dmask = batch_diagonal_mask(model_out['decoder_attention'][dec_key_list[0]], mel_len, phon_len)
+                decoder_dmask = batch_diagonal_mask(model_out['decoder_attention'][dec_key_list[0]], mel_lenght, phon_len)
                 for key in dec_key_list:
                     d_measure = tf.reduce_sum(model_out['decoder_attention'][key] * decoder_dmask, axis=(-2, -1))
                     d_loss += tf.reduce_mean(d_measure) / 10.
