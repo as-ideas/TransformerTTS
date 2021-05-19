@@ -9,7 +9,7 @@ from model.models import ForwardTransformer
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--model_path', '-p', dest='path', default=None, type=str)
+    parser.add_argument('--config', '-c', dest='config', default=None, type=str)
     parser.add_argument('--text', '-t', dest='text', default=None, type=str)
     parser.add_argument('--file', '-f', dest='file', default=None, type=str)
     parser.add_argument('--outdir', '-o', dest='outdir', default=None, type=str)
@@ -40,10 +40,11 @@ if __name__ == '__main__':
         model, conf = tts_ljspeech()
         file_name = f'{fname}_ljspeech_v1'
     
-    outdir = outdir / 'outputs' / f'{file_name}'
+    outdir = outdir / 'outputs' / f'{fname}'
     outdir.mkdir(exist_ok=True, parents=True)
+    output_path = (outdir / file_name).with_suffix('.wav')
     audio = Audio.from_config(model.config)
-    print(f'Output wav under {outdir}')
+    print(f'Output wav under {output_path}')
     wavs = []
     for i, text_line in enumerate(text):
         phons = model.text_pipeline.phonemizer(text_line)
@@ -60,4 +61,4 @@ if __name__ == '__main__':
             np.save((outdir / (file_name + f'_{i}')).with_suffix('.mel'), out['mel'].numpy())
         if args.single:
             audio.save_wav(wav, (outdir / (file_name + f'_{i}')).with_suffix('.wav'))
-    audio.save_wav(np.concatenate(wavs), (outdir / file_name).with_suffix('.wav'))
+    audio.save_wav(np.concatenate(wavs), output_path)
