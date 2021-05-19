@@ -9,11 +9,9 @@ from model.models import ForwardTransformer
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--config', '-c', dest='config', default=None, type=str)
+    parser.add_argument('--model_path', '-p', dest='path', default=None, type=str)
     parser.add_argument('--text', '-t', dest='text', default=None, type=str)
     parser.add_argument('--file', '-f', dest='file', default=None, type=str)
-    parser.add_argument('--weights', '-w', dest='weights', default=None, type=str)
-    parser.add_argument('--checkpoint', '-ckpt', dest='checkpoint', default=None, type=str)
     parser.add_argument('--outdir', '-o', dest='outdir', default=None, type=str)
     parser.add_argument('--store_mel', '-m', dest='store_mel', action='store_true')
     parser.add_argument('--verbose', '-v', dest='verbose', action='store_true')
@@ -34,9 +32,9 @@ if __name__ == '__main__':
         exit()
     # load the appropriate model
     outdir = Path(args.outdir) if args.outdir is not None else Path('.')
-    if args.config is not None:
-        print(f'Loading model from {args.config}')
-        model = ForwardTransformer.load_model(args.config)
+    if args.path is not None:
+        print(f'Loading model from {args.path}')
+        model = ForwardTransformer.load_model(args.path)
         file_name = f"{fname}_{model.config['data_name']}_{model.config['git_hash']}_{model.config['step']}"
     else:
         model, conf = tts_ljspeech()
