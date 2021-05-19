@@ -268,6 +268,29 @@ class Aligner(tf.keras.models.Model):
         attn_weights = model_out['decoder_attention']['Decoder_LastBlock_CrossAttention']
         return attn_weights, model_out
     
+    def predict(self, inp, max_length=1000, encode=True, verbose=True):
+        if encode:
+            inp = self.encode_text(inp)
+        inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
+        output = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
+        output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
+        out_dict = {}
+        encoder_output, padding_mask, encoder_attention = self.forward_encoder(inp)
+        for i in range(int(max_length // self.r) + 1):
+            model_out = self.forward_decoder(encoder_output, output, padding_mask)
+            output = tf.concat([output, model_out['mel'][:1, -1:, :]], axis=-2)
+            output_concat = tf.concat([tf.cast(output_concat, tf.float32), model_out['mel'][:1, -self.r:, :]],
+                                      axis=-2)
+            stop_pred = model_out['stop_prob'][:, -1]
+            out_dict = {'mel': output_concat[0, 1:, :],
+                        'decoder_attention': model_out['decoder_attention'],
+                        'encoder_attention': encoder_attention}
+            if int(tf.argmax(stop_pred, axis=-1)) == self.stop_prob_index:
+                if verbose:
+                    print('Stopping')
+                break
+        return out_dict
+    
     def call(self, inputs, targets, training):
         encoder_output, padding_mask, encoder_attention = self._call_encoder(inputs, training)
         model_out = self._call_decoder(encoder_output, targets, padding_mask, training)

@@ -148,6 +148,7 @@ class ScaledDotProductAttention(tf.keras.layers.Layer):
         
         return output, attention_weights
 
+
 class SelfAttentionResNorm(tf.keras.layers.Layer):
     
     def __init__(self,
@@ -235,10 +236,11 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
                                    name=f'{self.name}_SACB_{i}', kernel_size=kernel_size,
                                    conv_activation=conv_activation, conv_filters=conv_filters)
             for i, n_heads in enumerate(num_heads[dense_blocks:])]
-    
+        self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        
     def call(self, inputs, training, padding_mask, reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
-        x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
+        x = self.layernorm(inputs)
         x += self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}
@@ -342,11 +344,12 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
                                                   num_heads=num_heads[-1],
                                                   dense_hidden_units=feed_forward_dimension,
                                                   name=f'{self.name}_CADB_last')
-    
+        self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+
     def call(self, inputs, enc_output, training, decoder_padding_mask, encoder_padding_mask,
              reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
-        x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
+        x = self.layernorm(inputs)
         x += self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}
