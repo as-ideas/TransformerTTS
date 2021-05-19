@@ -3,17 +3,15 @@ from pathlib import Path
 
 import numpy as np
 
-from utils.config_manager import Config
-from model.factory import tts_ljspeech, tts_custom
+from model.factory import tts_ljspeech
 from data.audio import Audio
+from model.models import ForwardTransformer
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--config', '-c', dest='config', default=None, type=str)
+    parser.add_argument('--model_path', '-p', dest='path', default=None, type=str)
     parser.add_argument('--text', '-t', dest='text', default=None, type=str)
     parser.add_argument('--file', '-f', dest='file', default=None, type=str)
-    parser.add_argument('--weights', '-w', dest='weights', default=None, type=str)
-    parser.add_argument('--checkpoint', '-ckpt', dest='checkpoint', default=None, type=str)
     parser.add_argument('--outdir', '-o', dest='outdir', default=None, type=str)
     parser.add_argument('--store_mel', '-m', dest='store_mel', action='store_true')
     parser.add_argument('--verbose', '-v', dest='verbose', action='store_true')
@@ -34,23 +32,17 @@ if __name__ == '__main__':
         exit()
     # load the appropriate model
     outdir = Path(args.outdir) if args.outdir is not None else Path('.')
-    if args.config is not None:
-        if args.weights is not None:
-            model, conf = tts_custom(args.config, args.weights)
-            file_name = f'{fname}_{Path(args.weights).stem}'
-        else:
-            config_loader = Config(config_path=args.config)
-            outdir = Path(args.outdir) if args.outdir is not None else Path(config_loader.log_dir)
-            conf = config_loader.config
-            model = config_loader.load_model(args.checkpoint)  # if None defaults to latest
-            file_name = f'{fname}_tts_step{model.step}'
+    if args.path is not None:
+        print(f'Loading model from {args.path}')
+        model = ForwardTransformer.load_model(args.path)
+        file_name = f"{fname}_{model.config['data_name']}_{model.config['git_hash']}_{model.config['step']}"
     else:
         model, conf = tts_ljspeech()
         file_name = f'{fname}_ljspeech_v1'
     
-    outdir = outdir / 'outputs' / f'{fname}'
+    outdir = outdir / 'outputs' / f'{file_name}'
     outdir.mkdir(exist_ok=True, parents=True)
-    audio = Audio.from_config(conf)
+    audio = Audio.from_config(model.config)
     print(f'Output wav under {outdir}')
     wavs = []
     for i, text_line in enumerate(text):

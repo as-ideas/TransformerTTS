@@ -5,8 +5,6 @@ decoder_num_heads: [2, 2, 2, 2, 2, 2]  # the length of this defines the number o
 encoder_num_heads: [2, 2, 2, 2, 2, 2]  # the length of this defines the number of layers
 encoder_feed_forward_dimension: null
 decoder_feed_forward_dimension: null
-decoder_prenet_dimension: 384
-encoder_prenet_dimension: 384
 encoder_attention_conv_filters: [1536, 384]
 decoder_attention_conv_filters: [1536, 384]
 encoder_attention_conv_kernel: 3
