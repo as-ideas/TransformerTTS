@@ -8,7 +8,7 @@ naming:
   data_name: ljspeech # raw data naming for default data reader (select function from data/metadata_readers.py)
   audio_settings_name: MelGAN_default
   text_settings_name: Stress_NoBreathing
-  aligner_settings_name: alinger_extralayer_layernorm_nodiag
+  aligner_settings_name: alinger_extralayer_layernorm_lowdiag
   tts_settings_name: tts_swap_conv_dims
 
 # TRAINING DATA SETTINGS
@@ -76,8 +76,8 @@ aligner_settings:
     - [100_000, 2]
     - [130_000, 1]
   max_steps: 260_000
-  force_encoder_diagonal_steps: 0
-  force_decoder_diagonal_steps: 0
+  force_encoder_diagonal_steps: 5
+  force_decoder_diagonal_steps: 10
   extract_attention_weighted: False # weighted average between last layer decoder attention heads when extracting durations
   debug: False
 
