@@ -1,7 +1,7 @@
 # ARCHITECTURE
 decoder_model_dimension: 256
 encoder_model_dimension: 256
-decoder_num_heads: [4, 4, 4, 1]  # the length of this defines the number of layers
+decoder_num_heads: [4, 4, 4, 4, 1]  # the length of this defines the number of layers
 encoder_num_heads: [4, 4, 4, 4]  # the length of this defines the number of layers
 encoder_feed_forward_dimension: 512
 decoder_feed_forward_dimension: 512

@@ -8,5 +8,5 @@ aligner_config: 'config/aligner_config.yaml'
 tts_config: 'config/tts_config.yaml'
 
 tts_config_name: tts_swap_conv_dim
-aligner_config_name: aligner_standard
+aligner_config_name: aligner_bigger_LN
 data_name: ljspeech # raw data naming for default data reader (select function from data/metadata_readers.py)
