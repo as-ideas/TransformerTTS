@@ -76,8 +76,8 @@ aligner_settings:
     - [100_000, 2]
     - [130_000, 1]
   max_steps: 260_000
-  force_encoder_diagonal_steps: 5
-  force_decoder_diagonal_steps: 10
+  force_encoder_diagonal_steps: 50
+  force_decoder_diagonal_steps: 100
   extract_attention_weighted: False # weighted average between last layer decoder attention heads when extracting durations
   debug: False
 
