@@ -1,0 +1,139 @@
+paths:
+  wav_directory: '/data/datasets/LJSpeech-1.1' # path to wavs and metafile directory
+  metadata_path: '/data/datasets/LJSpeech-1.1/metadata.csv'  # name of metadata file under wav_directory
+  log_directory: '/data/francesco/logs/transformer_tts/main'   # weights and logs are stored here
+  train_data_directory: '/data/francesco/processed_datasets/transformer_tts_data'   # training data is stored here
+
+naming:
+  data_name: ljspeech # raw data naming for default data reader (select function from data/metadata_readers.py)
+  audio_settings_name: MelGAN_default
+  text_settings_name: Stress_NoBreathing
+  aligner_settings_name: alinger_extralayer_layernorm
+  tts_settings_name: tts_swap_conv_dims
+
+# TRAINING DATA SETTINGS
+training_data_settings:
+  n_test: 100
+  mel_start_value: .5
+  mel_end_value: -.5
+  max_mel_len: 1_200
+  min_mel_len: 80
+  bucket_boundaries: [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200] # mel bucketing
+  bucket_batch_sizes: [64, 42, 32, 25, 21, 18, 16, 14, 12, 6, 1]
+  val_bucket_batch_size: [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1]
+
+# AUDIO SETTINGS
+audio_settings:
+  sampling_rate: 22050
+  n_fft: 1024
+  mel_channels: 80
+  hop_length: 256
+  win_length: 1024
+  f_min: 0
+  f_max: 8000
+  normalizer: MelGAN                 # which mel normalization to use from utils.audio.py [MelGAN or WaveRNN]
+
+  # SILENCE CUTTING
+  trim_silence_top_db: 60
+  trim_silence: False
+  trim_long_silences: True
+  # Params for trimming long silences, from https://github.com/resemble-ai/Resemblyzer/blob/master/resemblyzer/hparams.py
+  vad_window_length: 30      # In milliseconds
+  vad_moving_average_width: 8
+  vad_max_silence_length: 12
+  vad_sample_rate: 16000
+
+text_settings:
+  # TOKENIZER
+  phoneme_language: 'en-us'
+  with_stress: True                  # use stress symbols in phonemization
+  model_breathing: false           # add a token for the initial breathing
+
+aligner_settings:
+  # ARCHITECTURE
+  decoder_model_dimension: 256
+  encoder_model_dimension: 256
+  decoder_num_heads: [4, 4, 4, 4, 1]  # the length of this defines the number of layers
+  encoder_num_heads: [4, 4, 4, 4]  # the length of this defines the number of layers
+  encoder_feed_forward_dimension: 512
+  decoder_feed_forward_dimension: 512
+  decoder_prenet_dimension: 256
+  encoder_prenet_dimension: 256
+  encoder_max_position_encoding: 10000
+  decoder_max_position_encoding: 10000
+
+  # LOSSES
+  stop_loss_scaling: 8
+
+  # TRAINING
+  dropout_rate: 0.1
+  decoder_prenet_dropout: 0.1
+  learning_rate_schedule:
+    - [0, 1.0e-4]
+  reduction_factor_schedule:
+    - [0, 10]
+    - [80_000, 5]
+    - [100_000, 2]
+    - [130_000, 1]
+  max_steps: 260_000
+  force_encoder_diagonal_steps: 1_000
+  force_decoder_diagonal_steps: 7_000
+  extract_attention_weighted: False # weighted average between last layer decoder attention heads when extracting durations
+  debug: False
+
+  # LOGGING
+  validation_frequency: 5_000
+  weights_save_frequency: 5_000
+  train_images_plotting_frequency: 1_000
+  keep_n_weights: 2
+  keep_checkpoint_every_n_hours: 12
+  n_steps_avg_losses: [100, 500, 1_000, 5_000]  # command line display of average loss values for the last n steps
+  prediction_start_step: 10_000 # step after which to predict durations at validation time
+  prediction_frequency: 5_000
+  test_stencences:
+    - aligner_test_sentences.txt
+
+tts_settings:
+  # ARCHITECTURE
+  decoder_model_dimension: 384
+  encoder_model_dimension: 384
+  decoder_num_heads: [2, 2, 2, 2, 2, 2]  # the length of this defines the number of layers
+  encoder_num_heads: [2, 2, 2, 2, 2, 2]  # the length of this defines the number of layers
+  encoder_feed_forward_dimension: null
+  decoder_feed_forward_dimension: null
+  encoder_attention_conv_filters: [1536, 384]
+  decoder_attention_conv_filters: [1536, 384]
+  encoder_attention_conv_kernel: 3
+  decoder_attention_conv_kernel: 3
+  encoder_max_position_encoding: 2000
+  decoder_max_position_encoding: 10000
+  encoder_dense_blocks: 0
+  decoder_dense_blocks: 0
+  transpose_attn_convs: True  # if True, convolutions after MHA are over time.
+
+  # STATS PREDICTORS ARCHITECTURE
+  duration_conv_filters: [256, 226]
+  pitch_conv_filters: [256, 226]
+  duration_kernel_size: 3
+  pitch_kernel_size: 3
+
+  # TRAINING
+  predictors_dropout: 0.1
+  dropout_rate: 0.1
+  learning_rate_schedule:
+    - [0, 1.0e-4]
+  max_steps: 100_000
+  debug: False
+
+  # LOGGING
+  validation_frequency: 5_000
+  prediction_frequency: 5_000
+  weights_save_frequency: 5_000
+  weights_save_starting_step: 5_000
+  train_images_plotting_frequency: 1_000
+  keep_n_weights: 5
+  keep_checkpoint_every_n_hours: 12
+  n_steps_avg_losses: [100, 500, 1_000, 5_000]  # command line display of average loss values for the last n steps
+  prediction_start_step: 4_000
+  text_prediction:
+    - test_sentences.txt

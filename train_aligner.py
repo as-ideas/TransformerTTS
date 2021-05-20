@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import trange
 
-from utils.config_manager import Config
+from utils.training_config_manager import TrainingConfigManager
 from data.datasets import AlignerDataset, AlignerPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
@@ -77,7 +77,7 @@ def validate(model,
     return val_loss['loss']
 
 
-config_manager = Config(config_path=args.config, aligner=True)
+config_manager = TrainingConfigManager(config_path=args.config, aligner=True)
 config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,
@@ -218,6 +218,6 @@ for _ in t:
         wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
         wav = tf.expand_dims(wav, 0)
         wav = tf.expand_dims(wav, -1)
-        summary_manager.add_audio(f'Predictions/{val_test_fname.numpy().decode("utf-8")}', wav.numpy(), sr=summary_manager.config['sampling_rate'],
+        summary_manager.add_audio(f'Predictions/val_sample {val_test_fname.numpy().decode("utf-8")}', wav.numpy(), sr=summary_manager.config['sampling_rate'],
                                   step=summary_manager.global_step)
 print('Done.')
