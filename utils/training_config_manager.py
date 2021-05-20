@@ -24,8 +24,8 @@ class TrainingConfigManager:
         self.data_name = self.config['data_name']  # raw data
         # make session names
         self.session_names = {'data': f"{self.config['text_settings_name']}.{self.config['audio_settings_name']}"}
-        self.session_names['aligner'] = f"{self.config['aligner_config_name']}.{self.session_names['data']}"
-        self.session_names['tts'] = f"{self.config['tts_config_name']}.{self.config['aligner_config_name']}"
+        self.session_names['aligner'] = f"{self.config['aligner_settings_name']}.{self.session_names['data']}"
+        self.session_names['tts'] = f"{self.config['tts_settings_name']}.{self.config['aligner_settings_name']}"
         # create paths
         self.wav_directory = Path(self.config['wav_directory'])
         self.data_dir = Path(f"{self.config['train_data_directory']}.{self.data_name}")
