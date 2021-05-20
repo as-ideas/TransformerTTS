@@ -51,7 +51,7 @@ class TrainingConfigManager:
         with open(str(self.config_path), 'rb') as session_yaml:
             session_config = self.yaml.load(session_yaml)
         for key in ['paths', 'naming', 'training_data_settings','audio_settings',
-                    'text_settings', f'{self.model_kind}_config']:
+                    'text_settings', f'{self.model_kind}_settings']:
             all_config.update(session_config[key])
         return all_config
     
