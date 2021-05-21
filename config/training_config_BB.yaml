@@ -109,7 +109,7 @@ tts_settings:
   decoder_max_position_encoding: 10000
   encoder_dense_blocks: 0
   decoder_dense_blocks: 0
-  transpose_attn_convs: True  # if True, convolutions after MHA are over time.
+  transposed_attn_convs: True  # if True, convolutions after MHA are over time.
 
   # STATS PREDICTORS ARCHITECTURE
   duration_conv_filters: [256, 226]
