@@ -34,6 +34,13 @@ audio_settings:
   f_max: 8000
   normalizer: MelGAN                 # which mel normalization to use from utils.audio.py [MelGAN or WaveRNN]
 
+  # Wav normalization
+  norm_wav: True
+  target_dBFS: -30
+  int16_max: 32767
+  # speaker embedding
+#  embed_dimension: 256 # not customizable, pretrained resemlyzer
+
   # SILENCE CUTTING
   trim_silence_top_db: 60
   trim_silence: False

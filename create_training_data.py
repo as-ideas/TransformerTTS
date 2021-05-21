@@ -11,6 +11,7 @@ from data.datasets import DataReader
 from utils.training_config_manager import TrainingConfigManager
 from data.audio import Audio
 from data.text.symbols import _alphabet
+from resemblyzer import VoiceEncoder
 
 np.random.seed(42)
 
@@ -41,14 +42,17 @@ if not args.skip_mels:
     def process_wav(wav_path: Path):
         file_name = wav_path.stem
         y, sr = audio.load_wav(str(wav_path))
+        embed = encoder.embed_utterance(y)
         pitch = audio.extract_pitch(y)
         mel = audio.mel_spectrogram(y)
         assert mel.shape[1] == audio.config['mel_channels'], len(mel.shape) == 2
         assert mel.shape[0] == pitch.shape[0], f'{mel.shape[0]} == {pitch.shape[0]} (wav {y.shape})'
         mel_path = (cm.mel_dir / file_name).with_suffix('.npy')
         pitch_path = (cm.pitch_dir / file_name).with_suffix('.npy')
+        embed_path = (cm.embed_dir / file_name).with_suffix('.npy')
         np.save(mel_path, mel)
         np.save(pitch_path, pitch)
+        np.save(embed_path, embed)
         return {'fname': file_name, 'mel.len': mel.shape[0], 'pitch.path': pitch_path, 'pitch': pitch}
     
     
@@ -56,6 +60,7 @@ if not args.skip_mels:
     print(f"{cm.mel_dir}")
     audio = Audio.from_config(config=cm.config)
     wav_files = [metadatareader.wav_paths[k] for k in cross_file_ids]
+    encoder = VoiceEncoder()
     len_dict = {}
     remove_files = []
     mel_lens = []
