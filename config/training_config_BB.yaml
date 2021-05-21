@@ -8,7 +8,7 @@ naming:
   data_name: ljspeech # raw data naming for default data reader (select function from data/metadata_readers.py)
   audio_settings_name: MelGAN_default
   text_settings_name: Stress_NoBreathing
-  aligner_settings_name: alinger_extralayer_layernorm
+  aligner_settings_name: aligner_PEMel
   tts_settings_name: tts_swap_conv_dims
 
 # TRAINING DATA SETTINGS

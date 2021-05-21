@@ -8,8 +8,7 @@ from ruamel.yaml import YAML
 from model.transformer_utils import create_encoder_padding_mask, create_mel_padding_mask, create_look_ahead_mask
 from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_scaled_crossentropy
 from data.text import TextToTokens
-from model.layers import LayerNormEmbeddings, DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, \
-    CrossAttentionBlocks
+from model.layers import DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
 from utils.metrics import batch_diagonal_mask
 from model.transformer_utils import positional_encoding
 
@@ -53,9 +52,9 @@ class Aligner(tf.keras.models.Model):
                                                   add_start_end=True,
                                                   with_stress=with_stress,
                                                   model_breathing=model_breathing)
-        self.encoder_prenet = LayerNormEmbeddings(vocab_size=self.text_pipeline.tokenizer.vocab_size,
-                                                  model_dim=encoder_prenet_dimension,
-                                                  name='EncoderPrenet')
+        self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
+                                                        encoder_prenet_dimension,
+                                                        name='Embedding')
         self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dimension,
                                            dropout_rate=dropout_rate,
                                            num_heads=encoder_num_heads,
@@ -67,7 +66,7 @@ class Aligner(tf.keras.models.Model):
                                            conv_activation=None,
                                            name='Encoder')
         self.decoder_prenet = DecoderPrenet(model_dim=decoder_model_dimension,
-                                            # dense_hidden_units=decoder_prenet_dimension,
+                                            dense_hidden_units=decoder_prenet_dimension,
                                             dropout_rate=decoder_prenet_dropout,
                                             name='DecoderPrenet')
         self.decoder = CrossAttentionBlocks(model_dim=decoder_model_dimension,
@@ -283,6 +282,7 @@ class Aligner(tf.keras.models.Model):
             inp = self.encode_text(inp)
         inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
         output = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
+        output += .5 * self.mel_PE[:, 0:1, :]
         output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
         out_dict = {}
         encoder_output, padding_mask, encoder_attention = self.forward_encoder(inp)
@@ -299,6 +299,8 @@ class Aligner(tf.keras.models.Model):
                 if verbose:
                     print('Stopping')
                 break
+        mel_len = tf.shape(out_dict['mel'])[-2]
+        out_dict['mel_clean'] = out_dict['mel'] - .5 * self.mel_PE[0, 1:mel_len + 1, :]
         return out_dict
     
     def call(self, inputs, targets, training):
@@ -388,9 +390,9 @@ class ForwardTransformer(tf.keras.models.Model):
                                                   model_breathing=model_breathing)
         self.symbols = self.text_pipeline.tokenizer.alphabet
         self.mel_channels = mel_channels
-        self.encoder_prenet = LayerNormEmbeddings(vocab_size=self.text_pipeline.tokenizer.vocab_size,
-                                                  model_dim=encoder_model_dimension,
-                                                  name='EncoderPrenet')
+        self.encoder_prenet = tf.keras.layers.Embedding(self.text_pipeline.tokenizer.vocab_size,
+                                                        encoder_model_dimension,
+                                                        name='Embedding')
         self.encoder = SelfAttentionBlocks(model_dim=encoder_model_dimension,
                                            dropout_rate=dropout_rate,
                                            num_heads=encoder_num_heads,

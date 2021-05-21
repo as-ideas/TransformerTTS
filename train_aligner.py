@@ -208,14 +208,18 @@ for _ in t:
         for j, text in enumerate(texts):
             for i, text_line in enumerate(text):
                 out = model.predict(text_line, encode=True)
-                wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
+                summary_manager.display_mel(mel=out['mel_clean'], tag=f'Prediction_clean/{text_line}')
+                summary_manager.display_mel(mel=out['mel'], tag=f'Prediction/{text_line}')
+                wav = summary_manager.audio.reconstruct_waveform(out['mel_clean'].numpy().T)
                 wav = tf.expand_dims(wav, 0)
                 wav = tf.expand_dims(wav, -1)
                 summary_manager.add_audio(f'Predictions/{text_line}', wav.numpy(), sr=summary_manager.config['sampling_rate'],
                                           step=summary_manager.global_step)
         
         out = model.predict(val_test_sample, encode=False)#, max_length=tf.shape(val_test_mel)[-2])
-        wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
+        summary_manager.display_mel(mel=out['mel_clean'], tag=f'Prediction_clean/val_sample {val_test_fname.numpy().decode("utf-8")}')
+        summary_manager.display_mel(mel=out['mel'], tag=f'Prediction/val_sample {val_test_fname.numpy().decode("utf-8")}')
+        wav = summary_manager.audio.reconstruct_waveform(out['mel_clean'].numpy().T)
         wav = tf.expand_dims(wav, 0)
         wav = tf.expand_dims(wav, -1)
         summary_manager.add_audio(f'Predictions/val_sample {val_test_fname.numpy().decode("utf-8")}', wav.numpy(), sr=summary_manager.config['sampling_rate'],
