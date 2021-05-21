@@ -171,7 +171,9 @@ for _ in t:
     if model.step % config['train_images_plotting_frequency'] == 0:
         summary_manager.display_attention_heads(output, tag='TrainAttentionHeads')
         summary_manager.display_mel(mel=output['mel'][0], tag=f'Train/predicted_mel')
-        summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
+        summary_manager.display_mel(mel=output['mel_clean'][0], tag=f'Train/mel_clean')
+        summary_manager.display_mel(mel=output['mel_target'][0], tag=f'Train/mel_target')
+        # summary_manager.display_mel(mel=mel[0], tag=f'Train/target_mel')
         for layer, k in enumerate(output['decoder_attention'].keys()):
             mel_lens = mel_lengths(mel_batch=mel, padding_value=0) // model.r  # [N]
             phon_len = phoneme_lengths(phonemes)
