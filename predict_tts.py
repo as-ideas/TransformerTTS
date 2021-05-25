@@ -9,7 +9,8 @@ from model.models import ForwardTransformer
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--config', '-c', dest='config', default=None, type=str)
+    parser.add_argument('--path', '-p', dest='path', default=None, type=str)
+    parser.add_argument('--step', dest='step', default='90000', type=str)
     parser.add_argument('--text', '-t', dest='text', default=None, type=str)
     parser.add_argument('--file', '-f', dest='file', default=None, type=str)
     parser.add_argument('--outdir', '-o', dest='outdir', default=None, type=str)
@@ -35,11 +36,9 @@ if __name__ == '__main__':
     if args.path is not None:
         print(f'Loading model from {args.path}')
         model = ForwardTransformer.load_model(args.path)
-        file_name = f"{fname}_{model.config['data_name']}_{model.config['git_hash']}_{model.config['step']}"
     else:
-        model, conf = tts_ljspeech()
-        file_name = f'{fname}_ljspeech_v1'
-    
+        model = tts_ljspeech(args.step)
+    file_name = f"{fname}_{model.config['data_name']}_{model.config['git_hash']}_{model.config['step']}"
     outdir = outdir / 'outputs' / f'{fname}'
     outdir.mkdir(exist_ok=True, parents=True)
     output_path = (outdir / file_name).with_suffix('.wav')
