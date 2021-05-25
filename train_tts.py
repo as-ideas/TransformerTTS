@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import trange
 
-from utils.config_manager import Config
+from utils.training_config_manager import TrainingConfigManager
 from data.datasets import TTSDataset, TTSPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule
@@ -89,7 +89,7 @@ def validate(model,
 parser = basic_train_parser()
 args = parser.parse_args()
 
-config = Config(config_path=args.config)
+config = TrainingConfigManager(config_path=args.config)
 config_dict = config.config
 config.create_remove_dirs(clear_dir=args.clear_dir,
                           clear_logs=args.clear_logs,

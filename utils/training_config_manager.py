@@ -10,7 +10,7 @@ from model.models import Aligner, ForwardTransformer
 from utils.scheduling import reduction_schedule
 
 
-class Config:
+class TrainingConfigManager:
     def __init__(self, config_path: str, aligner=False):
         if aligner:
             model_kind = 'aligner'
@@ -24,8 +24,8 @@ class Config:
         self.data_name = self.config['data_name']  # raw data
         # make session names
         self.session_names = {'data': f"{self.config['text_settings_name']}.{self.config['audio_settings_name']}"}
-        self.session_names['aligner'] = f"{self.config['aligner_config_name']}.{self.session_names['data']}"
-        self.session_names['tts'] = f"{self.config['tts_config_name']}.{self.config['aligner_config_name']}"
+        self.session_names['aligner'] = f"{self.config['aligner_settings_name']}.{self.session_names['data']}"
+        self.session_names['tts'] = f"{self.config['tts_settings_name']}.{self.config['aligner_settings_name']}"
         # create paths
         self.wav_directory = Path(self.config['wav_directory'])
         self.data_dir = Path(f"{self.config['train_data_directory']}.{self.data_name}")
@@ -50,16 +50,9 @@ class Config:
         all_config = {}
         with open(str(self.config_path), 'rb') as session_yaml:
             session_config = self.yaml.load(session_yaml)
-        all_config.update(session_config)
-        if 'automatic' in session_config.keys():  # check if it was automatically generated
-            return session_config
-        else:
-            for k in ['data_config', f'{self.model_kind}_config']:
-                config_path = session_config[k]
-                with open(config_path, 'rb') as config_yaml:
-                    config = self.yaml.load(config_yaml)
-                    all_config.update(config)
-        
+        for key in ['paths', 'naming', 'training_data_settings','audio_settings',
+                    'text_settings', f'{self.model_kind}_settings']:
+            all_config.update(session_config[key])
         return all_config
     
     @staticmethod
@@ -73,7 +66,7 @@ class Config:
         try:
             git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode()
             if self.config['git_hash'] != git_hash:
-                print(f"WARNING: git hash mismatch. Current: {git_hash}. Config hash: {self.config['git_hash']}")
+                print(f"WARNING: git hash mismatch. Current: {git_hash}. Training config hash: {self.config['git_hash']}")
         except Exception as e:
             print(f'WARNING: could not check git hash. {e}')
     

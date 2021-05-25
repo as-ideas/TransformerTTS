@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from p_tqdm import p_umap
 
-from utils.config_manager import Config
+from utils.training_config_manager import TrainingConfigManager
 from utils.logging_utils import SummaryManager
 from data.datasets import AlignerPreprocessor
 from utils.alignments import get_durations_from_alignment
@@ -34,7 +34,7 @@ if __name__ == '__main__':
     ])
     writer_tag = f'DurationExtraction{tag_description}'
     print(writer_tag)
-    config_manager = Config(config_path=args.config, aligner=True)
+    config_manager = TrainingConfigManager(config_path=args.config, aligner=True)
     config = config_manager.config
     config_manager.print_config()
     
