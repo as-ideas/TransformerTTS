@@ -39,7 +39,7 @@ class SummaryManager:
         self.model = model
         self.log_dir = Path(log_dir)
         self.config = config
-        self.audio = Audio(config)
+        self.audio = Audio.from_config(config)
         self.plot_frequency = max_plot_frequency
         self.default_writer = default_writer
         self.writers = {}

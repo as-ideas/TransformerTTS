@@ -84,7 +84,7 @@ from data.audio import Audio
 from model.factory import tts_ljspeech
 
 model, config = tts_ljspeech()
-audio = Audio(config)
+audio = Audio.from_config(config)
 out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
@@ -161,42 +161,23 @@ You can convert the checkpoint files to hdf5 model weights by running
 python checkpoints_to_weights.py --config config/session_paths.yaml
 ```
 ## Prediction
-### With training checkpoints
-From command line with
-```commandline
-python predict_tts.py -t "Please, say something." --config config/session_paths.yaml
-```
-Or in a python script
-```python
-from utils.config_manager import Config
-from data.audio import Audio
-
-config_loader = Config(config_path=f'config/session_paths.yaml')
-audio = Audio(config_loader.config)
-model = config_loader.load_model() # optional: can specify checkpoint name
-out = model.predict('Please, say something.')
-
-# Convert spectrogram to wav (with griffin lim)
-wav = audio.reconstruct_waveform(out['mel'].numpy().T)
-```
 ### With model weights
 From command line with
 ```commandline
-python predict_tts.py -t "Please, say something." -c config/session_paths.yaml -w path/to/model_weights.hdf5
+python predict_tts.py -t "Please, say something." -p /path/to/weights/
 ```
 Or in a python script
 ```python
+from model.models import ForwardTransformer
 from data.audio import Audio
-from model.factory import tts_custom
-
-model, config = tts_custom(config_path='path/to/config.yaml', 
-                           weights_path='path/to/weights.hdf5')
-audio = Audio(config)
+model = ForwardTransformer.load_model('/path/to/weights/')
+audio = Audio.from_config(model.config)
 out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
 wav = audio.reconstruct_waveform(out['mel'].numpy().T)
 ```
+
 ## Model Weights
 
 | Model URL | Commit | Vocoder Commit|
