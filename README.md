@@ -95,7 +95,7 @@ You can specify the model step with the `--step` flag (CL) or `step` parameter (
 Steps from 60000 to 100000 are available at a frequency of 5K steps (60000, 65000, ..., 95000, 100000).
 
 <b>IMPORTANT:</b> make sure to checkout the correct repository version to use the API.<br>
-Currently c6d5775e549666e2461054d89002bef680fe2f09
+Currently fe1b9367011cad2ed954c8794145be5e0ff75d02
 
 ## Dataset
 You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
