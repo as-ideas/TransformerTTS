@@ -84,15 +84,18 @@ from data.audio import Audio
 from model.factory import tts_ljspeech
 
 model, config = tts_ljspeech()
-audio = Audio(config)
+audio = Audio.from_config(config)
 out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
 wav = audio.reconstruct_waveform(out['mel'].numpy().T)
 ```
 
+You can specify the model step with the `--step` flag (CL) or `step` parameter (script).<br>
+Steps from 60000 to 100000 are available at a frequency of 5K steps (60000, 65000, ..., 95000, 100000).
+
 <b>IMPORTANT:</b> make sure to checkout the correct repository version to use the API.<br>
-Currently c6d5775e549666e2461054d89002bef680fe2f09
+Currently fe1b9367011cad2ed954c8794145be5e0ff75d02
 
 ## Dataset
 You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
@@ -161,47 +164,30 @@ You can convert the checkpoint files to hdf5 model weights by running
 python checkpoints_to_weights.py --config config/session_paths.yaml
 ```
 ## Prediction
-### With training checkpoints
-From command line with
-```commandline
-python predict_tts.py -t "Please, say something." --config config/session_paths.yaml
-```
-Or in a python script
-```python
-from utils.config_manager import Config
-from data.audio import Audio
-
-config_loader = Config(config_path=f'config/session_paths.yaml')
-audio = Audio(config_loader.config)
-model = config_loader.load_model() # optional: can specify checkpoint name
-out = model.predict('Please, say something.')
-
-# Convert spectrogram to wav (with griffin lim)
-wav = audio.reconstruct_waveform(out['mel'].numpy().T)
-```
 ### With model weights
 From command line with
 ```commandline
-python predict_tts.py -t "Please, say something." -c config/session_paths.yaml -w path/to/model_weights.hdf5
+python predict_tts.py -t "Please, say something." -p /path/to/weights/
 ```
 Or in a python script
 ```python
+from model.models import ForwardTransformer
 from data.audio import Audio
-from model.factory import tts_custom
-
-model, config = tts_custom(config_path='path/to/config.yaml', 
-                           weights_path='path/to/weights.hdf5')
-audio = Audio(config)
+model = ForwardTransformer.load_model('/path/to/weights/')
+audio = Audio.from_config(model.config)
 out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
 wav = audio.reconstruct_waveform(out['mel'].numpy().T)
 ```
-## Model Weights
 
+## Model Weights
+Access the pre-trained models with the API call.
+
+Old weights
 | Model URL | Commit | Vocoder Commit|
 |---|---|---|
-|[ljspeech_tts_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/ljspeech_weights_tts.zip) (latest) | 0cd7d33 | aca5990 |
+|[ljspeech_tts_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/ljspeech_weights_tts.zip)| 0cd7d33 | aca5990 |
 |[ljspeech_melgan_forward_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_melgan_forward_transformer.zip)| 1c1cb03| aca5990 |
 |[ljspeech_melgan_autoregressive_model_v2](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_melgan_autoregressive_transformer.zip)| 1c1cb03| aca5990 |
 |[ljspeech_wavernn_forward_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_wavernn_forward_transformer.zip)| 1c1cb03| 3595219 |

@@ -4,6 +4,10 @@ from model.transformer_utils import positional_encoding
 
 
 class CNNResNorm(tf.keras.layers.Layer):
+    """
+    Module used in attention blocks, after MHA
+    """
+    
     def __init__(self,
                  filters: list,
                  kernel_size: int,
@@ -36,7 +40,49 @@ class CNNResNorm(tf.keras.layers.Layer):
         return self.normalization(inputs + x)
 
 
+class TransposedCNNResNorm(tf.keras.layers.Layer):
+    """
+    Module used in attention blocks, after MHA
+    """
+    
+    def __init__(self,
+                 filters: list,
+                 kernel_size: int,
+                 inner_activation: str,
+                 padding: str,
+                 dout_rate: float):
+        super(TransposedCNNResNorm, self).__init__()
+        self.n_layers = len(filters)
+        self.convolutions = [tf.keras.layers.Conv1D(filters=f,
+                                                    kernel_size=kernel_size,
+                                                    padding=padding)
+                             for f in filters[:-1]]
+        self.inner_activations = [tf.keras.layers.Activation(inner_activation) for _ in range(self.n_layers - 1)]
+        self.last_conv = tf.keras.layers.Conv1D(filters=filters[-1],
+                                                kernel_size=kernel_size,
+                                                padding=padding)
+        self.normalization = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        self.dropout = tf.keras.layers.Dropout(rate=dout_rate)
+    
+    def call_convs(self, x):
+        for i in range(0, self.n_layers - 1):
+            x = self.convolutions[i](x)
+            x = self.inner_activations[i](x)
+        return x
+    
+    def call(self, inputs, training):
+        x = tf.transpose(inputs, (0, 1, 2))
+        x = self.call_convs(x)
+        x = self.last_conv(x)
+        x = tf.transpose(x, (0, 1, 2))
+        x = self.dropout(x, training=training)
+        return self.normalization(inputs + x)
+
+
 class FFNResNorm(tf.keras.layers.Layer):
+    """
+    Module used in attention blocks, after MHA
+    """
     
     def __init__(self,
                  model_dim: int,
@@ -148,6 +194,7 @@ class ScaledDotProductAttention(tf.keras.layers.Layer):
         
         return output, attention_weights
 
+
 class SelfAttentionResNorm(tf.keras.layers.Layer):
     
     def __init__(self,
@@ -192,14 +239,22 @@ class SelfAttentionConvBlock(tf.keras.layers.Layer):
                  conv_filters: list,
                  kernel_size: int,
                  conv_activation: str,
+                 transposed_convs: bool,
                  **kwargs):
         super(SelfAttentionConvBlock, self).__init__(**kwargs)
         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
-        self.conv = CNNResNorm(filters=conv_filters,
-                               kernel_size=kernel_size,
-                               inner_activation=conv_activation,
-                               dout_rate=dropout_rate,
-                               padding='same')
+        if transposed_convs:
+            self.conv = TransposedCNNResNorm(filters=conv_filters,
+                                             kernel_size=kernel_size,
+                                             inner_activation=conv_activation,
+                                             dout_rate=dropout_rate,
+                                             padding='same')
+        else:
+            self.conv = CNNResNorm(filters=conv_filters,
+                                   kernel_size=kernel_size,
+                                   inner_activation=conv_activation,
+                                   dout_rate=dropout_rate,
+                                   padding='same')
     
     def call(self, x, training, mask):
         attn_out, attn_weights = self.sarn(x, mask=mask, training=training)
@@ -220,6 +275,7 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
                  dense_blocks: int,
                  kernel_size: int,
                  conv_activation: str,
+                 transposed_convs: bool = None,
                  **kwargs):
         super(SelfAttentionBlocks, self).__init__(**kwargs)
         self.model_dim = model_dim
@@ -233,12 +289,14 @@ class SelfAttentionBlocks(tf.keras.layers.Layer):
         self.encoder_SACB = [
             SelfAttentionConvBlock(model_dim=model_dim, dropout_rate=dropout_rate, num_heads=n_heads,
                                    name=f'{self.name}_SACB_{i}', kernel_size=kernel_size,
-                                   conv_activation=conv_activation, conv_filters=conv_filters)
+                                   conv_activation=conv_activation, conv_filters=conv_filters,
+                                   transposed_convs=transposed_convs)
             for i, n_heads in enumerate(num_heads[dense_blocks:])]
-    
+        self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+        
     def call(self, inputs, training, padding_mask, reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
-        x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
+        x = self.layernorm(inputs)
         x += self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}
@@ -290,34 +348,34 @@ class CrossAttentionDenseBlock(tf.keras.layers.Layer):
         ffn_out = self.ffn(attn2, training=training)
         return ffn_out, attn_weights_block1, attn_weights_block2
 
-
-class CrossAttentionConvBlock(tf.keras.layers.Layer):
-    
-    def __init__(self,
-                 model_dim: int,
-                 num_heads: int,
-                 conv_filters: list,
-                 dropout_rate: float,
-                 kernel_size: int,
-                 conv_padding: str,
-                 conv_activation: str,
-                 **kwargs):
-        super(CrossAttentionConvBlock, self).__init__(**kwargs)
-        self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
-        self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate)
-        self.conv = CNNResNorm(filters=conv_filters,
-                               kernel_size=kernel_size,
-                               inner_activation=conv_activation,
-                               padding=conv_padding,
-                               dout_rate=dropout_rate)
-    
-    def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
-        attn1, attn_weights_block1 = self.sarn(x, mask=look_ahead_mask, training=training)
-        
-        attn2, attn_weights_block2 = self.carn(attn1, v=enc_output, k=enc_output,
-                                               mask=padding_mask, training=training)
-        ffn_out = self.conv(attn2, training=training)
-        return ffn_out, attn_weights_block1, attn_weights_block2
+# This is never used.
+# class CrossAttentionConvBlock(tf.keras.layers.Layer):
+#
+#     def __init__(self,
+#                  model_dim: int,
+#                  num_heads: int,
+#                  conv_filters: list,
+#                  dropout_rate: float,
+#                  kernel_size: int,
+#                  conv_padding: str,
+#                  conv_activation: str,
+#                  **kwargs):
+#         super(CrossAttentionConvBlock, self).__init__(**kwargs)
+#         self.sarn = SelfAttentionResNorm(model_dim, num_heads, dropout_rate=dropout_rate)
+#         self.carn = CrossAttentionResnorm(model_dim, num_heads, dropout_rate=dropout_rate)
+#         self.conv = CNNResNorm(filters=conv_filters,
+#                                kernel_size=kernel_size,
+#                                inner_activation=conv_activation,
+#                                padding=conv_padding,
+#                                dout_rate=dropout_rate)
+#
+#     def call(self, x, enc_output, training, look_ahead_mask, padding_mask):
+#         attn1, attn_weights_block1 = self.sarn(x, mask=look_ahead_mask, training=training)
+#
+#         attn2, attn_weights_block2 = self.carn(attn1, v=enc_output, k=enc_output,
+#                                                mask=padding_mask, training=training)
+#         ffn_out = self.conv(attn2, training=training)
+#         return ffn_out, attn_weights_block1, attn_weights_block2
 
 
 class CrossAttentionBlocks(tf.keras.layers.Layer):
@@ -342,11 +400,12 @@ class CrossAttentionBlocks(tf.keras.layers.Layer):
                                                   num_heads=num_heads[-1],
                                                   dense_hidden_units=feed_forward_dimension,
                                                   name=f'{self.name}_CADB_last')
-    
+        self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)
+
     def call(self, inputs, enc_output, training, decoder_padding_mask, encoder_padding_mask,
              reduction_factor=1):
         seq_len = tf.shape(inputs)[1]
-        x = inputs * tf.math.sqrt(tf.cast(self.model_dim, tf.float32))
+        x = self.layernorm(inputs)
         x += self.pos_encoding_scalar * self.pos_encoding[:, :seq_len * reduction_factor:reduction_factor, :]
         x = self.dropout(x, training=training)
         attention_weights = {}

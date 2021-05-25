@@ -8,7 +8,7 @@ from p_tqdm import p_uimap, p_umap
 from utils.logging_utils import SummaryManager
 from data.text import TextToTokens
 from data.datasets import DataReader
-from utils.config_manager import Config
+from utils.training_config_manager import TrainingConfigManager
 from data.audio import Audio
 from data.text.symbols import _alphabet
 
@@ -23,7 +23,7 @@ args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 
-cm = Config(args.config, aligner=True)
+cm = TrainingConfigManager(args.config, aligner=True)
 cm.create_remove_dirs()
 metadatareader = DataReader.from_config(cm, kind='original', scan_wavs=True)
 summary_manager = SummaryManager(model=None, log_dir=cm.log_dir / 'data_preprocessing', config=cm.config,
@@ -54,7 +54,7 @@ if not args.skip_mels:
     
     print(f"\nMels will be stored stored under")
     print(f"{cm.mel_dir}")
-    audio = Audio(config=cm.config)
+    audio = Audio.from_config(config=cm.config)
     wav_files = [metadatareader.wav_paths[k] for k in cross_file_ids]
     len_dict = {}
     remove_files = []

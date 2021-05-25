@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import trange
 
-from utils.config_manager import Config
+from utils.training_config_manager import TrainingConfigManager
 from data.datasets import AlignerDataset, AlignerPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
@@ -77,7 +77,7 @@ def validate(model,
     return val_loss['loss']
 
 
-config_manager = Config(config_path=args.config, aligner=True)
+config_manager = TrainingConfigManager(config_path=args.config, aligner=True)
 config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,
@@ -126,8 +126,18 @@ if config['debug'] is True:
     print('\nWARNING: DEBUG is set to True. Training in eager mode.')
 # main event
 print('\nTRAINING')
+
+texts = []
+for text_file in config['test_stencences']:
+    with open(text_file, 'r') as file:
+        text = file.readlines()
+    texts.append(text)
+
 losses = []
-test_mel, test_phonemes, test_stop, test_fname = valid_dataset.next_batch()
+test_mel, test_phonemes, _, test_fname = valid_dataset.next_batch()
+val_test_sample, val_test_fname, val_test_mel = test_phonemes[0], test_fname[0], test_mel[0]
+val_test_sample = tf.boolean_mask(val_test_sample, val_test_sample!=0)
+
 _ = train_dataset.next_batch()
 t = trange(model.step, config['max_steps'], leave=True)
 for _ in t:
@@ -192,4 +202,21 @@ for _ in t:
                                         weighted_durations=config['extract_attention_weighted'])
         t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
                   pos=len(config['n_steps_avg_losses']) + 3)
+        
+    if model.step % config['prediction_frequency'] == 0 and (model.step >= config['prediction_start_step']):
+        for j, text in enumerate(texts):
+            for i, text_line in enumerate(text):
+                out = model.predict(text_line, encode=True)
+                wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
+                wav = tf.expand_dims(wav, 0)
+                wav = tf.expand_dims(wav, -1)
+                summary_manager.add_audio(f'Predictions/{text_line}', wav.numpy(), sr=summary_manager.config['sampling_rate'],
+                                          step=summary_manager.global_step)
+        
+        out = model.predict(val_test_sample, encode=False)#, max_length=tf.shape(val_test_mel)[-2])
+        wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
+        wav = tf.expand_dims(wav, 0)
+        wav = tf.expand_dims(wav, -1)
+        summary_manager.add_audio(f'Predictions/val_sample {val_test_fname.numpy().decode("utf-8")}', wav.numpy(), sr=summary_manager.config['sampling_rate'],
+                                  step=summary_manager.global_step)
 print('Done.')

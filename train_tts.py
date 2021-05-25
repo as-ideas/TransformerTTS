@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import trange
 
-from utils.config_manager import Config
+from utils.training_config_manager import TrainingConfigManager
 from data.datasets import TTSDataset, TTSPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule
@@ -89,7 +89,7 @@ def validate(model,
 parser = basic_train_parser()
 args = parser.parse_args()
 
-config = Config(config_path=args.config)
+config = TrainingConfigManager(config_path=args.config)
 config_dict = config.config
 config.create_remove_dirs(clear_dir=args.clear_dir,
                           clear_logs=args.clear_logs,
@@ -121,9 +121,6 @@ summary_manager = SummaryManager(model=model, log_dir=config.log_dir, config=con
 checkpoint = tf.train.Checkpoint(step=tf.Variable(1),
                                  optimizer=model.optimizer,
                                  net=model)
-manager = tf.train.CheckpointManager(checkpoint, config.weights_dir,
-                                     max_to_keep=config_dict['keep_n_weights'],
-                                     keep_checkpoint_every_n_hours=config_dict['keep_checkpoint_every_n_hours'])
 manager_training = tf.train.CheckpointManager(checkpoint, str(config.weights_dir / 'latest'),
                                               max_to_keep=1, checkpoint_name='latest')
 
@@ -184,9 +181,11 @@ for _ in t:
     
     if model.step % 1000 == 0:
         save_path = manager_training.save()
-    if model.step % config_dict['weights_save_frequency'] == 0:
-        save_path = manager.save()
-        t.display(f'checkpoint at step {model.step}: {save_path}', pos=len(config_dict['n_steps_avg_losses']) + 2)
+    if (model.step % config_dict['weights_save_frequency'] == 0) & (
+            model.step >= config_dict['weights_save_starting_step']):
+        model.save_model(config.weights_dir / f'step_{model.step}')
+        t.display(f'checkpoint at step {model.step}: {config.weights_dir / f"step_{model.step}"}',
+                  pos=len(config_dict['n_steps_avg_losses']) + 2)
     
     if model.step % config_dict['validation_frequency'] == 0:
         t.display(f'Validating', pos=len(config_dict['n_steps_avg_losses']) + 3)
