@@ -628,7 +628,7 @@ class ForwardTransformer(tf.keras.models.Model):
             git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode()
             if 'git_hash' in config:
                 if config['git_hash'] != git_hash:
-                    print(f"WARNING: git_hash mosmatch: {config['git_hash']}(config) vs {git_hash}(local).")
+                    print(f"WARNING: git_hash mismatch: {config['git_hash']}(config) vs {git_hash}(local).")
             else:
                 print(f'WARNING: could not check git hash from config.')
         except Exception as e:

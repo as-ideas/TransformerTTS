@@ -84,7 +84,7 @@ aligner_settings:
     - [100_000, 2]
     - [130_000, 1]
   max_steps: 260_000
-  force_encoder_diagonal_steps: 1_000
+  force_encoder_diagonal_steps: 500
   force_decoder_diagonal_steps: 7_000
   extract_attention_weighted: False # weighted average between last layer decoder attention heads when extracting durations
   debug: False
@@ -117,7 +117,7 @@ tts_settings:
   decoder_max_position_encoding: 10000
   encoder_dense_blocks: 0
   decoder_dense_blocks: 0
-  transpose_attn_convs: True  # if True, convolutions after MHA are over time.
+  transposed_attn_convs: True  # if True, convolutions after MHA are over time.
 
   # STATS PREDICTORS ARCHITECTURE
   duration_conv_filters: [256, 226]
