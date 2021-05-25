@@ -83,8 +83,8 @@ Or in a python script
 from data.audio import Audio
 from model.factory import tts_ljspeech
 
-model, config = tts_ljspeech()
-audio = Audio.from_config(config)
+model = tts_ljspeech()
+audio = Audio.from_config(model.config)
 out = model.predict('Please, say something.')
 
 # Convert spectrogram to wav (with griffin lim)
