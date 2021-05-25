@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 from tqdm import trange
 
-from utils.config_manager import Config
+from utils.training_config_manager import TrainingConfigManager
 from data.datasets import AlignerDataset, AlignerPreprocessor
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule, reduction_schedule
@@ -77,7 +77,7 @@ def validate(model,
     return val_loss['loss']
 
 
-config_manager = Config(config_path=args.config, aligner=True)
+config_manager = TrainingConfigManager(config_path=args.config, aligner=True)
 config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,

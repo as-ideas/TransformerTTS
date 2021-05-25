@@ -5,7 +5,7 @@ from typing import List, Union
 import numpy as np
 import tensorflow as tf
 
-from utils.config_manager import Config
+from utils.training_config_manager import TrainingConfigManager
 from data.text.tokenizer import Tokenizer
 from data.metadata_readers import get_preprocessor_by_name
 
@@ -45,7 +45,7 @@ class DataReader:
             self.wav_paths = {w.with_suffix('').name: w for w in all_wavs}
     
     @classmethod
-    def from_config(cls, config_manager: Config, kind: str, scan_wavs=False):
+    def from_config(cls, config_manager: TrainingConfigManager, kind: str, scan_wavs=False):
         kinds = ['original', 'phonemized', 'train', 'valid']
         if kind not in kinds:
             raise ValueError(f'Invalid kind type. Expected one of: {kinds}')
@@ -96,7 +96,7 @@ class AlignerPreprocessor:
         return tf.shape(norm_mel)[0]
     
     @classmethod
-    def from_config(cls, config: Config, tokenizer: Tokenizer):
+    def from_config(cls, config: TrainingConfigManager, tokenizer: Tokenizer):
         return cls(mel_channels=config.config['mel_channels'],
                    mel_start_value=config.config['mel_start_value'],
                    mel_end_value=config.config['mel_end_value'],
@@ -135,7 +135,7 @@ class AlignerDataset:
     
     @classmethod
     def from_config(cls,
-                    config: Config,
+                    config: TrainingConfigManager,
                     preprocessor,
                     kind: str,
                     mel_directory: str = None, ):
@@ -164,7 +164,7 @@ class TTSPreprocessor:
         return tf.shape(mel)[0]
     
     @classmethod
-    def from_config(cls, config: Config, tokenizer: Tokenizer):
+    def from_config(cls, config: TrainingConfigManager, tokenizer: Tokenizer):
         return cls(mel_channels=config.config['mel_channels'],
                    tokenizer=tokenizer)
 
@@ -210,7 +210,7 @@ class TTSDataset:
     
     @classmethod
     def from_config(cls,
-                    config: Config,
+                    config: TrainingConfigManager,
                     preprocessor,
                     kind: str,
                     mel_directory: str = None,

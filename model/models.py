@@ -361,6 +361,7 @@ class ForwardTransformer(tf.keras.models.Model):
                  phoneme_language: str,
                  with_stress: bool,
                  model_breathing: bool,
+                 transposed_attn_convs: bool,
                  encoder_attention_conv_filters: list = None,
                  decoder_attention_conv_filters: list = None,
                  encoder_attention_conv_kernel: int = None,
@@ -389,6 +390,7 @@ class ForwardTransformer(tf.keras.models.Model):
                                            conv_filters=encoder_attention_conv_filters,
                                            kernel_size=encoder_attention_conv_kernel,
                                            conv_activation='relu',
+                                           transposed_convs=transposed_attn_convs,
                                            name='Encoder')
         self.dur_pred = StatPredictor(conv_filters=duration_conv_filters,
                                       kernel_size=duration_kernel_size,
@@ -415,6 +417,7 @@ class ForwardTransformer(tf.keras.models.Model):
                                            conv_filters=decoder_attention_conv_filters,
                                            kernel_size=decoder_attention_conv_kernel,
                                            conv_activation='relu',
+                                           transposed_convs=transposed_attn_convs,
                                            name='Decoder')
         self.out = tf.keras.layers.Dense(mel_channels)
         self.training_input_signature = [
@@ -625,7 +628,7 @@ class ForwardTransformer(tf.keras.models.Model):
             git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode()
             if 'git_hash' in config:
                 if config['git_hash'] != git_hash:
-                    print(f"WARNING: git_hash mosmatch: {config['git_hash']}(config) vs {git_hash}(local).")
+                    print(f"WARNING: git_hash mismatch: {config['git_hash']}(config) vs {git_hash}(local).")
             else:
                 print(f'WARNING: could not check git hash from config.')
         except Exception as e:
