@@ -124,6 +124,7 @@ class TrainingConfigManager:
         self.mel_dir.mkdir(exist_ok=True)
         self.duration_dir.mkdir(exist_ok=True)
         self.embed_dir.mkdir(exist_ok=True)
+        self.speaker_dir.mkdir(exist_ok=True)
         if clear_dir:
             delete = input(f'Delete {self.log_dir} AND {self.weights_dir}? (y/[n])')
             if delete == 'y':
