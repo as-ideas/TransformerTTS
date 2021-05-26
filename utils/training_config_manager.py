@@ -39,6 +39,7 @@ class TrainingConfigManager:
         self.mel_dir = self.data_dir / f"mels.{self.config['audio_settings_name']}"
         self.pitch_dir = self.data_dir / f"pitch.{self.config['audio_settings_name']}"
         self.embed_dir = self.data_dir / f"embed.{self.config['audio_settings_name']}"
+        self.speaker_dir = self.data_dir / f"speaker_ids"
         self.duration_dir = self.data_dir / f"durations.{self.session_names['aligner']}"
         self.pitch_per_char = self.data_dir / f"char_pitch.{self.session_names['aligner']}"
         # training parameters

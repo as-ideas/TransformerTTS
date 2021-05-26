@@ -48,11 +48,12 @@ def validate(model,
              summary_manager):
     val_loss = {'loss': 0.}
     norm = 0.
-    for mel, phonemes, durations, pitch, fname in val_dataset.all_batches():
+    for mel, phonemes, durations, pitch, fname, reference_wav_embedding, speaker_id in val_dataset.all_batches():
         model_out = model.val_step(input_sequence=phonemes,
                                    target_sequence=mel,
                                    target_durations=durations,
-                                   target_pitch=pitch)
+                                   target_pitch=pitch,
+                                   reference_wav_embedding=reference_wav_embedding)
         norm += 1
         val_loss['loss'] += model_out['loss']
     val_loss['loss'] /= norm
@@ -70,7 +71,7 @@ def validate(model,
                                   mel=model_out['mel'][0])
     summary_manager.display_audio(tag=f'Validation {fname[0].numpy().decode("utf-8")}/target', mel=mel[0])
     # predict withoyt enforcing durations and pitch
-    model_out = model.predict(phonemes, encode=False)
+    model_out = model.predict(phonemes, reference_wav_embedding=reference_wav_embedding, encode=False)
     pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
     pred_lengths = tf.squeeze(pred_lengths)
     tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(mel), axis=-1), tf.int32)
@@ -80,8 +81,8 @@ def validate(model,
         tar_value = mel[j, :tar_lengths[j], :]
         summary_manager.display_mel(mel=predval, tag=f'Test/{fname[j].numpy().decode("utf-8")}/predicted')
         summary_manager.display_mel(mel=tar_value, tag=f'Test/{fname[j].numpy().decode("utf-8")}/target')
-        summary_manager.display_audio(tag=f'Prediction {fname[j].numpy().decode("utf-8")}/target', mel=tar_value)
-        summary_manager.display_audio(tag=f'Prediction {fname[j].numpy().decode("utf-8")}/prediction',
+        summary_manager.display_audio(tag=f'Prediction {fname[j].numpy().decode("utf-8")} (speaker {speaker_id[j]})/target', mel=tar_value)
+        summary_manager.display_audio(tag=f'Prediction {fname[j].numpy().decode("utf-8")} (speaker {speaker_id[j]})/prediction',
                                       mel=predval)
     return val_loss['loss']
 
@@ -148,13 +149,14 @@ all_durations = {}
 t = trange(model.step, config_dict['max_steps'], leave=True)
 for _ in t:
     t.set_description(f'step {model.step}')
-    mel, phonemes, durations, pitch, fname = train_dataset.next_batch()
+    mel, phonemes, durations, pitch, fname, reference_wav_embedding, speaker_id = train_dataset.next_batch()
     learning_rate = piecewise_linear_schedule(model.step, config_dict['learning_rate_schedule'])
     model.set_constants(learning_rate=learning_rate)
     output = model.train_step(input_sequence=phonemes,
                               target_sequence=mel,
                               target_durations=durations,
-                              target_pitch=pitch)
+                              target_pitch=pitch,
+                              reference_wav_embedding=reference_wav_embedding)
     losses.append(float(output['loss']))
     
     predicted_durations = dict(zip(fname.numpy(), output['duration'].numpy()))
@@ -196,16 +198,25 @@ for _ in t:
                   pos=len(config_dict['n_steps_avg_losses']) + 3)
     
     if model.step % config_dict['prediction_frequency'] == 0 and (model.step >= config_dict['prediction_start_step']):
+        reference_wav_embedding = reference_wav_embedding[0:1]
+        reference_mel_embedding = mel[0]
+        speaker_id = speaker_id[0]
+        reference_wav = summary_manager.audio.reconstruct_waveform(reference_mel_embedding.numpy().T)
+        reference_wav = tf.expand_dims(reference_wav, 0)
+        reference_wav = tf.expand_dims(reference_wav, -1)
         for i, text in enumerate(texts):
             wavs = []
             for i, text_line in enumerate(text):
-                out = model.predict(text_line, encode=True)
+
+                out = model.predict(text_line, reference_wav_embedding, encode=True)
                 wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
                 wavs.append(wav)
             wavs = np.concatenate(wavs)
             wavs = tf.expand_dims(wavs, 0)
             wavs = tf.expand_dims(wavs, -1)
             summary_manager.add_audio(f'Text file input', wavs.numpy(), sr=summary_manager.config['sampling_rate'],
+                                      step=summary_manager.global_step)
+            summary_manager.add_audio(f'Text file input/reference_wav (speaker {speaker_id})', wavs.numpy(), sr=summary_manager.config['sampling_rate'],
                                       step=summary_manager.global_step)
 
 print('Done.')

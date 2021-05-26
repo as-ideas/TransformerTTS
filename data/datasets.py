@@ -152,15 +152,15 @@ class AlignerDataset:
 
 class TTSPreprocessor:
     def __init__(self, mel_channels, tokenizer: Tokenizer):
-        self.output_types = (tf.float32, tf.int32, tf.int32, tf.float32, tf.string)
+        self.output_types = (tf.float32, tf.int32, tf.int32, tf.float32, tf.string, tf.float32, tf.int32)
         self.padded_shapes = ([None, mel_channels], [None], [None], [None], [])
         self.tokenizer = tokenizer
     
-    def __call__(self, text, mel, durations, pitch, sample_name):
+    def __call__(self, text, mel, durations, pitch, sample_name, reference_wav_embedding, speaker_id):
         encoded_phonemes = self.tokenizer(text)
-        return mel, encoded_phonemes, durations, pitch, sample_name
+        return mel, encoded_phonemes, durations, pitch, sample_name, reference_wav_embedding, speaker_id
     
-    def get_sample_length(self, mel, encoded_phonemes, durations, pitch, sample_name):
+    def get_sample_length(self, mel, encoded_phonemes, durations, pitch, sample_name, reference_wav_embedding, speaker_id):
         return tf.shape(mel)[0]
     
     @classmethod
@@ -176,13 +176,17 @@ class TTSDataset:
                  mel_directory: str,
                  pitch_directory: str,
                  duration_directory: str,
-                 pitch_per_char_directory: str):
+                 speaker_id_directory: str,
+                 pitch_per_char_directory: str,
+                 reference_wav_embedding_directory: str,):
         self.metadata_reader = data_reader
         self.preprocessor = preprocessor
         self.mel_directory = Path(mel_directory)
-        self.duration_directory = Path(duration_directory)
         self.pitch_directory = Path(pitch_directory)
+        self.duration_directory = Path(duration_directory)
+        self.speaker_id_directory = Path(speaker_id_directory)
         self.pitch_per_char_directory = Path(pitch_per_char_directory)
+        self.reference_wav_embedding_directory = Path(reference_wav_embedding_directory)
     
     def _read_sample(self, sample_name: str):
         text = self.metadata_reader.text_dict[sample_name]
@@ -190,11 +194,16 @@ class TTSDataset:
         durations = np.load(
             (self.duration_directory / sample_name).with_suffix('.npy').as_posix())
         char_wise_pitch = np.load((self.pitch_per_char_directory / sample_name).with_suffix('.npy').as_posix())
-        return mel, text, durations, char_wise_pitch
+        reference_wav_embedding = np.load(
+            (self.reference_wav_embedding_directory / sample_name).with_suffix('.npy').as_posix())
+        speaker_id = np.load(
+            (self.speaker_id_directory / sample_name).with_suffix('.npy').as_posix())
+        return mel, text, durations, char_wise_pitch, reference_wav_embedding, speaker_id
     
     def _process_sample(self, sample_name: str):
-        mel, text, durations, pitch = self._read_sample(sample_name)
-        return self.preprocessor(mel=mel, text=text, durations=durations, pitch=pitch, sample_name=sample_name)
+        mel, text, durations, pitch, reference_wav_embedding, speaker_id = self._read_sample(sample_name)
+        return self.preprocessor(mel=mel, text=text, durations=durations, pitch=pitch, sample_name=sample_name,
+                                 reference_wav_embedding=reference_wav_embedding, speaker_id=speaker_id)
     
     def get_dataset(self, bucket_batch_sizes, bucket_boundaries, shuffle=True, drop_remainder=False):
         return Dataset(
@@ -230,9 +239,11 @@ class TTSDataset:
         return cls(preprocessor=preprocessor,
                    data_reader=metadata_reader,
                    mel_directory=mel_directory,
-                   duration_directory=duration_directory,
                    pitch_directory=pitch_directory,
-                   pitch_per_char_directory=config.pitch_per_char)
+                   duration_directory=duration_directory,
+                   speaker_id_directory=config.speaker_dir,
+                   pitch_per_char_directory=config.pitch_per_char,
+                   reference_wav_embedding_directory=config.embed_dir)
 
 
 class Dataset:

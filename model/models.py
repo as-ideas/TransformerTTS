@@ -362,6 +362,7 @@ class ForwardTransformer(tf.keras.models.Model):
                  with_stress: bool,
                  model_breathing: bool,
                  transposed_attn_convs: bool,
+                 wav_embedding_dim = 256,
                  encoder_attention_conv_filters: list = None,
                  decoder_attention_conv_filters: list = None,
                  encoder_attention_conv_kernel: int = None,
@@ -372,6 +373,7 @@ class ForwardTransformer(tf.keras.models.Model):
                  **kwargs):
         super(ForwardTransformer, self).__init__()
         self.config = self._make_config(locals(), kwargs)
+        self.wav_embedding_dim = 256
         self.text_pipeline = TextToTokens.default(phoneme_language,
                                                   add_start_end=False,
                                                   with_stress=with_stress,
@@ -424,17 +426,13 @@ class ForwardTransformer(tf.keras.models.Model):
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(None, None, mel_channels), dtype=tf.float32),
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-            tf.TensorSpec(shape=(None, None), dtype=tf.float32)
+            tf.TensorSpec(shape=(None, None), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, wav_embedding_dim), dtype=tf.float32),
         ]
         self.forward_input_signature = [
             tf.TensorSpec(shape=(None, None), dtype=tf.int32),
             tf.TensorSpec(shape=(), dtype=tf.float32),
-        ]
-        self.forward_masked_input_signature = [
-            tf.TensorSpec(shape=(None, None), dtype=tf.int32),
-            tf.TensorSpec(shape=(), dtype=tf.float32),
-            tf.TensorSpec(shape=(None, None), dtype=tf.float32),
-            tf.TensorSpec(shape=(None, None), dtype=tf.float32),
+            tf.TensorSpec(shape=(None, wav_embedding_dim), dtype=tf.float32),
         ]
         self.debug = debug
         self._apply_all_signatures()
@@ -461,12 +459,16 @@ class ForwardTransformer(tf.keras.models.Model):
         config.update(kwargs)
         return config
     
-    def _train_step(self, input_sequence, target_sequence, target_durations, target_pitch):
+    def _train_step(self, input_sequence, target_sequence, target_durations, target_pitch, reference_wav_embedding):
         target_durations = tf.expand_dims(target_durations, -1)
         target_pitch = tf.expand_dims(target_pitch, -1)
         mel_len = int(tf.shape(target_sequence)[1])
         with tf.GradientTape() as tape:
-            model_out = self.__call__(input_sequence, target_durations, target_pitch=target_pitch, training=True)
+            model_out = self.__call__(input_sequence,
+                                      target_durations,
+                                      target_pitch=target_pitch,
+                                      reference_wav_embedding=reference_wav_embedding,
+                                      training=True)
             loss, loss_vals = weighted_sum_losses((target_sequence,
                                                    target_durations,
                                                    target_pitch),
@@ -489,11 +491,15 @@ class ForwardTransformer(tf.keras.models.Model):
                      loss_weights=self.loss_weights,
                      optimizer=optimizer)
     
-    def _val_step(self, input_sequence, target_sequence, target_durations, target_pitch):
+    def _val_step(self, input_sequence, target_sequence, target_durations, target_pitch, reference_wav_embedding):
         target_durations = tf.expand_dims(target_durations, -1)
         target_pitch = tf.expand_dims(target_pitch, -1)
         mel_len = int(tf.shape(target_sequence)[1])
-        model_out = self.__call__(input_sequence, target_durations, target_pitch=target_pitch, training=False)
+        model_out = self.__call__(input_sequence,
+                                  target_durations,
+                                  target_pitch=target_pitch,
+                                  reference_wav_embedding=reference_wav_embedding,
+                                  training=False)
         loss, loss_vals = weighted_sum_losses((target_sequence,
                                                target_durations,
                                                target_pitch),
@@ -506,22 +512,23 @@ class ForwardTransformer(tf.keras.models.Model):
         model_out.update({'losses': {'mel': loss_vals[0], 'duration': loss_vals[1], 'pitch': loss_vals[2]}})
         return model_out
     
-    def _forward(self, input_sequence, durations_scalar):
+    def _forward(self, input_sequence, durations_scalar, reference_wav_embedding):
         return self.__call__(input_sequence, target_durations=None, target_pitch=None, training=False,
                              durations_scalar=durations_scalar, max_durations_mask=None,
-                             min_durations_mask=None)
+                             min_durations_mask=None, reference_wav_embedding=reference_wav_embedding)
     
     @property
     def step(self):
         return int(self.optimizer.iterations)
     
-    def call(self, x, target_durations=None, target_pitch=None, training=False, durations_scalar=1.,
-             max_durations_mask=None,
-             min_durations_mask=None):
+    def call(self, x, reference_wav_embedding, target_durations=None, target_pitch=None, training=False, durations_scalar=1.,
+             max_durations_mask=None, min_durations_mask=None):
         encoder_padding_mask = create_encoder_padding_mask(x)
         x = self.encoder_prenet(x)
         x, encoder_attention = self.encoder(x, training=training, padding_mask=encoder_padding_mask)
         padding_mask = 1. - tf.squeeze(encoder_padding_mask, axis=(1, 2))[:, :, None]
+        x = x + reference_wav_embedding
+        x = x * padding_mask
         durations = self.dur_pred(x, training=training, mask=padding_mask)
         pitch = self.pitch_pred(x, training=training, mask=padding_mask)
         if target_pitch is not None:
@@ -556,7 +563,7 @@ class ForwardTransformer(tf.keras.models.Model):
     def encode_text(self, text):
         return self.text_pipeline(text)
     
-    def predict(self, inp, encode=True, speed_regulator=1., phoneme_max_duration=None, phoneme_min_duration=None,
+    def predict(self, inp, reference_wav_embedding, encode=True, speed_regulator=1., phoneme_max_duration=None, phoneme_min_duration=None,
                 max_durations_mask=None, min_durations_mask=None, phoneme_durations=None, phoneme_pitch=None):
         if encode:
             inp = self.encode_text(inp)
@@ -572,7 +579,8 @@ class ForwardTransformer(tf.keras.models.Model):
                         training=False,
                         durations_scalar=duration_scalar,
                         max_durations_mask=max_durations_mask,
-                        min_durations_mask=min_durations_mask)
+                        min_durations_mask=min_durations_mask,
+                        reference_wav_embedding=reference_wav_embedding)
         out['mel'] = tf.squeeze(out['mel'])
         return out
     

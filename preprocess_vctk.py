@@ -50,14 +50,17 @@ if __name__ == '__main__':
         def preprocess_data(x):
             speech = x['speech'].numpy().astype(float)
             file_name = x['id'].numpy().decode("utf-8")
+            speaker = x['speaker'].numpy()
             y = audio.preprocess(speech)
             y = np.array(y)
             pitch = audio.extract_pitch(y)
             mel = audio.mel_spectrogram(y)
             mel_path = (cm.mel_dir / file_name).with_suffix('.npy')
             pitch_path = (cm.pitch_dir / file_name).with_suffix('.npy')
+            speaker_path = (cm.speaker_dir / file_name).with_suffix('.npy')
             np.save(mel_path, mel)
             np.save(pitch_path, pitch)
+            np.save(speaker_path, speaker)
             return {'fname': file_name, 'mel.len': mel.shape[0], 'pitch.path': pitch_path, 'pitch': pitch}
         
         
