@@ -123,8 +123,13 @@ class Audio():
         f.add_subplot(ax)
         return f
     
-    def load_wav(self, wav_path):
+    def load_wav(self, wav_path, preprocess=True):
         y, sr = librosa.load(wav_path, sr=self.sampling_rate)
+        if preprocess:
+            y = self.preprocess(y)
+        return y, sr
+    
+    def preprocess(self, y):
         if self.norm_wav:
             y = self.normalize_volume(y, increase_only=True)
         if self.trim_long_silences:
@@ -133,7 +138,7 @@ class Audio():
             y = self.trim_audio_silence(y)
         if y.shape[0] % self.hop_length == 0:
             y = np.pad(y, (0, 1))
-        return y, sr
+        return y
     
     def save_wav(self, y, wav_path):
         sf.write(wav_path, data=y, samplerate=self.sampling_rate)
