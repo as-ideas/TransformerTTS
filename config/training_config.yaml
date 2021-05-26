@@ -44,6 +44,11 @@ audio_settings:
   vad_max_silence_length: 12
   vad_sample_rate: 16000
 
+  # Wav normalization
+  norm_wav: True
+  target_dBFS: -30
+  int16_max: 32767
+
 text_settings:
   # TOKENIZER
   phoneme_language: 'en-us'

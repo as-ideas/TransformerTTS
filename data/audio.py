@@ -21,6 +21,9 @@ class Audio():
                  f_min: int,
                  f_max: int,
                  normalizer: str,
+                 norm_wav: bool,
+                 target_dBFS: int,
+                 int16_max: int,
                  trim_long_silences: bool = None,
                  trim_silence: bool = None,
                  trim_silence_top_db: int = None,
@@ -38,6 +41,9 @@ class Audio():
         self.win_length = win_length
         self.f_min = f_min
         self.f_max = f_max
+        self.norm_wav = norm_wav
+        self.target_dBFS = target_dBFS
+        self.int16_max = int16_max
         self.trim_long_silences = trim_long_silences
         self.trim_silence = trim_silence
         self.trim_silence_top_db = trim_silence_top_db
@@ -117,15 +123,22 @@ class Audio():
         f.add_subplot(ax)
         return f
     
-    def load_wav(self, wav_path):
+    def load_wav(self, wav_path, preprocess=True):
         y, sr = librosa.load(wav_path, sr=self.sampling_rate)
+        if preprocess:
+            y = self.preprocess(y)
+        return y, sr
+    
+    def preprocess(self, y):
+        if self.norm_wav:
+            y = self.normalize_volume(y, increase_only=True)
         if self.trim_long_silences:
             y = self.trim_audio_long_silences(y)
         if self.trim_silence:
             y = self.trim_audio_silence(y)
         if y.shape[0] % self.hop_length == 0:
             y = np.pad(y, (0, 1))
-        return y, sr
+        return y
     
     def save_wav(self, y, wav_path):
         sf.write(wav_path, data=y, samplerate=self.sampling_rate)
@@ -137,6 +150,17 @@ class Audio():
         
         return f0
     
+    # from https://github.com/resemble-ai/Resemblyzer/blob/master/resemblyzer/audio.py
+    def normalize_volume(self, wav, increase_only=False, decrease_only=False):
+        if increase_only and decrease_only:
+            raise ValueError("Both increase only and decrease only are set")
+        rms = np.sqrt(np.mean((wav * self.int16_max) ** 2))
+        wave_dBFS = 20 * np.log10(rms / self.int16_max)
+        dBFS_change = self.target_dBFS - wave_dBFS
+        if dBFS_change < 0 and increase_only or dBFS_change > 0 and decrease_only:
+            return wav
+        return wav * (10 ** (dBFS_change / 20))
+    
     def trim_audio_silence(self, wav):
         trimmed = librosa.effects.trim(wav,
                                        top_db=self.trim_silence_top_db,
@@ -146,10 +170,9 @@ class Audio():
     
     # from https://github.com/resemble-ai/Resemblyzer/blob/master/resemblyzer/audio.py
     def trim_audio_long_silences(self, wav):
-        int16_max = (2 ** 15) - 1
         samples_per_window = (self.vad_window_length * self.vad_sample_rate) // 1000
         wav = wav[:len(wav) - (len(wav) % samples_per_window)]
-        pcm_wave = struct.pack("%dh" % len(wav), *(np.round(wav * int16_max)).astype(np.int16))
+        pcm_wave = struct.pack("%dh" % len(wav), *(np.round(wav * self.int16_max)).astype(np.int16))
         voice_flags = []
         vad = webrtcvad.Vad(mode=3)
         for window_start in range(0, len(wav), samples_per_window):
