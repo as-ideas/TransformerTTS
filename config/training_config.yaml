@@ -6,7 +6,7 @@ paths:
   train_data_directory: 'transformer_tts_data'   # training data is stored here
 
 naming:
-  data_name: ljspeech # raw data naming for default data reader (select function from data/metadata_readers.py)
+  data_name: vctk # raw data naming for default data reader (select function from data/metadata_readers.py)
   audio_settings_name: MelGAN_default
   text_settings_name: Stress_NoBreathing
   aligner_settings_name: alinger_extralayer_layernorm
@@ -33,13 +33,6 @@ audio_settings:
   f_min: 0
   f_max: 8000
   normalizer: MelGAN                 # which mel normalization to use from utils.audio.py [MelGAN or WaveRNN]
-
-  # Wav normalization
-  norm_wav: True
-  target_dBFS: -30
-  int16_max: 32767
-  # speaker embedding
-#  embed_dimension: 256 # not customizable, pretrained resemlyzer
 
   # SILENCE CUTTING
   trim_silence_top_db: 60
