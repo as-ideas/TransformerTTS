@@ -101,7 +101,7 @@ Currently 493be6345341af0df3ae829de79c2793c9afd0ec
 You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
 
 #### Configuration
-* If training on LJSpeech, or if unsure, simply use ```config/session_paths.yaml``` to create [MelGAN](https://github.com/seungwonpark/melgan) compatible models
+* If training on LJSpeech, or if unsure, simply use ```config/session_paths.yaml``` to create [MelGAN](https://github.com/seungwonpark/melgan) or [HiFiGAN](https://github.com/jik876/hifi-gan) compatible models
     * swap ```data_config.yaml``` for ```data_config_wavernn.yaml``` to create models compatible with [WaveRNN](https://github.com/fatchord/WaveRNN) 
 * **EDIT PATHS**: in `config/session_paths.yaml` edit the paths to point at your dataset and log folders
 
