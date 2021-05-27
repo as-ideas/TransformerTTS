@@ -31,7 +31,12 @@ if __name__ == '__main__':
     
     dl_config = tfds.download.DownloadConfig(verify_ssl=False)
     dataset = tfds.load('vctk', data_dir='/data/datasets/',
-                        download_and_prepare_kwargs={'download_config': dl_config, })['train']#, split='train[99%:]')
+                        download_and_prepare_kwargs={'download_config': dl_config, },
+                        )['train']
+                        # split='train[99%:]')
+    all_metadata = {item['id'].numpy().decode('utf-8'): item['text'].numpy().decode('utf-8') for item in dataset}
+
+    sample_items = np.random.choice(list(all_metadata.keys()), 5)
     cm = TrainingConfigManager('config/training_config_remote.yaml', aligner=True)
     cm.create_remove_dirs()
     summary_manager = SummaryManager(model=None, log_dir=cm.log_dir / 'data_preprocessing', config=cm.config,
@@ -48,11 +53,11 @@ if __name__ == '__main__':
         
         
         def preprocess_data(x):
-            speech = x['speech'].numpy().astype(float)
+            y = x['speech'].numpy()
             file_name = x['id'].numpy().decode("utf-8")
             speaker = x['speaker'].numpy()
-            y = audio.preprocess(speech)
-            y = np.array(y)
+            y = audio.resample_wav(y, orig_sr=48000)
+            y = audio.preprocess(y)
             pitch = audio.extract_pitch(y)
             mel = audio.mel_spectrogram(y)
             mel_path = (cm.mel_dir / file_name).with_suffix('.npy')
@@ -61,7 +66,7 @@ if __name__ == '__main__':
             np.save(mel_path, mel)
             np.save(pitch_path, pitch)
             np.save(speaker_path, speaker)
-            return {'fname': file_name, 'mel.len': mel.shape[0], 'pitch.path': pitch_path, 'pitch': pitch}
+            return {'fname': file_name, 'mel.len': mel.shape[0], 'pitch.path': pitch_path, 'pitch': pitch, 'mel': mel, 'y': y}
         
         
         wav_iter = p_uimap(preprocess_data, dataset)
@@ -69,6 +74,10 @@ if __name__ == '__main__':
         for out_dict in wav_iter:
             len_dict.update({out_dict['fname']: out_dict['mel.len']})
             pitches.update({out_dict['pitch.path']: out_dict['pitch']})
+            if out_dict['fname'] in sample_items:
+                summary_manager.display_audio(f"samples/inverted mel/{out_dict['fname']}", mel=out_dict['mel'])
+                summary_manager.add_audio(f"samples/{out_dict['fname']}", wav=out_dict['y'][None,:,None], sr=audio.sampling_rate)
+                summary_manager.display_mel(tag=f"samples/{out_dict['fname']}", mel=out_dict['mel'])
             # if out_dict['mel.len'] > cm.config['max_mel_len'] or out_dict['mel.len'] < cm.config['min_mel_len']:
             #     remove_files.append(out_dict['fname'])
             # else:
@@ -134,9 +143,7 @@ if __name__ == '__main__':
         print('building metadata')
         training_ids = [item['id'].numpy().decode('utf-8') for item in final_training_set]
         validation_ids = [item['id'].numpy().decode('utf-8') for item in validation_set]
-        all_metadata = {item['id'].numpy().decode('utf-8'): item['text'].numpy().decode('utf-8') for item in dataset}
-        
-        sample_items = np.random.choice(list(all_metadata.keys()), 5)
+
         print(f'\nFiles will be stored under {cm.data_dir}')
         print(f' - all: {phonemized_metadata_path} ({len(all_metadata)}')
         print(f' - {len(training_ids)} training lines: {train_metadata_path}')

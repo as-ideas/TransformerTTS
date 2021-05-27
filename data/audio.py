@@ -123,6 +123,19 @@ class Audio():
         f.add_subplot(ax)
         return f
     
+    def int_to_float(self, y: np.ndarray):
+        return ((y >> 2) / (self.int16_max + 1.)).astype(np.float32)
+    
+    def float_to_int(self, y: np.ndarray):
+        return (y * (self.int16_max + 1)).astype(np.int16)
+    
+    def resample_wav(self, y: np.ndarray, orig_sr: int, target_sr: int = None):
+        if np.issubdtype(y.dtype, np.integer):
+            y = self.int_to_float(y)
+        if orig_sr != target_sr:
+            y = librosa.resample(y, orig_sr=orig_sr, target_sr=(target_sr or self.sampling_rate))
+        return y
+    
     def load_wav(self, wav_path, preprocess=True):
         y, sr = librosa.load(wav_path, sr=self.sampling_rate)
         if preprocess:
