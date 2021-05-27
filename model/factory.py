@@ -7,7 +7,7 @@ import ruamel.yaml
 from model.models import ForwardTransformer, Aligner
 
 
-def tts_ljspeech(step='90000') -> Tuple[ForwardTransformer, dict]:
+def tts_ljspeech(step='95000') -> Tuple[ForwardTransformer, dict]:
     model_name = f'bdf06b9_ljspeech_step_{step}.zip'
     remote_dir = 'https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/api_weights/bdf06b9_ljspeech/'
     model_path = tf.keras.utils.get_file(model_name,
