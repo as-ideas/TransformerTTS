@@ -45,9 +45,9 @@ class DataReader:
             self.wav_paths = {w.with_suffix('').name: w for w in all_wavs}
         if skip_samples is not None:
             previous_len = len(self.filenames)
-            print(f"Skipping {len(skip_samples)} samples:\n{skip_samples}")
+            # print(f"Skipping {len(skip_samples)} samples.")
             self.filenames = [x for x in self.filenames if x not in skip_samples]
-            print(f"Now {len(self.filenames)} samples (was {previous_len}).")
+            # print(f"Now {len(self.filenames)} samples (was {previous_len}).")
     
     @classmethod
     def from_config(cls, config_manager: TrainingConfigManager, kind: str, scan_wavs=False):
@@ -162,7 +162,7 @@ class AlignerDataset:
 class TTSPreprocessor:
     def __init__(self, mel_channels, tokenizer: Tokenizer):
         self.output_types = (tf.float32, tf.int32, tf.int32, tf.float32, tf.string, tf.float32, tf.int32)
-        self.padded_shapes = ([None, mel_channels], [None], [None], [None], [])
+        self.padded_shapes = ([None, mel_channels], [None], [None], [None], [], [None], [])
         self.tokenizer = tokenizer
     
     def __call__(self, text, mel, durations, pitch, sample_name, reference_wav_embedding, speaker_id):

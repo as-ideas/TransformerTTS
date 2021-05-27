@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import trange
 
 from utils.training_config_manager import TrainingConfigManager
-from data.datasets import TTSDataset, TTSPreprocessor
+from data.datasets import TTSDataset, TTSPreprocessor, DataReader
 from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule
 from utils.logging_utils import SummaryManager
@@ -17,13 +17,13 @@ dynamic_memory_allocation()
 
 
 def display_target_symbol_duration_distributions():
-    phon_data, ups = post_processed_reader(config.phonemized_metadata_path)
+    # phon_data, ups = post_processed_reader(config.phonemized_metadata_path)
     dur_dict = {}
-    for key in phon_data.keys():
+    for key in phonemized_metadata.filenames:
         dur_dict[key] = np.load((config.duration_dir / key).with_suffix('.npy'))
     symbol_durs = {}
     for key in dur_dict:
-        for i, phoneme in enumerate(phon_data[key]):
+        for i, phoneme in enumerate(phonemized_metadata.text_dict[key]):
             symbol_durs.setdefault(phoneme, []).append(dur_dict[key][i])
     for symbol in symbol_durs.keys():
         summary_manager.add_histogram(tag=f'"{symbol}"/Target durations', values=symbol_durs[symbol],
@@ -31,11 +31,11 @@ def display_target_symbol_duration_distributions():
 
 
 def display_predicted_symbol_duration_distributions(all_durations):
-    phon_data, ups = post_processed_reader(config.phonemized_metadata_path)
+    # phon_data, ups = post_processed_reader(config.phonemized_metadata_path)
     symbol_durs = {}
     for key in all_durations.keys():
         clean_key = key.decode('utf-8')
-        for i, phoneme in enumerate(phon_data[clean_key]):
+        for i, phoneme in enumerate(phonemized_metadata.text_dict[clean_key]):
             symbol_durs.setdefault(phoneme, []).append(all_durations[key][i])
     for symbol in symbol_durs.keys():
         summary_manager.add_histogram(tag=f'"{symbol}"/Predicted durations', values=symbol_durs[symbol])
@@ -134,6 +134,7 @@ else:
 if config_dict['debug'] is True:
     print('\nWARNING: DEBUG is set to True. Training in eager mode.')
 
+phonemized_metadata = DataReader.from_config(config, kind='phonemized', scan_wavs=False)
 display_target_symbol_duration_distributions()
 # main event
 print('\nTRAINING')

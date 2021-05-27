@@ -394,6 +394,7 @@ class ForwardTransformer(tf.keras.models.Model):
                                            conv_activation='relu',
                                            transposed_convs=transposed_attn_convs,
                                            name='Encoder')
+        self.wav_embedding_proj = tf.keras.layers.Dense(encoder_model_dimension)
         self.dur_pred = StatPredictor(conv_filters=duration_conv_filters,
                                       kernel_size=duration_kernel_size,
                                       conv_padding='same',
@@ -465,7 +466,7 @@ class ForwardTransformer(tf.keras.models.Model):
         mel_len = int(tf.shape(target_sequence)[1])
         with tf.GradientTape() as tape:
             model_out = self.__call__(input_sequence,
-                                      target_durations,
+                                      target_durations=target_durations,
                                       target_pitch=target_pitch,
                                       reference_wav_embedding=reference_wav_embedding,
                                       training=True)
@@ -496,7 +497,7 @@ class ForwardTransformer(tf.keras.models.Model):
         target_pitch = tf.expand_dims(target_pitch, -1)
         mel_len = int(tf.shape(target_sequence)[1])
         model_out = self.__call__(input_sequence,
-                                  target_durations,
+                                  target_durations=target_durations,
                                   target_pitch=target_pitch,
                                   reference_wav_embedding=reference_wav_embedding,
                                   training=False)
@@ -521,13 +522,13 @@ class ForwardTransformer(tf.keras.models.Model):
     def step(self):
         return int(self.optimizer.iterations)
     
-    def call(self, x, reference_wav_embedding, target_durations=None, target_pitch=None, training=False, durations_scalar=1.,
+    def call(self, x, reference_wav_embedding=None, target_durations=None, target_pitch=None, training=False, durations_scalar=1.,
              max_durations_mask=None, min_durations_mask=None):
         encoder_padding_mask = create_encoder_padding_mask(x)
         x = self.encoder_prenet(x)
         x, encoder_attention = self.encoder(x, training=training, padding_mask=encoder_padding_mask)
         padding_mask = 1. - tf.squeeze(encoder_padding_mask, axis=(1, 2))[:, :, None]
-        x = x + reference_wav_embedding
+        x = x + self.wav_embedding_proj(reference_wav_embedding)[:,None,:]
         x = x * padding_mask
         durations = self.dur_pred(x, training=training, mask=padding_mask)
         pitch = self.pitch_pred(x, training=training, mask=padding_mask)
