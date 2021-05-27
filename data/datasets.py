@@ -43,7 +43,7 @@ class DataReader:
         if scan_wavs:
             all_wavs = get_files(self.wav_directory, extension='.wav')
             self.wav_paths = {w.with_suffix('').name: w for w in all_wavs}
-        if skip_samples:
+        if skip_samples is not None:
             previous_len = len(self.filenames)
             print(f"Skipping {len(skip_samples)} samples:\n{skip_samples}")
             self.filenames = [x for x in self.filenames if x not in skip_samples]
