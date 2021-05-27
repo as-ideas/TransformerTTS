@@ -38,6 +38,8 @@ if __name__ == '__main__':
     config = config_manager.config
     config_manager.print_config()
     
+    target_dir = config_manager.duration_dir
+    
     if not args.skip_durations:
         model = config_manager.load_model(args.autoregressive_weights)
         if model.r != 1:
@@ -48,7 +50,6 @@ if __name__ == '__main__':
         data_handler = AlignerDataset.from_config(config_manager,
                                                   preprocessor=data_prep,
                                                   kind='phonemized')
-        target_dir = config_manager.duration_dir
         config_manager.dump_config()
         dataset = data_handler.get_dataset(bucket_batch_sizes=config['bucket_batch_sizes'],
                                            bucket_boundaries=config['bucket_boundaries'],
@@ -62,6 +63,7 @@ if __name__ == '__main__':
                                          config=config,
                                          default_writer='Duration Extraction')
         all_durations = np.array([])
+        badly_aligned_samples = []
         new_alignments = []
         iterator = tqdm(enumerate(dataset.all_batches()))
         step = 0
@@ -71,11 +73,12 @@ if __name__ == '__main__':
                                      tar=mel_batch,
                                      stop_prob=stop_batch)
             attention_values = outputs['decoder_attention'][last_layer_key].numpy()
+            
             text = text_batch.numpy()
             
             mel = mel_batch.numpy()
             
-            durations, final_align, jumpiness, peakiness, diag_measure = get_durations_from_alignment(
+            durations, final_align, jumpiness, peakiness, diag_measure, bad_alignments = get_durations_from_alignment(
                 batch_alignments=attention_values,
                 mels=mel,
                 phonemes=text,
@@ -83,6 +86,7 @@ if __name__ == '__main__':
             batch_avg_jumpiness = tf.reduce_mean(jumpiness, axis=0)
             batch_avg_peakiness = tf.reduce_mean(peakiness, axis=0)
             batch_avg_diag_measure = tf.reduce_mean(diag_measure, axis=0)
+            
             for i in range(tf.shape(jumpiness)[1]):
                 summary_manager.display_scalar(tag=f'DurationAttentionJumpiness/head{i}',
                                                scalar_value=tf.reduce_mean(batch_avg_jumpiness[i]), step=c)
@@ -92,17 +96,22 @@ if __name__ == '__main__':
                                                scalar_value=tf.reduce_mean(batch_avg_diag_measure[i]), step=c)
             
             for i, name in enumerate(file_name_batch):
-                all_durations = np.append(all_durations, durations[i])  # for plotting only
-                summary_manager.add_image(tag='ExtractedAlignments',
-                                          image=tf.expand_dims(tf.expand_dims(final_align[i], 0), -1),
-                                          step=step)
-                
-                step += 1
-                np.save(str(target_dir / f"{name.numpy().decode('utf-8')}.npy"), durations[i])
+                if i not in bad_alignments:
+                    all_durations = np.append(all_durations, durations[i])  # for plotting only
+                    summary_manager.add_image(tag='ExtractedAlignments',
+                                              image=tf.expand_dims(tf.expand_dims(final_align[i], 0), -1),
+                                              step=step)
+                    
+                    step += 1
+                    np.save(str(target_dir / f"{name.numpy().decode('utf-8')}.npy"), durations[i])
+                else:
+                    badly_aligned_samples.append(f"{name.numpy().decode('utf-8')}")
         
         all_durations[all_durations >= 20] = 20  # for plotting only
         buckets = len(set(all_durations))  # for plotting only
         summary_manager.add_histogram(values=all_durations, tag='ExtractedDurations', buckets=buckets)
+        np.save(config_manager.badly_aligned_samples_path, np.array(badly_aligned_samples))
+        print(f"Found {len(badly_aligned_samples)} badly aligned samples, they will be skipped during tts training.")
     
     if not args.skip_char_pitch:
         def _pitch_per_char(pitch, durations, mel_len):

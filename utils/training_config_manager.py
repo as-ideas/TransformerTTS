@@ -42,6 +42,7 @@ class TrainingConfigManager:
         self.speaker_dir = self.data_dir / f"speaker_ids"
         self.duration_dir = self.data_dir / f"durations.{self.session_names['aligner']}"
         self.pitch_per_char = self.data_dir / f"char_pitch.{self.session_names['aligner']}"
+        self.badly_aligned_samples_path = self.duration_dir / "badly_aligned_samples.npy"
         # training parameters
         self.learning_rate = np.array(self.config['learning_rate_schedule'])[0, 1].astype(np.float32)
         if model_kind == 'aligner':

@@ -28,7 +28,7 @@ class DataReader:
     """
     
     def __init__(self, wav_directory: str, metadata_path: str, metadata_reading_function=None, scan_wavs=False,
-                 training=False, is_processed=False):
+                 training=False, is_processed=False, skip_samples: Union[list, np.ndarray]=None):
         self.metadata_reading_function = metadata_reading_function
         self.wav_directory = Path(wav_directory)
         self.metadata_path = Path(metadata_path)
@@ -43,6 +43,11 @@ class DataReader:
         if scan_wavs:
             all_wavs = get_files(self.wav_directory, extension='.wav')
             self.wav_paths = {w.with_suffix('').name: w for w in all_wavs}
+        if skip_samples:
+            previous_len = len(self.filenames)
+            print(f"Skipping {len(skip_samples)} samples:\n{skip_samples}")
+            self.filenames = [x for x in self.filenames if x not in skip_samples]
+            print(f"Now {len(self.filenames)} samples (was {previous_len}).")
     
     @classmethod
     def from_config(cls, config_manager: TrainingConfigManager, kind: str, scan_wavs=False):
@@ -63,13 +68,17 @@ class DataReader:
             metadata = config_manager.valid_metadata_path
         elif kind == 'phonemized':
             metadata = config_manager.phonemized_metadata_path
-        
+        if config_manager.badly_aligned_samples_path.exists():
+            skip_samples = np.load(config_manager.badly_aligned_samples_path.as_posix())
+        else:
+            skip_samples = None
         return cls(wav_directory=config_manager.wav_directory,
                    metadata_reading_function=reader,
                    metadata_path=metadata,
                    scan_wavs=scan_wavs,
                    training=training,
-                   is_processed=is_processed)
+                   is_processed=is_processed,
+                   skip_samples=skip_samples)
 
 
 class AlignerPreprocessor:

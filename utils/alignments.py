@@ -121,23 +121,31 @@ def get_durations_from_alignment(batch_alignments, mels, phonemes, weighted=Fals
     attn_scores = diag_measure + jumpiness + peakiness
     durations = []
     final_alignment = []
+    bad_alignments = []
     for batch_num, al in enumerate(batch_alignments):
-        unpad_mel_len = mel_len[batch_num]
-        unpad_phon_len = phon_len[batch_num]
-        unpad_alignments = al[:, 1:unpad_mel_len, 1:unpad_phon_len]  # first dim is heads
-        scored_attention = unpad_alignments * attn_scores[batch_num][:, None, None]
-        
-        if weighted:
-            ref_attention_weights = np.sum(scored_attention, axis=0)
+        if diag_measure[batch_num] < .1:
+            # filter bad alignments
+            bad_alignments.append(batch_num)
+            durations.append(None)
+            final_alignment.append(None)
         else:
+            unpad_mel_len = mel_len[batch_num]
+            unpad_phon_len = phon_len[batch_num]
+            unpad_alignments = al[:, 1:unpad_mel_len, 1:unpad_phon_len]  # first dim is heads
+            scored_attention = unpad_alignments * attn_scores[batch_num][:, None, None]
+            
+            if weighted:
+                ref_attention_weights = np.sum(scored_attention, axis=0)
+            else:
+                best_head = np.argmax(attn_scores[batch_num])
+                ref_attention_weights = unpad_alignments[best_head]
+            integer_durations = extract_durations_with_dijkstra(ref_attention_weights)
+            
+            assert np.sum(integer_durations) == mel_len[batch_num]-1, f'{np.sum(integer_durations)} vs {mel_len[batch_num]-1}'
+            new_alignment = duration_to_alignment_matrix(integer_durations.astype(int))
             best_head = np.argmax(attn_scores[batch_num])
-            ref_attention_weights = unpad_alignments[best_head]
-        integer_durations = extract_durations_with_dijkstra(ref_attention_weights)
-        
-        assert np.sum(integer_durations) == mel_len[batch_num]-1, f'{np.sum(integer_durations)} vs {mel_len[batch_num]-1}'
-        new_alignment = duration_to_alignment_matrix(integer_durations.astype(int))
-        best_head = np.argmax(attn_scores[batch_num])
-        best_attention = unpad_alignments[best_head]
-        final_alignment.append(best_attention.T + new_alignment)
-        durations.append(integer_durations)
-    return durations, final_alignment, jumpiness, peakiness, diag_measure
+            best_attention = unpad_alignments[best_head]
+            final_alignment.append(best_attention.T + new_alignment)
+            durations.append(integer_durations)
+            
+    return durations, final_alignment, jumpiness, peakiness, diag_measure, bad_alignments
