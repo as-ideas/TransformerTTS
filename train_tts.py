@@ -139,11 +139,8 @@ display_target_symbol_duration_distributions()
 # main event
 print('\nTRAINING')
 losses = []
-texts = []
-for text_file in config_dict['text_prediction']:
-    with open(text_file, 'r') as file:
-        text = file.readlines()
-    texts.append(text)
+with open(config_dict['text_prediction'], 'r') as file:
+    text = file.readlines()
 
 all_files = len(set(train_data_handler.metadata_reader.filenames))  # without duplicates
 all_durations = {}
@@ -202,22 +199,18 @@ for _ in t:
         reference_wav_embedding = reference_wav_embedding[0:1]
         reference_mel_embedding = mel[0]
         speaker_id = speaker_id[0]
-        reference_wav = summary_manager.audio.reconstruct_waveform(reference_mel_embedding.numpy().T)
-        reference_wav = tf.expand_dims(reference_wav, 0)
-        reference_wav = tf.expand_dims(reference_wav, -1)
-        for i, text in enumerate(texts):
-            wavs = []
-            for i, text_line in enumerate(text):
+        
+        reference_wav = summary_manager.audio.reconstruct_waveform(reference_mel_embedding.numpy().T)[None,:,None]
+        wavs = []
+        for i, text_line in enumerate(text):
 
-                out = model.predict(text_line, reference_wav_embedding, encode=True)
-                wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
-                wavs.append(wav)
-            wavs = np.concatenate(wavs)
-            wavs = tf.expand_dims(wavs, 0)
-            wavs = tf.expand_dims(wavs, -1)
-            summary_manager.add_audio(f'Text file input', wavs.numpy(), sr=summary_manager.config['sampling_rate'],
+            out = model.predict(text_line, reference_wav_embedding, encode=True)
+            wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
+            wavs.append(wav)
+        wavs = np.concatenate(wavs)[None,:,None]
+        summary_manager.add_audio(f'speaker {speaker_id}/prediction', wavs.numpy(), sr=summary_manager.config['sampling_rate'],
                                       step=summary_manager.global_step)
-            summary_manager.add_audio(f'Text file input/reference_wav (speaker {speaker_id})', wavs.numpy(), sr=summary_manager.config['sampling_rate'],
-                                      step=summary_manager.global_step)
+        summary_manager.add_audio(f'speaker {speaker_id}/reference', reference_wav.numpy(), sr=summary_manager.config['sampling_rate'],
+                                  step=summary_manager.global_step)
 
 print('Done.')
