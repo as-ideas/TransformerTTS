@@ -208,9 +208,9 @@ for _ in t:
             wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
             wavs.append(wav)
         wavs = np.concatenate(wavs)[None,:,None]
-        summary_manager.add_audio(f'speaker {speaker_id}/prediction', wavs.numpy(), sr=summary_manager.config['sampling_rate'],
+        summary_manager.add_audio(f'speaker {speaker_id}/prediction', wavs, sr=summary_manager.config['sampling_rate'],
                                       step=summary_manager.global_step)
-        summary_manager.add_audio(f'speaker {speaker_id}/reference', reference_wav.numpy(), sr=summary_manager.config['sampling_rate'],
+        summary_manager.add_audio(f'speaker {speaker_id}/reference', reference_wav, sr=summary_manager.config['sampling_rate'],
                                   step=summary_manager.global_step)
 
 print('Done.')
