@@ -113,7 +113,7 @@ class Aligner(tf.keras.models.Model):
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
         self.forward_encoder = self._apply_signature(self._forward_encoder, self.encoder_signature)
         self.forward_decoder = self._apply_signature(self._forward_decoder, self.decoder_signature)
-        
+    
     def _make_config(self, locals) -> dict:
         config = {}
         for k in locals:
@@ -362,7 +362,7 @@ class ForwardTransformer(tf.keras.models.Model):
                  with_stress: bool,
                  model_breathing: bool,
                  transposed_attn_convs: bool,
-                 wav_embedding_dim = 256,
+                 wav_embedding_dim=256,
                  encoder_attention_conv_filters: list = None,
                  decoder_attention_conv_filters: list = None,
                  encoder_attention_conv_kernel: int = None,
@@ -449,9 +449,9 @@ class ForwardTransformer(tf.keras.models.Model):
         self.train_step = self._apply_signature(self._train_step, self.training_input_signature)
         self.val_step = self._apply_signature(self._val_step, self.training_input_signature)
     
-    def _make_config(self, locals:dict, kwargs:dict) -> dict:
+    def _make_config(self, locals: dict, kwargs: dict) -> dict:
         config = {}
-        keys = [k for k in locals.keys() if (k not in kwargs) and (k not in ['self', '__class__', 'kwargs'] )]
+        keys = [k for k in locals.keys() if (k not in kwargs) and (k not in ['self', '__class__', 'kwargs'])]
         for k in keys:
             if isinstance(locals[k], dict):
                 config.update(locals[k])
@@ -522,13 +522,14 @@ class ForwardTransformer(tf.keras.models.Model):
     def step(self):
         return int(self.optimizer.iterations)
     
-    def call(self, x, reference_wav_embedding=None, target_durations=None, target_pitch=None, training=False, durations_scalar=1.,
+    def call(self, x, reference_wav_embedding=None, target_durations=None, target_pitch=None, training=False,
+             durations_scalar=1.,
              max_durations_mask=None, min_durations_mask=None):
         encoder_padding_mask = create_encoder_padding_mask(x)
         x = self.encoder_prenet(x)
         x, encoder_attention = self.encoder(x, training=training, padding_mask=encoder_padding_mask)
         padding_mask = 1. - tf.squeeze(encoder_padding_mask, axis=(1, 2))[:, :, None]
-        x = x + self.wav_embedding_proj(reference_wav_embedding)[:,None,:]
+        x = x + self.wav_embedding_proj(reference_wav_embedding)[:, None, :]
         x = x * padding_mask
         durations = self.dur_pred(x, training=training, mask=padding_mask)
         pitch = self.pitch_pred(x, training=training, mask=padding_mask)
@@ -564,7 +565,8 @@ class ForwardTransformer(tf.keras.models.Model):
     def encode_text(self, text):
         return self.text_pipeline(text)
     
-    def predict(self, inp, reference_wav_embedding, encode=True, speed_regulator=1., phoneme_max_duration=None, phoneme_min_duration=None,
+    def predict(self, inp, reference_wav_embedding, encode=True, speed_regulator=1., phoneme_max_duration=None,
+                phoneme_min_duration=None,
                 max_durations_mask=None, min_durations_mask=None, phoneme_durations=None, phoneme_pitch=None):
         if encode:
             inp = self.encode_text(inp)
@@ -604,7 +606,8 @@ class ForwardTransformer(tf.keras.models.Model):
         return tf.cast(tf.convert_to_tensor(new_mask), tf.float32)
     
     def build_model_weights(self) -> None:
-        _ = self(tf.zeros((1, 1)), target_durations=None, target_pitch=None, training=False)
+        _ = self(tf.zeros((1, 1)), reference_wav_embedding=tf.zeros((1, self.wav_embedding_dim)), target_durations=None,
+                 target_pitch=None, training=False)
     
     def save_model(self, path: str):
         yaml = YAML()
