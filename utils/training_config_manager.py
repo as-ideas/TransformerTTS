@@ -11,15 +11,10 @@ from utils.scheduling import reduction_schedule
 
 
 class TrainingConfigManager:
-    def __init__(self, config_path: str, aligner=False):
-        if aligner:
-            model_kind = 'aligner'
-        else:
-            model_kind = 'tts'
-        self.config_path = Path(config_path)
+    def __init__(self, config: dict, model_kind: str):
+        self.config = config
         self.model_kind = model_kind
         self.yaml = ruamel.yaml.YAML()
-        self.config = self._load_config()
         self.git_hash = self._get_git_hash()
         self.data_name = self.config['data_name']  # raw data
         # make session names
@@ -49,14 +44,22 @@ class TrainingConfigManager:
             self.max_r = np.array(self.config['reduction_factor_schedule'])[0, 1].astype(np.int32)
             self.stop_scaling = self.config.get('stop_loss_scaling', 1.)
     
-    def _load_config(self):
+    @classmethod
+    def from_config(cls, config_path: str, aligner=False):
+        if aligner:
+            model_kind = 'aligner'
+        else:
+            model_kind = 'tts'
+        config_path = Path(config_path)
+        yaml = ruamel.yaml.YAML()
         all_config = {}
-        with open(str(self.config_path), 'rb') as session_yaml:
-            session_config = self.yaml.load(session_yaml)
-        for key in ['paths', 'naming', 'training_data_settings','audio_settings',
-                    'text_settings', f'{self.model_kind}_settings']:
+        with open(str(config_path), 'rb') as session_yaml:
+            session_config = yaml.load(session_yaml)
+        for key in ['paths', 'naming', 'training_data_settings', 'audio_settings',
+                    'text_settings', f'{model_kind}_settings', 'voice_cloning']:
             all_config.update(session_config[key])
-        return all_config
+        return cls(all_config, model_kind=model_kind)
+    
     
     @staticmethod
     def _get_git_hash():
@@ -69,7 +72,8 @@ class TrainingConfigManager:
         try:
             git_hash = subprocess.check_output(['git', 'describe', '--always']).strip().decode()
             if self.config['git_hash'] != git_hash:
-                print(f"WARNING: git hash mismatch. Current: {git_hash}. Training config hash: {self.config['git_hash']}")
+                print(
+                    f"WARNING: git hash mismatch. Current: {git_hash}. Training config hash: {self.config['git_hash']}")
         except Exception as e:
             print(f'WARNING: could not check git hash. {e}')
     

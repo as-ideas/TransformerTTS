@@ -37,7 +37,7 @@ if __name__ == '__main__':
     all_metadata = {item['id'].numpy().decode('utf-8'): item['text'].numpy().decode('utf-8') for item in dataset}
 
     sample_items = np.random.choice(list(all_metadata.keys()), 5)
-    cm = TrainingConfigManager('config/training_config_remote.yaml', aligner=True)
+    cm = TrainingConfigManager.from_config('config/training_config_remote.yaml', aligner=True)
     cm.create_remove_dirs()
     summary_manager = SummaryManager(model=None, log_dir=cm.log_dir / 'data_preprocessing', config=cm.config,
                                      default_writer='data_preprocessing')

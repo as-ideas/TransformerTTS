@@ -34,7 +34,7 @@ if __name__ == '__main__':
     ])
     writer_tag = f'DurationExtraction{tag_description}'
     print(writer_tag)
-    config_manager = TrainingConfigManager(config_path=args.config, aligner=True)
+    config_manager = TrainingConfigManager.from_config(config_path=args.config, aligner=True)
     config = config_manager.config
     config_manager.print_config()
     

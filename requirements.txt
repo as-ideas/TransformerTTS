@@ -12,3 +12,4 @@ soundfile
 webrtcvad
 scipy
 pyworld
+soundevice

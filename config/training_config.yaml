@@ -1,9 +1,13 @@
 paths:
   # PATHS: change accordingly
-  wav_directory: '/path/to/wav_directory' # path to directory cointaining the wavs
-  metadata_path: '/path/to/metadata.csv'  # name of metadata file under wav_directory
   log_directory: '/path/to/logs_directory'   # weights and logs are stored here
   train_data_directory: 'transformer_tts_data'   # training data is stored here
+
+voie_cloning:
+  wav_directory: '/data/datasets/LJSpeech-1.1' # path to wavs and metafile directory
+  metadata_path: '/data/datasets/LJSpeech-1.1/metadata.csv'  # name of metadata file under wav_directory
+  finetuning_n_samples: 1_000
+  cloned_voice_name: francesco
 
 naming:
   data_name: vctk # raw data naming for default data reader (select function from data/metadata_readers.py)

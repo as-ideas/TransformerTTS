@@ -44,10 +44,7 @@ class DataReader:
             all_wavs = get_files(self.wav_directory, extension='.wav')
             self.wav_paths = {w.with_suffix('').name: w for w in all_wavs}
         if skip_samples is not None:
-            previous_len = len(self.filenames)
-            # print(f"Skipping {len(skip_samples)} samples.")
             self.filenames = [x for x in self.filenames if x not in skip_samples]
-            # print(f"Now {len(self.filenames)} samples (was {previous_len}).")
     
     @classmethod
     def from_config(cls, config_manager: TrainingConfigManager, kind: str, scan_wavs=False):
@@ -231,6 +228,7 @@ class TTSDataset:
                     config: TrainingConfigManager,
                     preprocessor,
                     kind: str,
+                    metadata_reader: DataReader = None,
                     mel_directory: str = None,
                     duration_directory: str = None,
                     pitch_directory: str = None):
@@ -243,7 +241,8 @@ class TTSDataset:
             duration_directory = config.duration_dir
         if pitch_directory is None:
             pitch_directory = config.pitch_dir
-        metadata_reader = DataReader.from_config(config,
+        if metadata_reader is None:
+            metadata_reader = DataReader.from_config(config,
                                                  kind=kind)
         return cls(preprocessor=preprocessor,
                    data_reader=metadata_reader,

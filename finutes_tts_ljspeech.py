@@ -4,11 +4,10 @@ from tqdm import trange
 
 from utils.training_config_manager import TrainingConfigManager
 from data.datasets import TTSDataset, TTSPreprocessor, DataReader
-from utils.decorators import ignore_exception, time_it
 from utils.scheduling import piecewise_linear_schedule
 from utils.logging_utils import SummaryManager
-from model.transformer_utils import create_mel_padding_mask
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
+from model.models import ForwardTransformer
 
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -38,58 +37,13 @@ def display_predicted_symbol_duration_distributions(all_durations):
         summary_manager.add_histogram(tag=f'"{symbol}"/Predicted durations', values=symbol_durs[symbol])
 
 
-@ignore_exception
-@time_it
-def validate(model,
-             val_dataset,
-             summary_manager):
-    val_loss = {'loss': 0.}
-    norm = 0.
-    for mel, phonemes, durations, pitch, fname, reference_wav_embedding, speaker_id in val_dataset.all_batches():
-        model_out = model.val_step(input_sequence=phonemes,
-                                   target_sequence=mel,
-                                   target_durations=durations,
-                                   target_pitch=pitch,
-                                   reference_wav_embedding=reference_wav_embedding)
-        norm += 1
-        val_loss['loss'] += model_out['loss']
-    val_loss['loss'] /= norm
-    summary_manager.display_loss(model_out, tag='Validation', plot_all=True)
-    summary_manager.display_attention_heads(model_out, tag='ValidationAttentionHeads')
-    summary_manager.add_histogram(tag=f'Validation/Predicted durations', values=model_out['duration'])
-    summary_manager.add_histogram(tag=f'Validation/Target durations', values=durations)
-    summary_manager.display_plot1D(tag=f'Validation/{fname[0].numpy().decode("utf-8")} predicted pitch',
-                                   y=model_out['pitch'][0])
-    summary_manager.display_plot1D(tag=f'Validation/{fname[0].numpy().decode("utf-8")} target pitch', y=pitch[0])
-    summary_manager.display_mel(mel=model_out['mel'][0],
-                                tag=f'Validation/{fname[0].numpy().decode("utf-8")} predicted_mel')
-    summary_manager.display_mel(mel=mel[0], tag=f'Validation/{fname[0].numpy().decode("utf-8")} target_mel')
-    summary_manager.display_audio(tag=f'Validation {fname[0].numpy().decode("utf-8")}/prediction',
-                                  mel=model_out['mel'][0])
-    summary_manager.display_audio(tag=f'Validation {fname[0].numpy().decode("utf-8")}/target', mel=mel[0])
-    # predict withoyt enforcing durations and pitch
-    model_out = model.predict(phonemes, reference_wav_embedding=reference_wav_embedding, encode=False)
-    pred_lengths = tf.cast(tf.reduce_sum(1 - model_out['expanded_mask'], axis=-1), tf.int32)
-    pred_lengths = tf.squeeze(pred_lengths)
-    tar_lengths = tf.cast(tf.reduce_sum(1 - create_mel_padding_mask(mel), axis=-1), tf.int32)
-    tar_lengths = tf.squeeze(tar_lengths)
-    for j, pred_mel in enumerate(model_out['mel']):
-        predval = pred_mel[:pred_lengths[j], :]
-        tar_value = mel[j, :tar_lengths[j], :]
-        summary_manager.display_mel(mel=predval, tag=f'Test/{fname[j].numpy().decode("utf-8")}/predicted')
-        summary_manager.display_mel(mel=tar_value, tag=f'Test/{fname[j].numpy().decode("utf-8")}/target')
-        summary_manager.display_audio(
-            tag=f'Prediction {fname[j].numpy().decode("utf-8")} (speaker {speaker_id[j]})/target', mel=tar_value)
-        summary_manager.display_audio(
-            tag=f'Prediction {fname[j].numpy().decode("utf-8")} (speaker {speaker_id[j]})/prediction',
-            mel=predval)
-    return val_loss['loss']
-
-
 parser = basic_train_parser()
+parser.add_argument('-m', '--model_path', dest='model_path', type=str)
 args = parser.parse_args()
-
 config = TrainingConfigManager.from_config(config_path=args.config)
+new_config = config.config
+new_config['data_name'] = new_config['cloned_voice_name']
+config = TrainingConfigManager(config=new_config, model_kind='tts')
 config_dict = config.config
 config.create_remove_dirs(clear_dir=args.clear_dir,
                           clear_logs=args.clear_logs,
@@ -97,24 +51,23 @@ config.create_remove_dirs(clear_dir=args.clear_dir,
 config.dump_config()
 config.print_config()
 
-model = config.get_model()
+# model = config.get_model()
+model = ForwardTransformer.load_model(args.model_path)
+print(f"Loaded model from step {model.config['step']}")
 config.compile_model(model)
 
 data_prep = TTSPreprocessor.from_config(config=config,
                                         tokenizer=model.text_pipeline.tokenizer)
+
+train_data_reader = DataReader.from_config(config, kind='train')
+train_data_reader.filenames = list(set(train_data_reader.filenames))[:config_dict['finetuning_n_samples']]
 train_data_handler = TTSDataset.from_config(config,
                                             preprocessor=data_prep,
-                                            kind='train')
-valid_data_handler = TTSDataset.from_config(config,
-                                            preprocessor=data_prep,
-                                            kind='valid')
+                                            kind='train',
+                                            metadata_reader=train_data_reader)
 train_dataset = train_data_handler.get_dataset(bucket_batch_sizes=config_dict['bucket_batch_sizes'],
                                                bucket_boundaries=config_dict['bucket_boundaries'],
                                                shuffle=True)
-valid_dataset = valid_data_handler.get_dataset(bucket_batch_sizes=config_dict['val_bucket_batch_size'],
-                                               bucket_boundaries=config_dict['bucket_boundaries'],
-                                               shuffle=False,
-                                               drop_remainder=True)
 
 # create logger and checkpointer and restore latest model
 summary_manager = SummaryManager(model=model, log_dir=config.log_dir, config=config_dict)
@@ -135,6 +88,18 @@ if config_dict['debug'] is True:
 
 phonemized_metadata = DataReader.from_config(config, kind='phonemized', scan_wavs=False)
 display_target_symbol_duration_distributions()
+
+# check amount of finetuning data
+tot_lens = 0
+for mel, phonemes, durations, pitch, fname, reference_wav_embedding, speaker_id in train_dataset.all_batches():
+    durs = tf.reduce_sum(durations)
+    tot_lens += durs
+summary_manager.display_scalar('Total duration (hours)',
+                               scalar_value=(tot_lens * config_dict['hop_length']) / config_dict[
+                                   'sampling_rate'] / 60. ** 2)
+summary_manager.display_scalar('Total duration (mels)',
+                               scalar_value=tot_lens)
+
 # main event
 print('\nTRAINING')
 losses = []
@@ -189,18 +154,10 @@ for _ in t:
         t.display(f'checkpoint at step {model.step}: {config.weights_dir / f"step_{model.step}"}',
                   pos=len(config_dict['n_steps_avg_losses']) + 2)
     
-    if model.step % config_dict['validation_frequency'] == 0:
-        t.display(f'Validating', pos=len(config_dict['n_steps_avg_losses']) + 3)
-        val_loss, time_taken = validate(model=model,
-                                        val_dataset=valid_dataset,
-                                        summary_manager=summary_manager)
-        t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
-                  pos=len(config_dict['n_steps_avg_losses']) + 3)
-    
     did_start = model.step >= config_dict['prediction_start_step']
     is_period = model.step % config_dict['prediction_frequency'] == 0
     if did_start and is_period:
-        test_mels, _, _, _, _, test_reference_wav_embeddings, test_speaker_ids = valid_dataset.next_batch()
+        test_mels, _, _, _, _, test_reference_wav_embeddings, test_speaker_ids = train_dataset.next_batch()
         for ref_mel, ref_wav_emb, test_speaker_id in zip(test_mels, test_reference_wav_embeddings, test_speaker_ids):
             out = model.predict(test_text_batch,
                                 ref_wav_emb[None],

@@ -4,6 +4,8 @@ import pickle
 
 import numpy as np
 from p_tqdm import p_uimap, p_umap
+from resemblyzer import VoiceEncoder
+from tqdm import tqdm
 
 from utils.logging_utils import SummaryManager
 from data.text import TextToTokens
@@ -11,7 +13,6 @@ from data.datasets import DataReader
 from utils.training_config_manager import TrainingConfigManager
 from data.audio import Audio
 from data.text.symbols import _alphabet
-from resemblyzer import VoiceEncoder
 
 np.random.seed(42)
 
@@ -24,7 +25,10 @@ args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 
-cm = TrainingConfigManager(args.config, aligner=True)
+cm = TrainingConfigManager.from_config(config_path=args.config, aligner=True)
+# new_config = config.config
+# new_config['data_name'] =  new_config['cloned_voice_name']
+# cm = TrainingConfigManager(config=new_config, model_kind='aligner')
 cm.create_remove_dirs()
 metadatareader = DataReader.from_config(cm, kind='original', scan_wavs=True)
 summary_manager = SummaryManager(model=None, log_dir=cm.log_dir / 'data_preprocessing', config=cm.config,
@@ -42,17 +46,16 @@ if not args.skip_mels:
     def process_wav(wav_path: Path):
         file_name = wav_path.stem
         y, sr = audio.load_wav(str(wav_path))
-        embed = encoder.embed_utterance(y)
         pitch = audio.extract_pitch(y)
         mel = audio.mel_spectrogram(y)
         assert mel.shape[1] == audio.config['mel_channels'], len(mel.shape) == 2
         assert mel.shape[0] == pitch.shape[0], f'{mel.shape[0]} == {pitch.shape[0]} (wav {y.shape})'
         mel_path = (cm.mel_dir / file_name).with_suffix('.npy')
         pitch_path = (cm.pitch_dir / file_name).with_suffix('.npy')
-        embed_path = (cm.embed_dir / file_name).with_suffix('.npy')
+        speaker_path = (cm.speaker_dir / file_name).with_suffix('.npy')
         np.save(mel_path, mel)
         np.save(pitch_path, pitch)
-        np.save(embed_path, embed)
+        np.save(speaker_path, 0)
         return {'fname': file_name, 'mel.len': mel.shape[0], 'pitch.path': pitch_path, 'pitch': pitch}
     
     
@@ -75,13 +78,28 @@ if not args.skip_mels:
             mel_lens.append(out_dict['mel.len'])
     
     
+    def save_embeddings(wav_path):
+        file_name = wav_path.stem
+        y, sr = audio.load_wav(str(wav_path), preprocess=True)
+        y = np.array(y)
+        embed = encoder.embed_utterance(y)
+        embed_path = (cm.embed_dir / file_name).with_suffix('.npy')
+        np.save(embed_path, embed)
+
+
+    print('Storing embeddings')
+    iterator = tqdm(wav_files)
+    for item in iterator:
+        save_embeddings(item)
+
+
     def normalize_pitch_vectors(pitch_vecs):
         nonzeros = np.concatenate([v[np.where(v != 0.0)[0]]
                                    for v in pitch_vecs.values()])
         mean, std = np.mean(nonzeros), np.std(nonzeros)
         return mean, std
-    
-    
+
+
     def process_pitches(item: tuple):
         fname, pitch = item
         zero_idxs = np.where(pitch == 0.0)[0]
@@ -89,12 +107,12 @@ if not args.skip_mels:
         pitch /= std
         pitch[zero_idxs] = 0.0
         np.save(fname, pitch)
-    
-    
+
+
     mean, std = normalize_pitch_vectors(pitches)
     pickle.dump({'pitch_mean': mean, 'pitch_std': std}, open(cm.data_dir / 'pitch_stats.pkl', 'wb'))
     pitch_iter = p_umap(process_pitches, pitches.items())
-    
+
     pickle.dump(len_dict, open(cm.data_dir / 'mel_len.pkl', 'wb'))
     pickle.dump(remove_files, open(cm.data_dir / 'under-over_sized_mels.pkl', 'wb'))
     summary_manager.add_histogram('Mel Lengths', values=np.array(mel_lens))

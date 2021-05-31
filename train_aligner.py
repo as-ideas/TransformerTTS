@@ -77,7 +77,7 @@ def validate(model,
     return val_loss['loss']
 
 
-config_manager = TrainingConfigManager(config_path=args.config, aligner=True)
+config_manager = TrainingConfigManager.from_config(config_path=args.config, aligner=True)
 config = config_manager.config
 config_manager.create_remove_dirs(clear_dir=args.clear_dir,
                                   clear_logs=args.clear_logs,
