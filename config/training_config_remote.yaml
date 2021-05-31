@@ -20,7 +20,7 @@ training_data_settings:
   min_mel_len: 80
   bucket_boundaries: [200, 300, 400, 500, 600, 700, 800, 900, 1000, 1200] # mel bucketing
   bucket_batch_sizes: [64, 42, 32, 25, 21, 18, 16, 14, 12, 6, 1]
-  val_bucket_batch_size: [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 1]
+  val_bucket_batch_size: [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 1]
 
 # AUDIO SETTINGS
 audio_settings:
@@ -129,12 +129,12 @@ tts_settings:
   dropout_rate: 0.1
   learning_rate_schedule:
     - [0, 1.0e-4]
-  max_steps: 100_000
+  max_steps: 250_000
   debug: False
 
   # LOGGING
   validation_frequency: 5_000
-  prediction_frequency: 1_000
+  prediction_frequency: 2_000
   weights_save_frequency: 5_000
   weights_save_starting_step: 5_000
   train_images_plotting_frequency: 1_000

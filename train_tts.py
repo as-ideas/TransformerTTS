@@ -9,7 +9,6 @@ from utils.scheduling import piecewise_linear_schedule
 from utils.logging_utils import SummaryManager
 from model.transformer_utils import create_mel_padding_mask
 from utils.scripts_utils import dynamic_memory_allocation, basic_train_parser
-from data.metadata_readers import post_processed_reader
 
 np.random.seed(42)
 tf.random.set_seed(42)
@@ -17,7 +16,6 @@ dynamic_memory_allocation()
 
 
 def display_target_symbol_duration_distributions():
-    # phon_data, ups = post_processed_reader(config.phonemized_metadata_path)
     dur_dict = {}
     for key in phonemized_metadata.filenames:
         dur_dict[key] = np.load((config.duration_dir / key).with_suffix('.npy'))
@@ -31,7 +29,6 @@ def display_target_symbol_duration_distributions():
 
 
 def display_predicted_symbol_duration_distributions(all_durations):
-    # phon_data, ups = post_processed_reader(config.phonemized_metadata_path)
     symbol_durs = {}
     for key in all_durations.keys():
         clean_key = key.decode('utf-8')
@@ -81,9 +78,11 @@ def validate(model,
         tar_value = mel[j, :tar_lengths[j], :]
         summary_manager.display_mel(mel=predval, tag=f'Test/{fname[j].numpy().decode("utf-8")}/predicted')
         summary_manager.display_mel(mel=tar_value, tag=f'Test/{fname[j].numpy().decode("utf-8")}/target')
-        summary_manager.display_audio(tag=f'Prediction {fname[j].numpy().decode("utf-8")} (speaker {speaker_id[j]})/target', mel=tar_value)
-        summary_manager.display_audio(tag=f'Prediction {fname[j].numpy().decode("utf-8")} (speaker {speaker_id[j]})/prediction',
-                                      mel=predval)
+        summary_manager.display_audio(
+            tag=f'Prediction {fname[j].numpy().decode("utf-8")} (speaker {speaker_id[j]})/target', mel=tar_value)
+        summary_manager.display_audio(
+            tag=f'Prediction {fname[j].numpy().decode("utf-8")} (speaker {speaker_id[j]})/prediction',
+            mel=predval)
     return val_loss['loss']
 
 
@@ -141,6 +140,9 @@ print('\nTRAINING')
 losses = []
 with open(config_dict['text_prediction'], 'r') as file:
     text = file.readlines()
+test_text_batch = [model.encode_text(text_line) for text_line in text]
+pad = len(max(test_text_batch, key=len))
+test_text_batch = np.array([np.pad(i, (0, pad - len(i)), constant_values=0) for i in test_text_batch])
 
 all_files = len(set(train_data_handler.metadata_reader.filenames))  # without duplicates
 all_durations = {}
@@ -195,22 +197,27 @@ for _ in t:
         t.display(f'validation loss at step {model.step}: {val_loss} (took {time_taken}s)',
                   pos=len(config_dict['n_steps_avg_losses']) + 3)
     
-    if model.step % config_dict['prediction_frequency'] == 0 and (model.step >= config_dict['prediction_start_step']):
-        reference_wav_embedding = reference_wav_embedding[0:1]
-        reference_mel_embedding = mel[0]
-        speaker_id = speaker_id[0]
-        
-        reference_wav = summary_manager.audio.reconstruct_waveform(reference_mel_embedding.numpy().T)[None,:,None]
-        wavs = []
-        for i, text_line in enumerate(text):
-
-            out = model.predict(text_line, reference_wav_embedding, encode=True)
-            wav = summary_manager.audio.reconstruct_waveform(out['mel'].numpy().T)
-            wavs.append(wav)
-        wavs = np.concatenate(wavs)[None,:,None]
-        summary_manager.add_audio(f'speaker {speaker_id}/prediction', wavs, sr=summary_manager.config['sampling_rate'],
+    did_start = model.step >= config_dict['prediction_start_step']
+    is_period = model.step % config_dict['prediction_frequency'] == 0
+    if did_start and is_period:
+        test_mels, _, _, _, _, test_reference_wav_embeddings, test_speaker_ids = valid_dataset.next_batch()
+        for ref_mel, ref_wav_emb, test_speaker_id in zip(test_mels, test_reference_wav_embeddings, test_speaker_ids):
+            out = model.predict(test_text_batch,
+                                ref_wav_emb[None],
+                                encode=False)
+            
+            mel_mask = tf.reshape((1 - out['expanded_mask'][:, 0, 0, :]) != 0, -1)
+            concat_mel = tf.reshape(out['mel'], [-1, 80])
+            concat_mel = concat_mel.numpy()[mel_mask]
+            test_wavs = summary_manager.audio.reconstruct_waveform(concat_mel.T)
+            summary_manager.add_audio(f'speaker {test_speaker_id}/prediction', test_wavs[None, :, None],
+                                      sr=summary_manager.config['sampling_rate'],
                                       step=summary_manager.global_step)
-        summary_manager.add_audio(f'speaker {speaker_id}/reference', reference_wav, sr=summary_manager.config['sampling_rate'],
-                                  step=summary_manager.global_step)
+            
+            ref_mel = ref_mel.numpy()[np.sum(tf.cast(ref_mel != 0, tf.uint8), axis=-1) != 0]
+            test_reference_wav = summary_manager.audio.reconstruct_waveform(ref_mel.T)
+            summary_manager.add_audio(f'speaker {test_speaker_id}/reference', test_reference_wav[None, :, None],
+                                      sr=summary_manager.config['sampling_rate'],
+                                      step=summary_manager.global_step)
 
 print('Done.')
