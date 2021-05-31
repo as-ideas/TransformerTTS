@@ -54,6 +54,7 @@ Try it out on Colab:
     - [TTS](#train-tts-model)
 - [Prediction](#prediction)
 - [Model Weights](#model-weights)
+- [Voice Cloning](#voice-cloning)
 
 ## Installation
 
@@ -195,6 +196,32 @@ Old weights
 |[ljspeech_wavernn_forward_model](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_forward_transformer.zip)| d9ccee6| 3595219 |
 |[ljspeech_wavernn_autoregressive_model_v2](https://public-asai-dl-models.s3.eu-central-1.amazonaws.com/TransformerTTS/ljspeech_autoregressive_transformer.zip)| d9ccee6| 3595219 |
 |[ljspeech_wavernn_autoregressive_model_v1](https://github.com/as-ideas/tts_model_outputs/tree/master/ljspeech_transformertts)| 2f3a1b5| 3595219 |
+
+## Voice cloning (WIP)
+To perform voice cloning run in order
+- ```python preprocess_vctk.py --config config/training_config.yaml```
+- ```python train_aligner.py --config config/training_config.yaml```
+- ```python extract_durations.py --config config/training_config.yaml```
+- ```python train_tts.py --config config/training_config.yaml```
+
+Then using the trained model, you can use finute the model with a portion of LJspeech data with
+```bash
+python finetune_tts_ljspeech.py --config config/training_config.yaml -m /path/to/trained/model/
+```
+
+Alternatively you can predict directly using the voice embedder, as so (results will not be good without fine-tuning)
+```python
+from model.models import ForwardTransformer
+from data.audio import Audio
+
+model = ForwardTransformer.load_model('/data/logs/transformer_tts/vctk/tts_swap_conv_dims.aligner_standard/tts_swap_conv_dims.aligner_standard/weights/step_95000')
+audio = Audio.from_config(model.config)
+y,sr = audio.load_wav('/some/file.wav', preprocess=True)
+out = model.predict('My name is Francesco and I dont know how to clone my voice very well.', wav=y)
+wav_out = audio.reconstruct_waveform(out['mel'].numpy().T)
+```
+
+
 ## Maintainers
 * Francesco Cardinale, github: [cfrancesco](https://github.com/cfrancesco)
 

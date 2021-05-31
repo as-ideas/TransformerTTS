@@ -10,7 +10,7 @@ from utils.losses import weighted_sum_losses, masked_mean_absolute_error, new_sc
 from data.text import TextToTokens
 from model.layers import DecoderPrenet, Postnet, StatPredictor, Expand, SelfAttentionBlocks, CrossAttentionBlocks
 from utils.metrics import batch_diagonal_mask
-
+from resemblyzer import VoiceEncoder
 
 class Aligner(tf.keras.models.Model):
     
@@ -565,13 +565,15 @@ class ForwardTransformer(tf.keras.models.Model):
     def encode_text(self, text):
         return self.text_pipeline(text)
     
-    def predict(self, inp, reference_wav_embedding, encode=True, speed_regulator=1., phoneme_max_duration=None,
+    def predict(self, inp, reference_wav_embedding=None, wav=None, encode=True, speed_regulator=1., phoneme_max_duration=None,
                 phoneme_min_duration=None,
                 max_durations_mask=None, min_durations_mask=None, phoneme_durations=None, phoneme_pitch=None):
         if encode:
             inp = self.encode_text(inp)
         if len(tf.shape(inp)) < 2:
             inp = tf.expand_dims(inp, 0)
+        if reference_wav_embedding is None:
+            reference_wav_embedding = VoiceEncoder().embed_utterance(wav)[None,:]
         inp = tf.cast(inp, tf.int32)
         duration_scalar = tf.cast(1. / speed_regulator, tf.float32)
         max_durations_mask = self._make_max_duration_mask(inp, phoneme_max_duration)
