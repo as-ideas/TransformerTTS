@@ -101,9 +101,9 @@ Currently 493be6345341af0df3ae829de79c2793c9afd0ec
 You can directly use [LJSpeech](https://keithito.com/LJ-Speech-Dataset/) to create the training dataset.
 
 #### Configuration
-* If training on LJSpeech, or if unsure, simply use ```config/session_paths.yaml``` to create [MelGAN](https://github.com/seungwonpark/melgan) or [HiFiGAN](https://github.com/jik876/hifi-gan) compatible models
-    * swap ```data_config.yaml``` for ```data_config_wavernn.yaml``` to create models compatible with [WaveRNN](https://github.com/fatchord/WaveRNN) 
-* **EDIT PATHS**: in `config/session_paths.yaml` edit the paths to point at your dataset and log folders
+* If training on LJSpeech, or if unsure, simply use ```config/training_config.yaml``` to create [MelGAN](https://github.com/seungwonpark/melgan) or [HiFiGAN](https://github.com/jik876/hifi-gan) compatible models
+    * swap the content of ```data_config_wavernn.yaml``` in ```config/training_config.yaml``` to create models compatible with [WaveRNN](https://github.com/fatchord/WaveRNN) 
+* **EDIT PATHS**: in `config/training_config.yaml` edit the paths to point at your dataset and log folders
 
 #### Custom dataset
 Prepare a folder containing your metadata and wav files, for instance
@@ -119,34 +119,34 @@ if `metadata.csv` has the following format
 you can use the ljspeech preprocessor in ```data/metadata_readers.py```, otherwise add your own under the same file.
 
 Make sure that:
- -  the metadata reader function name is the same as ```data_name``` field in ```session_paths.yaml```.
- -  the metadata file (can be anything) is specified under ```metadata_path``` in ```session_paths.yaml``` 
+ -  the metadata reader function name is the same as ```data_name``` field in ```training_config.yaml```.
+ -  the metadata file (can be anything) is specified under ```metadata_path``` in ```training_config.yaml``` 
 
 ## Training
 Change the ```--config``` argument based on the configuration of your choice.
 ### Train Aligner Model
 #### Create training dataset
 ```bash
-python create_training_data.py --config config/session_paths.yaml
+python create_training_data.py --config config/training_config.yaml
 ```
 This will populate the training data directory (default `transformer_tts_data.ljspeech`).
 #### Training
 ```bash
-python train_aligner.py --config config/session_paths.yaml
+python train_aligner.py --config config/training_config.yaml
 ```
 ### Train TTS Model
 #### Compute alignment dataset
 First use the aligner model to create the durations dataset
 ```bash
-python extract_durations.py --config config/session_paths.yaml
+python extract_durations.py --config config/training_config.yaml
 ```
 this will add the `durations.<session name>` as well as the char-wise pitch folders to the training data directory.
 #### Training
 ```bash
-python train_tts.py --config config/session_paths.yaml
+python train_tts.py --config config/training_config.yaml
 ```
 #### Training & Model configuration
-- Training and model settings can be configured in `<model>_config.yaml`
+- Training and model settings can be configured in `training_config.yaml`
 
 #### Resume or restart training
 - To resume training simply use the same configuration files
@@ -158,11 +158,6 @@ tensorboard --logdir /logs/directory/
 ```
 
 ![Tensorboard Demo](https://raw.githubusercontent.com/as-ideas/TransformerTTS/master/docs/tboard_demo.gif)
-#### Checkpoint to hdf5 weights \[optional\]
-You can convert the checkpoint files to hdf5 model weights by running
-```bash
-python checkpoints_to_weights.py --config config/session_paths.yaml
-```
 ## Prediction
 ### With model weights
 From command line with
