@@ -13,9 +13,9 @@
 
 ## 🎧 Model samples
 
-<p class="text">Introductory speech ODSC Boston 2021</p>
-
-<audio src="https://github.com/as-ideas/tts_model_outputs/blob/master/LJSpeech_TransformerTTS_hifigan/outputs/presentation_text/presentation_text_ljspeech_hifigan_bdf06b9_95000.wav?raw=true" controls preload></audio>
+|<p class="text">Introductory speech ODSC Boston 2021</p>|
+|:---:|
+|<audio src="https://github.com/as-ideas/tts_model_outputs/blob/master/LJSpeech_TransformerTTS_hifigan/outputs/presentation_text/presentation_text_ljspeech_hifigan_bdf06b9_95000_new.wav?raw=true" controls preload></audio>|
 
 
 <p class="text">Peter piper picked a peck of pickled peppers.</p>
