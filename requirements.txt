@@ -13,3 +13,4 @@ scipy
 pyworld
 torch
 streamlit
+spacy>=3.0.0
