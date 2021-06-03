@@ -24,7 +24,7 @@ def audio(wav, sr=22050):
     st.audio(byte_io, format='audio/wav')
 
 
-@st.cache(allow_output_mutation=True)
+@st.cache(allow_output_mutation=True, ttl=60)
 def get_vocoder(voc_option):
     if voc_option == 'MelGAN':
         vocoder = MelGANPredictor.pretrained()
@@ -33,13 +33,13 @@ def get_vocoder(voc_option):
     return vocoder
 
 
-@st.cache(allow_output_mutation=True)
+@st.cache(allow_output_mutation=True, ttl=60)
 def get_tts(step='95000'):
     model = tts_ljspeech(step)
     return model
 
 
-@st.cache(allow_output_mutation=True)
+@st.cache(allow_output_mutation=True, ttl=60)
 def get_nlp():
     nlp = English()
     nlp.add_pipe('sentencizer')
