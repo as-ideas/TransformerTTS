@@ -51,7 +51,7 @@ def get_nlp():
 
 st.title('Text to Speech')
 st.markdown(
-    'Text to Speech with [TransformerTTS](https://github.com/as-ideas/TransformerTTS) and [MelGAN](https://github.com/seungwonpark/melgan)')
+    'Text to Speech with [TransformerTTS](https://github.com/as-ideas/TransformerTTS) and [MelGAN](https://github.com/seungwonpark/melgan) based on the open source dataset [LJSpeech](https://keithito.com/LJ-Speech-Dataset/)')
 
 input_text = st.text_area(label='Type in some text',
                           value='Hello there, my name is LJ, an open-source voice.\n'
