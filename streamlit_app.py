@@ -5,12 +5,11 @@ import streamlit as st
 from scipy.io.wavfile import write
 import tensorflow as tf
 import numpy as np
-import torch
 from spacy.lang.en import English
 
 from data.audio import Audio
 from model.factory import tts_ljspeech
-from vocoding.melgan.generator import Generator
+from vocoding.predictors import HiFiGANPredictor, MelGANPredictor
 
 tf.get_logger().setLevel('ERROR')
 logging.root.handlers = []
@@ -27,12 +26,10 @@ def audio(wav, sr=22050):
 
 @st.cache(allow_output_mutation=True)
 def get_vocoder(voc_option):
-    dictionary = torch.hub.load_state_dict_from_url(
-        'https://github.com/seungwonpark/melgan/releases/download/v0.3-alpha/nvidia_tacotron2_LJ11_epoch6400.pt',
-        map_location='cpu')
-    vocoder = Generator(80, num_layers=[3, 3, 3, 3])
-    vocoder.load_state_dict(dictionary['model_g'])
-    vocoder.eval()
+    if voc_option == 'MelGAN':
+        vocoder = MelGANPredictor.pretrained()
+    else:
+        vocoder = HiFiGANPredictor.pretrained()
     return vocoder
 
 
@@ -74,7 +71,7 @@ logging.info(all_sentences)
 # model_weights = [f'{x}' for x in np.arange(100_000, 60_000, -5_000)]
 # tts_option = st.selectbox('Select TTS model (training steps)', model_weights, index=1)
 
-voc_option = st.selectbox('Select Vocoder model', ['MelGAN', 'Griffin-Lim (no vocoder)'], index=0)
+voc_option = st.selectbox('Select Vocoder model', ['HiFiGAN', 'MelGAN', 'Griffin-Lim (no vocoder)'], index=0)
 # model = get_tts(tts_option)
 model = get_tts()
 audio_class = Audio.from_config(model.config)
@@ -87,13 +84,7 @@ for sentence in all_sentences:
         wav = audio_class.reconstruct_waveform(out['mel'].numpy().T)
     else:
         vocoder = get_vocoder(voc_option)
-        mel = torch.tensor([mel])
-        if torch.cuda.is_available():
-            vocoder = vocoder.cuda()
-            mel = mel.cuda()
-        
-        with torch.no_grad():
-            wav = vocoder.inference(mel).numpy()
+        wav = vocoder([mel])[0]
     all_wavs.append(wav)
 wavs = []
 if len(all_wavs) > 0:
