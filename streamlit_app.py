@@ -2,16 +2,16 @@ import io
 import logging
 
 import streamlit as st
-from streamlit import caching
 from scipy.io.wavfile import write
 import tensorflow as tf
 import numpy as np
 import torch
+from spacy.lang.en import English
 
 from data.audio import Audio
 from model.factory import tts_ljspeech
 from vocoding.melgan.generator import Generator
-from spacy.lang.en import English
+
 tf.get_logger().setLevel('ERROR')
 logging.root.handlers = []
 logging.basicConfig(format='%(asctime)s.%(msecs)03d %(levelname)s %(name)s - %(funcName)s: %(message)s',
@@ -25,19 +25,23 @@ def audio(wav, sr=22050):
     st.audio(byte_io, format='audio/wav')
 
 
-# @st.cache(allow_output_mutation=True)
-@st.cache()
-def get_vocoder(voc_type: str):
-    if voc_type == 'melgan':
-        dictionary = torch.hub.load_state_dict_from_url(
-            'https://github.com/seungwonpark/melgan/releases/download/v0.3-alpha/nvidia_tacotron2_LJ11_epoch6400.pt',
-            map_location='cpu')
-        vocoder = Generator(80, num_layers=[3, 3, 3, 3])
-        vocoder.load_state_dict(dictionary['model_g'])
-        vocoder.eval()
+@st.cache(allow_output_mutation=True)
+def get_vocoder():
+    dictionary = torch.hub.load_state_dict_from_url(
+        'https://github.com/seungwonpark/melgan/releases/download/v0.3-alpha/nvidia_tacotron2_LJ11_epoch6400.pt',
+        map_location='cpu')
+    vocoder = Generator(80, num_layers=[3, 3, 3, 3])
+    vocoder.load_state_dict(dictionary['model_g'])
+    vocoder.eval()
     return vocoder
 
-# @st.cache()
+
+@st.cache(allow_output_mutation=True)
+def get_tts():
+    model = tts_ljspeech('95000')
+    return model
+
+
 @st.cache(allow_output_mutation=True)
 def get_nlp():
     nlp = English()
@@ -54,14 +58,11 @@ input_text = st.text_area(label='Type in some text',
                                 'Not to brag, but I am a fairly popular open-source voice.\n'
                                 'A voice with a character.')
 
-#
 vocoder_type = 'melgan'
-if st.button('GriffinLim'):
-    caching.clear_cache()
+if st.button('GriffinLim (no vocoder)'):
     vocoder_type = 'griffinlim'
 
 if st.button('MelGAN'):
-    caching.clear_cache()
     vocoder_type = 'melgan'
 
 nlp = get_nlp()
@@ -73,8 +74,9 @@ for block in blocks:
     sentences = [str(sent) for sent in doc.sents if len(str(sent)) > 0]
     all_sentences.extend(sentences)
 all_sentences = [s.strip() for s in all_sentences]
+all_sentences = [s for s in all_sentences if len(s) > 0]
 logging.info(all_sentences)
-model = tts_ljspeech('95000')
+model = get_tts()
 audio_class = Audio.from_config(model.config)
 
 all_wavs = []
@@ -84,7 +86,7 @@ for sentence in all_sentences:
     if vocoder_type == 'griffinlim':
         wav = audio_class.reconstruct_waveform(out['mel'].numpy().T)
     else:
-        vocoder = get_vocoder(vocoder_type)
+        vocoder = get_vocoder()
         mel = torch.tensor([mel])
         if torch.cuda.is_available():
             vocoder = vocoder.cuda()
@@ -94,7 +96,7 @@ for sentence in all_sentences:
             wav = vocoder.inference(mel).numpy()
     all_wavs.append(wav)
 wavs = []
-if len(all_wavs)>0:
+if len(all_wavs) > 0:
     wavs = np.concatenate(all_wavs)
-if len(wavs)>0:
+if len(wavs) > 0:
     audio(wavs, sr=audio_class.sampling_rate)
