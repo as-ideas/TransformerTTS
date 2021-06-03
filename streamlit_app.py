@@ -47,8 +47,9 @@ def get_nlp():
 
 
 st.title('Text to Speech')
-st.markdown(
-    'Text to Speech with [TransformerTTS](https://github.com/as-ideas/TransformerTTS) and [MelGAN](https://github.com/seungwonpark/melgan) based on the open source dataset [LJSpeech](https://keithito.com/LJ-Speech-Dataset/)')
+st.markdown('Text to speech conversion with [TransformerTTS](https://github.com/as-ideas/TransformerTTS). Based on the open source dataset [LJSpeech](https://keithito.com/LJ-Speech-Dataset/).')
+st.markdown('With [MelGAN](https://github.com/seungwonpark/melgan) or [HiFiGAN](https://github.com/jik876/hifi-gan) vocoders.')
+
 
 input_text = st.text_area(label='Type in some text',
                           value='Hello there, my name is LJ, an open-source voice.\n'
@@ -70,11 +71,11 @@ logging.info(all_sentences)
 # source of crashes
 # model_weights = [f'{x}' for x in np.arange(100_000, 60_000, -5_000)]
 # tts_option = st.selectbox('Select TTS model (training steps)', model_weights, index=1)
-
-voc_option = st.selectbox('Select Vocoder model', ['HiFiGAN', 'MelGAN', 'Griffin-Lim (no vocoder)'], index=0)
 # model = get_tts(tts_option)
 model = get_tts()
 audio_class = Audio.from_config(model.config)
+
+voc_option = st.selectbox('Select Vocoder model', ['HiFiGAN', 'MelGAN', 'Griffin-Lim (no vocoder)'], index=0)
 
 all_wavs = []
 for sentence in all_sentences:
