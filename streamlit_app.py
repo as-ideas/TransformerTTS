@@ -24,22 +24,24 @@ def audio(wav, sr=22050):
     st.audio(byte_io, format='audio/wav')
 
 
-@st.cache(allow_output_mutation=True, ttl=60)
+@st.cache(allow_output_mutation=True, ttl=30)
 def get_vocoder(voc_option):
-    if voc_option == 'MelGAN':
-        vocoder = MelGANPredictor.pretrained()
-    else:
-        vocoder = HiFiGANPredictor.pretrained()
+    # # crashes for resource limits
+    # if voc_option == 'MelGAN':
+    #     vocoder = MelGANPredictor.pretrained()
+    # else:
+    #     vocoder = HiFiGANPredictor.pretrained()
+    vocoder = HiFiGANPredictor.pretrained()
     return vocoder
 
 
-@st.cache(allow_output_mutation=True, ttl=60)
+@st.cache(allow_output_mutation=True, ttl=30)
 def get_tts(step='95000'):
     model = tts_ljspeech(step)
     return model
 
 
-@st.cache(allow_output_mutation=True, ttl=60)
+@st.cache(allow_output_mutation=True, ttl=30)
 def get_nlp():
     nlp = English()
     nlp.add_pipe('sentencizer')
@@ -47,8 +49,8 @@ def get_nlp():
 
 
 st.title('Text to Speech')
-st.markdown('Text to speech conversion with [TransformerTTS](https://github.com/as-ideas/TransformerTTS). Based on the open source dataset [LJSpeech](https://keithito.com/LJ-Speech-Dataset/).')
-st.markdown('With [MelGAN](https://github.com/seungwonpark/melgan) or [HiFiGAN](https://github.com/jik876/hifi-gan) vocoders.')
+st.markdown('Text to speech conversion with [TransformerTTS](https://github.com/as-ideas/TransformerTTS).')
+st.markdown('Based on the open source dataset [LJSpeech](https://keithito.com/LJ-Speech-Dataset/), with [HiFiGAN](https://github.com/jik876/hifi-gan) vocoder.')
 
 
 input_text = st.text_area(label='Type in some text',
@@ -74,8 +76,9 @@ logging.info(all_sentences)
 # model = get_tts(tts_option)
 model = get_tts()
 audio_class = Audio.from_config(model.config)
-
-voc_option = st.selectbox('Select Vocoder model', ['HiFiGAN', 'MelGAN', 'Griffin-Lim (no vocoder)'], index=0)
+# also crashes, resource limit
+# voc_option = st.selectbox('Select Vocoder model', ['HiFiGAN', 'MelGAN', 'Griffin-Lim (no vocoder)'], index=0)
+voc_option = st.selectbox('Select Vocoder model', ['HiFiGAN', 'Griffin-Lim (no vocoder)'], index=0)
 
 all_wavs = []
 for sentence in all_sentences:
