@@ -37,7 +37,7 @@ def get_vocoder(voc_option):
 
 
 @st.cache(allow_output_mutation=True)
-def get_tts(step):
+def get_tts(step='95000'):
     model = tts_ljspeech(step)
     return model
 
@@ -70,10 +70,13 @@ all_sentences = [s.strip() for s in all_sentences]
 all_sentences = [s for s in all_sentences if len(s) > 0]
 logging.info(all_sentences)
 
-model_weights = [f'{x}' for x in np.arange(100_000, 60_000, -5_000)]
-tts_option = st.selectbox('Select TTS model (training steps)', model_weights, index=1)
+# source of crashes
+# model_weights = [f'{x}' for x in np.arange(100_000, 60_000, -5_000)]
+# tts_option = st.selectbox('Select TTS model (training steps)', model_weights, index=1)
+
 voc_option = st.selectbox('Select Vocoder model', ['MelGAN', 'Griffin-Lim (no vocoder)'], index=0)
-model = get_tts(tts_option)
+# model = get_tts(tts_option)
+model = get_tts()
 audio_class = Audio.from_config(model.config)
 
 all_wavs = []
