@@ -11,3 +11,5 @@ soundfile
 webrtcvad
 scipy
 pyworld
+torch
+streamlit
