@@ -38,7 +38,7 @@ def get_vocoder(voc_type: str):
 
 st.title('Text to Speech')
 st.markdown(
-    'Text to Speech with [TransformerTTS](https://github.com/cfrancesco/TransformerTTS) and [MelGAN](https://github.com/seungwonpark/melgan)')
+    'Text to Speech with [TransformerTTS](https://github.com/as-ideas/TransformerTTS) and [MelGAN](https://github.com/seungwonpark/melgan)')
 
 input_text = st.text_area(label='Type in some text',
                           value='Hello there, my name is LJ, an open-source voice.\n'
