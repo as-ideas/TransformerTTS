@@ -26,7 +26,7 @@ def audio(wav, sr=22050):
 
 
 @st.cache(allow_output_mutation=True)
-def get_vocoder():
+def get_vocoder(voc_option):
     dictionary = torch.hub.load_state_dict_from_url(
         'https://github.com/seungwonpark/melgan/releases/download/v0.3-alpha/nvidia_tacotron2_LJ11_epoch6400.pt',
         map_location='cpu')
@@ -37,8 +37,8 @@ def get_vocoder():
 
 
 @st.cache(allow_output_mutation=True)
-def get_tts():
-    model = tts_ljspeech('95000')
+def get_tts(step):
+    model = tts_ljspeech(step)
     return model
 
 
@@ -58,13 +58,6 @@ input_text = st.text_area(label='Type in some text',
                                 'Not to brag, but I am a fairly popular open-source voice.\n'
                                 'A voice with a character.')
 
-vocoder_type = 'melgan'
-if st.button('GriffinLim (no vocoder)'):
-    vocoder_type = 'griffinlim'
-
-if st.button('MelGAN'):
-    vocoder_type = 'melgan'
-
 nlp = get_nlp()
 all_sentences = []
 blocks = input_text.split('\n')
@@ -76,17 +69,21 @@ for block in blocks:
 all_sentences = [s.strip() for s in all_sentences]
 all_sentences = [s for s in all_sentences if len(s) > 0]
 logging.info(all_sentences)
-model = get_tts()
+
+model_weights = [f'{x}' for x in np.arange(100_000, 60_000, -5_000)]
+tts_option = st.selectbox('Select TTS model (training steps)', model_weights, index=1)
+voc_option = st.selectbox('Select Vocoder model', ['MelGAN', 'Griffin-Lim (no vocoder)'], index=0)
+model = get_tts(tts_option)
 audio_class = Audio.from_config(model.config)
 
 all_wavs = []
 for sentence in all_sentences:
     out = model.predict(sentence)
     mel = out['mel'].numpy().T
-    if vocoder_type == 'griffinlim':
+    if voc_option == 'Griffin-Lim (no vocoder)':
         wav = audio_class.reconstruct_waveform(out['mel'].numpy().T)
     else:
-        vocoder = get_vocoder()
+        vocoder = get_vocoder(voc_option)
         mel = torch.tensor([mel])
         if torch.cuda.is_available():
             vocoder = vocoder.cuda()
