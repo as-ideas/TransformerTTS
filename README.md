@@ -8,8 +8,6 @@
 <p>A Text-to-Speech Transformer in TensorFlow 2</p>
 </h2>
 
-#### Try it with the [Streamlit App](https://share.streamlit.io/as-ideas/transformertts/streamlit)!
-
 
 Implementation of a non-autoregressive Transformer based neural network for Text-to-Speech (TTS). <br>
 This repo is based, among others, on the following papers:
