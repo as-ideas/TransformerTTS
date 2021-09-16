@@ -10,7 +10,7 @@ from data.text import TextToTokens
 from data.datasets import DataReader
 from utils.training_config_manager import TrainingConfigManager
 from data.audio import Audio
-from data.text.symbols import _alphabet
+from data.text.symbols import _alphabet, all_phonemes
 
 np.random.seed(42)
 
@@ -22,6 +22,8 @@ parser.add_argument('--skip_mels', action='store_true')
 args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
+
+phonemized_flag = args.skip_phonemization  # If the input is already in the form of phonemes, this flag will be set (User wanting to skip phonemization indicates that the input is already phonemized)
 
 cm = TrainingConfigManager(args.config, aligner=True)
 cm.create_remove_dirs()
@@ -97,142 +99,89 @@ if not args.skip_mels:
     total_wav_len = total_mel_len * audio.config['hop_length']
     summary_manager.display_scalar('Total duration (hours)',
                                    scalar_value=total_wav_len / audio.config['sampling_rate'] / 60. ** 2)
-
-if not args.skip_phonemization:
-    remove_files = pickle.load(open(cm.data_dir / 'under-over_sized_mels.pkl', 'rb'))
-    phonemized_metadata_path = cm.phonemized_metadata_path
-    train_metadata_path = cm.train_metadata_path
-    test_metadata_path = cm.valid_metadata_path
-    print(f'\nReading metadata from {metadatareader.metadata_path}')
-    print(f'\nFound {len(metadatareader.filenames)} lines.')
+    
+def get_short_files(phonemized=False):
+    if not phonemized:
+        symbol_list = _alphabet
+    else:
+        symbol_list = all_phonemes
+        
     filter_metadata = []
     for fname in cross_file_ids:
         item = metadatareader.text_dict[fname]
-        non_p = [c for c in item if c in _alphabet]
+        non_p = [c for c in item if c in symbol_list]
         if len(non_p) < 1:
             filter_metadata.append(fname)
     if len(filter_metadata) > 0:
         print(f'Removing {len(filter_metadata)} suspiciously short line(s):')
         for fname in filter_metadata:
             print(f'{fname}: {metadatareader.text_dict[fname]}')
-    print(f'\nRemoving {len(remove_files)} line(s) due to mel filtering.')
-    remove_files += filter_metadata
-    metadata_file_ids = [fname for fname in cross_file_ids if fname not in remove_files]
-    metadata_len = len(metadata_file_ids)
-    sample_items = np.random.choice(metadata_file_ids, 5)
-    test_len = cm.config['n_test']
-    train_len = metadata_len - test_len
-    print(f'\nMetadata contains {metadata_len} lines.')
-    print(f'\nFiles will be stored under {cm.data_dir}')
-    print(f' - all: {phonemized_metadata_path}')
-    print(f' - {train_len} training lines: {train_metadata_path}')
-    print(f' - {test_len} validation lines: {test_metadata_path}')
-    
-    print('\nMetadata samples:')
-    for i in sample_items:
-        print(f'{i}:{metadatareader.text_dict[i]}')
-        summary_manager.add_text(f'{i}/text', text=metadatareader.text_dict[i])
-    
-    # run cleaner on raw text
-    text_proc = TextToTokens.default(cm.config['phoneme_language'], add_start_end=False,
-                                     with_stress=cm.config['with_stress'], model_breathing=cm.config['model_breathing'],
-                                     njobs=1)
-    
-    
-    def process_phonemes(file_id):
-        text = metadatareader.text_dict[file_id]
-        try:
-            phon = text_proc.phonemizer(text)
-        except Exception as e:
-            print(f'{e}\nFile id {file_id}')
-            raise BrokenPipeError
-        return (file_id, phon)
-    
-    
-    print('\nPHONEMIZING')
-    phonemized_data = {}
-    phon_iter = p_uimap(process_phonemes, metadata_file_ids)
-    for (file_id, phonemes) in phon_iter:
-        phonemized_data.update({file_id: phonemes})
-    
-    print('\nPhonemized metadata samples:')
-    for i in sample_items:
-        print(f'{i}:{phonemized_data[i]}')
-        summary_manager.add_text(f'{i}/phonemes', text=phonemized_data[i])
-    
-    new_metadata = [f'{k}|{v}\n' for k, v in phonemized_data.items()]
-    shuffled_metadata = np.random.permutation(new_metadata)
-    train_metadata = shuffled_metadata[0:train_len]
-    test_metadata = shuffled_metadata[-test_len:]
-    
-    with open(phonemized_metadata_path, 'w+', encoding='utf-8') as file:
-        file.writelines(new_metadata)
-    with open(train_metadata_path, 'w+', encoding='utf-8') as file:
-        file.writelines(train_metadata)
-    with open(test_metadata_path, 'w+', encoding='utf-8') as file:
-        file.writelines(test_metadata)
-    # some checks
-    assert metadata_len == len(set(list(phonemized_data.keys()))), \
-        f'Length of metadata ({metadata_len}) does not match the length of the phoneme array ({len(set(list(phonemized_data.keys())))}). Check for empty text lines in metadata.'
-    assert len(train_metadata) + len(test_metadata) == metadata_len, \
-        f'Train and/or validation lengths incorrect. ({len(train_metadata)} + {len(test_metadata)} != {metadata_len})'
-else:
-    print('Skipped phonemization, assuming data is already phonemized ..')
-    remove_files = pickle.load(open(cm.data_dir / 'under-over_sized_mels.pkl', 'rb'))
-    phonemized_metadata_path = cm.phonemized_metadata_path # Stores data in a particular format
-    train_metadata_path = cm.train_metadata_path
-    test_metadata_path = cm.valid_metadata_path
-    print(f'\nReading metadata from {metadatareader.metadata_path}')
-    print(f'\nFound {len(metadatareader.filenames)} lines.')
-    print(f'\nRemoving {len(remove_files)} line(s) due to mel filtering.')
-    metadata_file_ids = [fname for fname in cross_file_ids if fname not in remove_files]
-    metadata_len = len(metadata_file_ids)
-    sample_items = np.random.choice(metadata_file_ids, 5)
-    test_len = cm.config['n_test']
-    train_len = metadata_len - test_len
-    print(f'\nMetadata contains {metadata_len} lines.')
-    print(f'\nFiles will be stored under {cm.data_dir}')
-    print(f' - {train_len} training lines: {train_metadata_path}')
-    print(f' - {test_len} validation lines: {test_metadata_path}')
-    
-    # run cleaner on raw text
-    text_proc = TextToTokens.default(cm.config['phoneme_language'], add_start_end=False,
-                                     with_stress=cm.config['with_stress'], model_breathing=cm.config['model_breathing'],
-                                     njobs=1)
-    
-    
-    def process_phonemes(file_id):
-        text = metadatareader.text_dict[file_id]
-        try:
-            phon = text_proc.phonemizer(text, only_preprocess=True)
-        except Exception as e:
-            print(f'{e}\nFile id {file_id}')
-            raise BrokenPipeError
-        return (file_id, phon)
-    
-    
-    print('\ Processing Phonemes .. ')
-    phonemized_data = {}
-    phon_iter = p_uimap(process_phonemes, metadata_file_ids)
-    for (file_id, phonemes) in phon_iter:
-        phonemized_data.update({file_id: phonemes})
-    
-    
-    print('\nMetadata samples:')
-    for i in sample_items:
-        print(f'{i}:{metadatareader.text_dict[i]}')
-        summary_manager.add_text(f'{i}/phonemes', text=metadatareader.text_dict[i])
-        
-    new_metadata = [f'{k}|{v}\n' for k, v in phonemized_data.items()]  #replaced phonemized_data
-    shuffled_metadata = np.random.permutation(new_metadata)
-    train_metadata = shuffled_metadata[0:train_len]
-    test_metadata = shuffled_metadata[-test_len:]
-    
-    with open(phonemized_metadata_path, 'w+', encoding='utf-8') as file:
-        file.writelines(new_metadata)
-    with open(train_metadata_path, 'w+', encoding='utf-8') as file:
-        file.writelines(train_metadata)
-    with open(test_metadata_path, 'w+', encoding='utf-8') as file:
-        file.writelines(test_metadata)
+    return filter_metadata
 
-print('\nDone')
+remove_files = pickle.load(open(cm.data_dir / 'under-over_sized_mels.pkl', 'rb'))
+phonemized_metadata_path = cm.phonemized_metadata_path
+train_metadata_path = cm.train_metadata_path
+test_metadata_path = cm.valid_metadata_path
+print(f'\nReading metadata from {metadatareader.metadata_path}')
+print(f'\nFound {len(metadatareader.filenames)} lines.')
+
+filter_metadata = get_short_files(phonemized=phonemized_flag)
+remove_files += filter_metadata
+print(f'\nRemoving {len(remove_files)} line(s) due to mel filtering.')
+metadata_file_ids = [fname for fname in cross_file_ids if fname not in remove_files]
+metadata_len = len(metadata_file_ids)
+sample_items = np.random.choice(metadata_file_ids, 5)
+test_len = cm.config['n_test']
+train_len = metadata_len - test_len
+print(f'\nMetadata contains {metadata_len} lines.')
+print(f'\nFiles will be stored under {cm.data_dir}')
+print(f' - all: {phonemized_metadata_path}')
+print(f' - {train_len} training lines: {train_metadata_path}')
+print(f' - {test_len} validation lines: {test_metadata_path}')
+
+# run cleaner on raw text
+text_proc = TextToTokens.default(cm.config['phoneme_language'], add_start_end=False,
+                                    with_stress=cm.config['with_stress'], model_breathing=cm.config['model_breathing'],
+                                    njobs=1)
+
+
+def process_phonemes(file_id):
+    text = metadatareader.text_dict[file_id]
+    try:
+        phon = text_proc.phonemizer(text, only_preprocess=phonemized_flag)
+    except Exception as e:
+        print(f'{e}\nFile id {file_id}')
+        raise BrokenPipeError
+    return (file_id, phon)
+
+
+print('\nPHONEMIZING')
+phonemized_data = {}
+phon_iter = p_uimap(process_phonemes, metadata_file_ids)
+for (file_id, phonemes) in phon_iter:
+    phonemized_data.update({file_id: phonemes})
+
+print('\nPhonemized metadata samples:')
+for i in sample_items:
+    print(f'{i}:{phonemized_data[i]}')
+    summary_manager.add_text(f'{i}/phonemes', text=phonemized_data[i])
+
+new_metadata = [f'{k}|{v}\n' for k, v in phonemized_data.items()]
+shuffled_metadata = np.random.permutation(new_metadata)
+train_metadata = shuffled_metadata[0:train_len]
+test_metadata = shuffled_metadata[-test_len:]
+
+with open(phonemized_metadata_path, 'w+', encoding='utf-8') as file:
+    file.writelines(new_metadata)
+with open(train_metadata_path, 'w+', encoding='utf-8') as file:
+    file.writelines(train_metadata)
+with open(test_metadata_path, 'w+', encoding='utf-8') as file:
+    file.writelines(test_metadata)
+    
+# some checks
+assert metadata_len == len(set(list(phonemized_data.keys()))), \
+    f'Length of metadata ({metadata_len}) does not match the length of the phoneme array ({len(set(list(phonemized_data.keys())))}). Check for empty text lines in metadata.'
+assert len(train_metadata) + len(test_metadata) == metadata_len, \
+    f'Train and/or validation lengths incorrect. ({len(train_metadata)} + {len(test_metadata)} != {metadata_len})'
+    
+print('\n Done')

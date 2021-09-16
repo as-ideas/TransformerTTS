@@ -1,7 +1,7 @@
 paths:
   # PATHS: change accordingly
-  wav_directory: '/Users/tjain1/Desktop/Projects/tts/data/data_small' #'/Users/tjain1/Desktop/Projects/tts/data/ASVoice4_incl_english' # path to directory cointaining the wavs
-  metadata_path: '/Users/tjain1/Desktop/Projects/tts/data/ph_metadata_small.csv' #'/Users/tjain1/Desktop/Projects/tts/data/metadata_flagged_phonemized_bind_nostress.csv'  # name of metadata file under wav_directory
+  wav_directory: '/Users/tjain1/Desktop/Projects/tts/data/ASVoice4_incl_english' #'/Users/tjain1/Desktop/Projects/tts/data/data_small'  # path to directory cointaining the wavs
+  metadata_path: '/Users/tjain1/Desktop/Projects/tts/data/metadata_flagged_phonemized_bind_nostress.csv' # '/Users/tjain1/Desktop/Projects/tts/data/ph_metadata_small.csv' # name of metadata file under wav_directory
   log_directory: '/Users/tjain1/Desktop/Projects/tts/results/logs_txtts_ph_dev_small'   # weights and logs are stored here
   train_data_directory: '/Users/tjain1/Desktop/Projects/tts/results/logs_txtts_ph_dev_small/transformer_tts_data'   # training data is stored here
 
@@ -14,7 +14,7 @@ naming:
 
 # TRAINING DATA SETTINGS
 training_data_settings:
-  n_test: 100
+  n_test: 2
   mel_start_value: .5
   mel_end_value: -.5
   max_mel_len: 1_200
