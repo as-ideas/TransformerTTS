@@ -17,6 +17,7 @@ if __name__ == '__main__':
     parser.add_argument('--store_mel', '-m', dest='store_mel', action='store_true')
     parser.add_argument('--verbose', '-v', dest='verbose', action='store_true')
     parser.add_argument('--single', '-s', dest='single', action='store_true')
+    parser.add_argument('--phonemized', dest='phonemized', action='store_false')
     args = parser.parse_args()
     
     if args.file is not None:
@@ -46,7 +47,7 @@ if __name__ == '__main__':
     print(f'Output wav under {output_path.parent}')
     wavs = []
     for i, text_line in enumerate(text):
-        phons = model.text_pipeline.phonemizer(text_line)
+        phons = model.text_pipeline.phonemizer(text_line, only_preprocess=args.phonemized)
         tokens = model.text_pipeline.tokenizer(phons)
         if args.verbose:
             print(f'Predicting {text_line}')

@@ -1,9 +1,9 @@
 paths:
   # PATHS: change accordingly
-  wav_directory: '/path/to/wav_directory' # path to directory cointaining the wavs
-  metadata_path: '/path/to/metadata.csv'  # name of metadata file under wav_directory
-  log_directory: '/path/to/logs_directory'   # weights and logs are stored here
-  train_data_directory: 'transformer_tts_data'   # training data is stored here
+  wav_directory: '/Users/tjain1/Desktop/Projects/tts/data/data_small' #'/Users/tjain1/Desktop/Projects/tts/data/ASVoice4_incl_english' # path to directory cointaining the wavs
+  metadata_path: '/Users/tjain1/Desktop/Projects/tts/data/ph_metadata_small.csv' #'/Users/tjain1/Desktop/Projects/tts/data/metadata_flagged_phonemized_bind_nostress.csv'  # name of metadata file under wav_directory
+  log_directory: '/Users/tjain1/Desktop/Projects/tts/results/logs_txtts_ph_dev_small'   # weights and logs are stored here
+  train_data_directory: '/Users/tjain1/Desktop/Projects/tts/results/logs_txtts_ph_dev_small/transformer_tts_data'   # training data is stored here
 
 naming:
   data_name: ljspeech # raw data naming for default data reader (select function from data/metadata_readers.py)
@@ -51,7 +51,7 @@ audio_settings:
 
 text_settings:
   # TOKENIZER
-  phoneme_language: 'en-us'
+  phoneme_language: 'en-us'       # only relevant if non-phonemized data is provided as input, else, a placeholder value here will suffice
   with_stress: True                  # use stress symbols in phonemization
   model_breathing: false           # add a token for the initial breathing
 
@@ -78,10 +78,8 @@ aligner_settings:
     - [0, 1.0e-4]
   reduction_factor_schedule:
     - [0, 10]
-    - [80_000, 5]
-    - [100_000, 2]
-    - [130_000, 1]
-  max_steps: 260_000
+    - [5_000, 1]
+  max_steps: 8_000
   force_encoder_diagonal_steps: 500
   force_decoder_diagonal_steps: 7_000
   extract_attention_weighted: False # weighted average between last layer decoder attention heads when extracting durations
@@ -128,7 +126,7 @@ tts_settings:
   dropout_rate: 0.1
   learning_rate_schedule:
     - [0, 1.0e-4]
-  max_steps: 100_000
+  max_steps: 10_000
   debug: False
 
   # LOGGING
@@ -138,7 +136,7 @@ tts_settings:
   weights_save_starting_step: 5_000
   train_images_plotting_frequency: 1_000
   keep_n_weights: 5
-  keep_checkpoint_every_n_hours: 12
+  keep_checkpoint_every_n_hours: 1
   n_steps_avg_losses: [100, 500, 1_000, 5_000]  # command line display of average loss values for the last n steps
   prediction_start_step: 4_000
   text_prediction:

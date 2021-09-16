@@ -57,21 +57,24 @@ class Phonemizer:
         self._whitespace_re = re.compile(r'\s+')
         self._whitespace_punctuation_re = re.compile(f'\s*([{_punctuations}])\s*')
     
-    def __call__(self, text: Union[str, list], with_stress=None, njobs=None, language=None) -> Union[str, list]:
+    def __call__(self, text: Union[str, list], with_stress=None, njobs=None, language=None, only_preprocess=False) -> Union[str, list]:
         language = language or self.language
         njobs = njobs or self.njobs
         with_stress = with_stress or self.with_stress
         # phonemizer does not like hyphens.
-        text = self._preprocess(text)
-        phonemes = phonemize(text,
-                             language=language,
-                             backend='espeak',
-                             strip=True,
-                             preserve_punctuation=True,
-                             with_stress=with_stress,
-                             punctuation_marks=self.punctuation,
-                             njobs=njobs,
-                             language_switch='remove-flags')
+        if not only_preprocess:
+            text = self._preprocess(text)
+            phonemes = phonemize(text,
+                                language=language,
+                                backend='espeak',
+                                strip=True,
+                                preserve_punctuation=True,
+                                with_stress=with_stress,
+                                punctuation_marks=self.punctuation,
+                                njobs=njobs,
+                                language_switch='remove-flags')
+        else:
+            phonemes = text
         return self._postprocess(phonemes)
     
     def _preprocess_string(self, text: str):
