@@ -268,9 +268,9 @@ class Aligner(tf.keras.models.Model):
         attn_weights = model_out['decoder_attention']['Decoder_LastBlock_CrossAttention']
         return attn_weights, model_out
     
-    def predict(self, inp, max_length=1000, encode=True, verbose=True, phonemized=True):
+    def predict(self, inp, max_length=1000, encode=True, verbose=True):#, phonemized=True
         if encode:
-            inp = self.encode_text(inp, phonemized=phonemized)
+            inp = self.encode_text(inp)
         inp = tf.cast(tf.expand_dims(inp, 0), tf.int32)
         output = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
         output_concat = tf.cast(tf.expand_dims(self.start_vec, 0), tf.float32)
@@ -311,8 +311,8 @@ class Aligner(tf.keras.models.Model):
         if force_decoder_diagonal is not None:
             self._set_force_decoder_diagonal(force_decoder_diagonal)
     
-    def encode_text(self, text, phonemized=True):
-        return self.text_pipeline(text, only_preprocess=phonemized)
+    def encode_text(self, text):#, phonemized=True
+        return self.text_pipeline(text)  # , only_preprocess=phonemized
     
     def build_model_weights(self) -> None:
         _ = self(tf.zeros((1, 1)), tf.zeros((1, 1, self.mel_channels)), training=False)
@@ -553,14 +553,13 @@ class ForwardTransformer(tf.keras.models.Model):
         if learning_rate is not None:
             self.optimizer.lr.assign(learning_rate)
     
-    def encode_text(self, text, phonemized=False):
-        return self.text_pipeline(text, only_preprocess=phonemized)
+    def encode_text(self, text):#, phonemized=False
+        return self.text_pipeline(text) #, only_preprocess=phonemized
     
     def predict(self, inp, encode=True, speed_regulator=1., phoneme_max_duration=None, phoneme_min_duration=None,
-                max_durations_mask=None, min_durations_mask=None, phoneme_durations=None, phoneme_pitch=None,
-                phonemized=False):
+                max_durations_mask=None, min_durations_mask=None, phoneme_durations=None, phoneme_pitch=None):
         if encode:
-            inp = self.encode_text(inp, phonemized=phonemized)
+            inp = self.encode_text(inp) #, phonemized=phonemized
         if len(tf.shape(inp)) < 2:
             inp = tf.expand_dims(inp, 0)
         inp = tf.cast(inp, tf.int32)

@@ -16,17 +16,18 @@ np.random.seed(42)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, required=True)
-parser.add_argument('--skip_phonemization', action='store_true')
+# parser.add_argument('--skip_phonemization', action='store_true')
 parser.add_argument('--skip_mels', action='store_true')
 
 args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 
-phonemized_flag = args.skip_phonemization  # If the input is already in the form of phonemes, this flag will be set (User wanting to skip phonemization indicates that the input is already phonemized)
+# phonemized_flag = args.skip_phonemization  # If the input is already in the form of phonemes, this flag will be set (User wanting to skip phonemization indicates that the input is already phonemized)
 
 cm = TrainingConfigManager(args.config, aligner=True)
 cm.create_remove_dirs()
+#phonemized_flag = not cm.config['phoneme_language']  # a value of None means the data is pre-phonemized 
 metadatareader = DataReader.from_config(cm, kind='original', scan_wavs=True)
 summary_manager = SummaryManager(model=None, log_dir=cm.log_dir / 'data_preprocessing', config=cm.config,
                                  default_writer='data_preprocessing')
@@ -125,7 +126,7 @@ test_metadata_path = cm.valid_metadata_path
 print(f'\nReading metadata from {metadatareader.metadata_path}')
 print(f'\nFound {len(metadatareader.filenames)} lines.')
 
-filter_metadata = get_short_files(phonemized=phonemized_flag)
+filter_metadata = get_short_files(phonemized=not cm.config['phoneme_language'])
 remove_files += filter_metadata
 print(f'\nRemoving {len(remove_files)} line(s) due to mel filtering.')
 metadata_file_ids = [fname for fname in cross_file_ids if fname not in remove_files]
@@ -148,7 +149,7 @@ text_proc = TextToTokens.default(cm.config['phoneme_language'], add_start_end=Fa
 def process_phonemes(file_id):
     text = metadatareader.text_dict[file_id]
     try:
-        phon = text_proc.phonemizer(text, only_preprocess=phonemized_flag)
+        phon = text_proc.phonemizer(text)  # , only_preprocess=phonemized_flag
     except Exception as e:
         print(f'{e}\nFile id {file_id}')
         raise BrokenPipeError
