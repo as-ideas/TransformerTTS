@@ -14,7 +14,7 @@ naming:
 
 # TRAINING DATA SETTINGS
 training_data_settings:
-  n_test: 2
+  n_test: 100
   mel_start_value: .5
   mel_end_value: -.5
   max_mel_len: 1_200
@@ -51,7 +51,7 @@ audio_settings:
 
 text_settings:
   # TOKENIZER
-  phoneme_language: 'de'           # use false if the input data is already phonemized
+  phoneme_language: 'en-us'           # use 'de' for german, use false if the input data is already phonemized
   with_stress: True                  # use stress symbols in phonemization
   model_breathing: false           # add a token for the initial breathing
 
@@ -78,8 +78,10 @@ aligner_settings:
     - [0, 1.0e-4]
   reduction_factor_schedule:
     - [0, 10]
-    - [5_000, 1]
-  max_steps: 8_000
+    - [80_000, 5]
+    - [100_000, 2]
+    - [130_000, 1]
+  max_steps: 260_000
   force_encoder_diagonal_steps: 500
   force_decoder_diagonal_steps: 7_000
   extract_attention_weighted: False # weighted average between last layer decoder attention heads when extracting durations
@@ -126,7 +128,7 @@ tts_settings:
   dropout_rate: 0.1
   learning_rate_schedule:
     - [0, 1.0e-4]
-  max_steps: 10_000
+  max_steps: 100_000
   debug: False
 
   # LOGGING
@@ -136,7 +138,7 @@ tts_settings:
   weights_save_starting_step: 5_000
   train_images_plotting_frequency: 1_000
   keep_n_weights: 5
-  keep_checkpoint_every_n_hours: 1
+  keep_checkpoint_every_n_hours: 12
   n_steps_avg_losses: [100, 500, 1_000, 5_000]  # command line display of average loss values for the last n steps
   prediction_start_step: 4_000
   text_prediction:
