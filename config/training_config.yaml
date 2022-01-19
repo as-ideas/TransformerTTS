@@ -1,9 +1,9 @@
 paths:
   # PATHS: change accordingly
-  wav_directory: '/Users/tjain1/Desktop/Projects/tts/data/ASVoice4_incl_english' # '/Users/tjain1/Desktop/Projects/tts/data/data_small'  # path to directory cointaining the wavs
-  metadata_path: '/Users/tjain1/Desktop/Projects/tts/data/metadata_flagged_phonemized_bind_nostress.csv' # '/Users/tjain1/Desktop/Projects/tts/data/ph_metadata_small.csv' # # name of metadata file under wav_directory
-  log_directory: '/Users/tjain1/Desktop/Projects/tts/results/logs_txtts_ph_dev_small'   # weights and logs are stored here
-  train_data_directory: '/Users/tjain1/Desktop/Projects/tts/results/logs_txtts_ph_dev_small/transformer_tts_data'   # training data is stored here
+  wav_directory: '/path/to/wav_directory'  # path to directory cointaining the wavs
+  metadata_path: '/path/to/metadata.csv' # name of metadata file under wav_directory
+  log_directory: '/path/to/logs_directory'   # weights and logs are stored here
+  train_data_directory: 'transformer_tts_data'   # training data is stored here
 
 naming:
   data_name: ljspeech # raw data naming for default data reader (select function from data/metadata_readers.py)
