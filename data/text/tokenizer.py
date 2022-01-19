@@ -33,7 +33,7 @@ class Tokenizer:
             self.breathing_token = '@'
             self.idx_to_token[self.breathing_token_index] = self.breathing_token
             self.token_to_idx[self.breathing_token] = [self.breathing_token_index]
-    
+
     def __call__(self, sentence: str) -> list:
         sequence = [self.token_to_idx[c] for c in sentence]  # No filtering: text should only contain known chars.
         sequence = [item for items in sequence for item in items]
@@ -62,16 +62,19 @@ class Phonemizer:
         njobs = njobs or self.njobs
         with_stress = with_stress or self.with_stress
         # phonemizer does not like hyphens.
-        text = self._preprocess(text)
-        phonemes = phonemize(text,
-                             language=language,
-                             backend='espeak',
-                             strip=True,
-                             preserve_punctuation=True,
-                             with_stress=with_stress,
-                             punctuation_marks=self.punctuation,
-                             njobs=njobs,
-                             language_switch='remove-flags')
+        if language:
+            text = self._preprocess(text)
+            phonemes = phonemize(text,
+                                language=language,
+                                backend='espeak',
+                                strip=True,
+                                preserve_punctuation=True,
+                                with_stress=with_stress,
+                                punctuation_marks=self.punctuation,
+                                njobs=njobs,
+                                language_switch='remove-flags')
+        else:
+            phonemes = text
         return self._postprocess(phonemes)
     
     def _preprocess_string(self, text: str):

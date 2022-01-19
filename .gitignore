@@ -137,3 +137,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+.ljspeech
+
+# custom
+outputs

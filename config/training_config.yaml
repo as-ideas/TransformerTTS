@@ -1,7 +1,7 @@
 paths:
   # PATHS: change accordingly
-  wav_directory: '/path/to/wav_directory' # path to directory cointaining the wavs
-  metadata_path: '/path/to/metadata.csv'  # name of metadata file under wav_directory
+  wav_directory: '/path/to/wav_directory'  # path to directory cointaining the wavs
+  metadata_path: '/path/to/metadata.csv' # name of metadata file under wav_directory
   log_directory: '/path/to/logs_directory'   # weights and logs are stored here
   train_data_directory: 'transformer_tts_data'   # training data is stored here
 
@@ -51,7 +51,7 @@ audio_settings:
 
 text_settings:
   # TOKENIZER
-  phoneme_language: 'en-us'
+  phoneme_language: 'en-us'           # use 'de' for german, use false if the input data is already phonemized
   with_stress: True                  # use stress symbols in phonemization
   model_breathing: false           # add a token for the initial breathing
 

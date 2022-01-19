@@ -42,7 +42,7 @@ if __name__ == '__main__':
     outdir = outdir / 'outputs' / f'{fname}'
     outdir.mkdir(exist_ok=True, parents=True)
     output_path = (outdir / file_name).with_suffix('.wav')
-    audio = Audio.from_config(model.config)
+    audio = Audio.from_config(model.config) 
     print(f'Output wav under {output_path.parent}')
     wavs = []
     for i, text_line in enumerate(text):
