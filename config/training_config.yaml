@@ -51,7 +51,7 @@ audio_settings:
 
 text_settings:
   # TOKENIZER
-  phoneme_language: 'de' #false
+  phoneme_language: 'de'           # use false if the input data is already phonemized
   with_stress: True                  # use stress symbols in phonemization
   model_breathing: false           # add a token for the initial breathing
 

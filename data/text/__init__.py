@@ -9,8 +9,8 @@ class TextToTokens:
         self.phonemizer = phonemizer
         self.tokenizer = tokenizer
     
-    def __call__(self, input_text: Union[str, list]) -> list: # , only_preprocess=False
-        phons = self.phonemizer(input_text) # , only_preprocess=only_preprocess
+    def __call__(self, input_text: Union[str, list]) -> list:
+        phons = self.phonemizer(input_text)
         tokens = self.tokenizer(phons)
         return tokens
     

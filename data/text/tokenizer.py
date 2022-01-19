@@ -33,7 +33,7 @@ class Tokenizer:
             self.breathing_token = '@'
             self.idx_to_token[self.breathing_token_index] = self.breathing_token
             self.token_to_idx[self.breathing_token] = [self.breathing_token_index]
-    
+
     def __call__(self, sentence: str) -> list:
         sequence = [self.token_to_idx[c] for c in sentence]  # No filtering: text should only contain known chars.
         sequence = [item for items in sequence for item in items]
@@ -57,7 +57,7 @@ class Phonemizer:
         self._whitespace_re = re.compile(r'\s+')
         self._whitespace_punctuation_re = re.compile(f'\s*([{_punctuations}])\s*')
     
-    def __call__(self, text: Union[str, list], with_stress=None, njobs=None, language=None) -> Union[str, list]: # , only_preprocess=False
+    def __call__(self, text: Union[str, list], with_stress=None, njobs=None, language=None) -> Union[str, list]:
         language = language or self.language
         njobs = njobs or self.njobs
         with_stress = with_stress or self.with_stress

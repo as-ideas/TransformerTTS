@@ -16,18 +16,14 @@ np.random.seed(42)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--config', type=str, required=True)
-# parser.add_argument('--skip_phonemization', action='store_true')
 parser.add_argument('--skip_mels', action='store_true')
 
 args = parser.parse_args()
 for arg in vars(args):
     print('{}: {}'.format(arg, getattr(args, arg)))
 
-# phonemized_flag = args.skip_phonemization  # If the input is already in the form of phonemes, this flag will be set (User wanting to skip phonemization indicates that the input is already phonemized)
-
 cm = TrainingConfigManager(args.config, aligner=True)
 cm.create_remove_dirs()
-#phonemized_flag = not cm.config['phoneme_language']  # a value of None means the data is pre-phonemized 
 metadatareader = DataReader.from_config(cm, kind='original', scan_wavs=True)
 summary_manager = SummaryManager(model=None, log_dir=cm.log_dir / 'data_preprocessing', config=cm.config,
                                  default_writer='data_preprocessing')
@@ -101,6 +97,7 @@ if not args.skip_mels:
     summary_manager.display_scalar('Total duration (hours)',
                                    scalar_value=total_wav_len / audio.config['sampling_rate'] / 60. ** 2)
     
+
 def get_short_files(phonemized=False):
     if not phonemized:
         symbol_list = _alphabet
@@ -118,6 +115,7 @@ def get_short_files(phonemized=False):
         for fname in filter_metadata:
             print(f'{fname}: {metadatareader.text_dict[fname]}')
     return filter_metadata
+
 
 remove_files = pickle.load(open(cm.data_dir / 'under-over_sized_mels.pkl', 'rb'))
 phonemized_metadata_path = cm.phonemized_metadata_path
@@ -141,15 +139,17 @@ print(f' - {train_len} training lines: {train_metadata_path}')
 print(f' - {test_len} validation lines: {test_metadata_path}')
 
 # run cleaner on raw text
-text_proc = TextToTokens.default(cm.config['phoneme_language'], add_start_end=False,
-                                    with_stress=cm.config['with_stress'], model_breathing=cm.config['model_breathing'],
-                                    njobs=1)
+text_proc = TextToTokens.default(cm.config['phoneme_language'],
+                                 add_start_end=False,
+                                 with_stress=cm.config['with_stress'],
+                                 model_breathing=cm.config['model_breathing'],
+                                 njobs=1)
 
 
 def process_phonemes(file_id):
     text = metadatareader.text_dict[file_id]
     try:
-        phon = text_proc.phonemizer(text)  # , only_preprocess=phonemized_flag
+        phon = text_proc.phonemizer(text)
     except Exception as e:
         print(f'{e}\nFile id {file_id}')
         raise BrokenPipeError
